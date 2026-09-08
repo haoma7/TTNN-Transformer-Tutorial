@@ -20,7 +20,6 @@
       --ink: #16202B;
       --ink-soft: #5A6B7A;
       --rule: #D6DEE5;
-      --chip-bg: #EAF0F4;
       --h1c: #2E6F8E;
       --h2c: #B07D1A;
       --accent: #7D4A72;
@@ -45,7 +44,6 @@
         --ink: #E3E9EE;
         --ink-soft: #93A3B1;
         --rule: #2A3644;
-        --chip-bg: #1E2833;
         --h1c: #6FB6D4;
         --h2c: #D9AC4E;
         --accent: #C08FB6;
@@ -318,62 +316,11 @@
       font-size: .95em
     }
 
-    /* ---------- meta strip ---------- */
-    .meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: .5rem;
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 12px;
+    /* ---------- the figure of digits ---------- */
+    figure.hero {
       margin: 0 0 2.4rem;
       padding-bottom: 2.4rem;
       border-bottom: 1px solid var(--rule)
-    }
-
-    .meta span,
-    .meta a {
-      background: var(--chip-bg);
-      border: 1px solid var(--rule);
-      border-radius: 3px;
-      padding: .22em .6em;
-      color: var(--ink-soft);
-      text-decoration: none;
-      letter-spacing: .02em
-    }
-
-    .meta a {
-      color: var(--h1c)
-    }
-
-    .meta a:hover {
-      border-color: var(--h1c)
-    }
-
-    .meta .key {
-      color: var(--ink-soft);
-      opacity: .75;
-      text-transform: uppercase;
-      letter-spacing: .1em;
-      font-size: .85em
-    }
-
-    /* ---------- chip ---------- */
-    .chip {
-      font-family: "IBM Plex Mono", monospace;
-      font-size: .74em;
-      white-space: nowrap;
-      background: var(--chip-bg);
-      color: var(--ink-soft);
-      border: 1px solid var(--rule);
-      border-radius: 3px;
-      padding: .12em .45em;
-      letter-spacing: .02em;
-      vertical-align: .08em
-    }
-
-    /* ---------- the figure of digits ---------- */
-    figure.hero {
-      margin: 0 0 2.2rem
     }
 
     .plate {
@@ -766,13 +713,6 @@
           number by number. Go close enough to any plate of his armour and there is nothing there but digits. The
           model these eleven pages take apart is made the same way.</figcaption>
       </figure>
-
-      <div class="meta">
-        <span><span class="key">parts</span>&nbsp; 11</span>
-        <span><span class="key">figures</span>&nbsp; 117</span>
-        <span><span class="key">example</span>&nbsp; I love LLMs &#8594; J&#8217;aime les grands mod&#232;les</span>
-        <span><span class="key">source</span>&nbsp; Vaswani and others, 2017</span>
-      </div>
 
       <h2 id="s1"><span class="num">01</span>What this is</h2>
 
