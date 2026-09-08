@@ -1,1 +1,943 @@
+<!doctype html>
+<html lang="en">
 
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The Transformer, Number by Number — a tutorial series in eleven parts</title>
+  <meta name="description"
+    content="The Transformer, Number by Number. Every step of the transformer from Attention Is All You Need, worked out by hand on one three-word sentence. Eleven parts, 117 figures, every intermediate number printed.">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+
+  <style>
+    :root {
+      --paper: #FBFCFD;
+      --panel: #F2F5F8;
+      --ink: #16202B;
+      --ink-soft: #5A6B7A;
+      --rule: #D6DEE5;
+      --chip-bg: #EAF0F4;
+      --h1c: #2E6F8E;
+      --h2c: #B07D1A;
+      --accent: #7D4A72;
+      --fig-fill: #FFFFFF;
+      --fig-grid: #E4EAEF;
+
+      /* the figure of digits: one token per part of the armour */
+      --tf-gap: var(--fig-fill);
+      --tf-haze: #E3EAF0;
+      --tf-red: #B0443B;
+      --tf-blue: var(--h1c);
+      --tf-steel: #62717D;
+      --tf-cyan: #12867F;
+      --tf-gold: var(--h2c);
+      --tf-edge: #16202B;
+    }
+
+    @media (prefers-color-scheme:dark) {
+      :root {
+        --paper: #101720;
+        --panel: #18212C;
+        --ink: #E3E9EE;
+        --ink-soft: #93A3B1;
+        --rule: #2A3644;
+        --chip-bg: #1E2833;
+        --h1c: #6FB6D4;
+        --h2c: #D9AC4E;
+        --accent: #C08FB6;
+        --fig-fill: #18212C;
+        --fig-grid: #243040;
+
+        --tf-gap: var(--fig-fill);
+        --tf-haze: #212C39;
+        --tf-red: #D9756B;
+        --tf-blue: var(--h1c);
+        --tf-steel: #93A3B1;
+        --tf-cyan: #63D6D0;
+        --tf-gold: var(--h2c);
+        --tf-edge: #E3E9EE;
+      }
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 2rem
+    }
+
+    @media (prefers-reduced-motion:reduce) {
+      html {
+        scroll-behavior: auto
+      }
+    }
+
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: "Source Serif 4", Georgia, serif;
+      font-size: 18px;
+      line-height: 1.72;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ---------- layout ---------- */
+    .wrap {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 246px;
+      gap: 3rem;
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 0 1.5rem
+    }
+
+    .main {
+      grid-column: 1;
+      grid-row: 1;
+      max-width: 720px;
+      padding: 3.5rem 0 6rem
+    }
+
+    /* ---------- sidebar / table of contents ---------- */
+    .toc {
+      grid-column: 2;
+      grid-row: 1;
+      position: sticky;
+      top: 50%;
+      transform: translateY(-50%);
+      align-self: start;
+      max-height: 88vh;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding: .2rem 0;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12.5px
+    }
+
+    .mark {
+      border: 1px solid var(--rule);
+      border-radius: 5px;
+      padding: .9rem .85rem 1rem;
+      margin-bottom: 1.8rem;
+      background-color: var(--fig-fill);
+      background-image: linear-gradient(var(--fig-grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--fig-grid) 1px, transparent 1px);
+      background-size: 22px 22px
+    }
+
+    .mark .wm-big {
+      display: block;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 30px;
+      font-weight: 500;
+      letter-spacing: .06em;
+      line-height: 1.1;
+      color: var(--h1c)
+    }
+
+    .mark .wm-small {
+      display: block;
+      margin-top: .45rem;
+      font-size: 11px;
+      line-height: 1.5;
+      color: var(--ink-soft)
+    }
+
+    .mark .wm-rule {
+      display: block;
+      height: 1px;
+      background: var(--rule);
+      margin: .7rem 0 .55rem
+    }
+
+    .mark .wm-author {
+      display: block;
+      font-size: 12.5px;
+      font-weight: 500;
+      letter-spacing: .02em;
+      color: var(--h1c);
+      text-decoration: none
+    }
+
+    .mark .wm-author:hover {
+      text-decoration: underline
+    }
+
+    .mark .wm-count {
+      display: block;
+      margin-top: .2rem;
+      font-size: 10.5px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--ink-soft)
+    }
+
+    .toc-label {
+      text-transform: uppercase;
+      letter-spacing: .13em;
+      font-size: 10.5px;
+      color: var(--ink-soft);
+      margin-bottom: 1rem
+    }
+
+    .toc a {
+      display: block;
+      padding: .34rem 0 .34rem .8rem;
+      color: var(--ink-soft);
+      text-decoration: none;
+      border-left: 2px solid var(--rule);
+      line-height: 1.45
+    }
+
+    .toc a:hover {
+      color: var(--ink)
+    }
+
+    .toc a.lvl2 {
+      padding-left: 1.7rem
+    }
+
+    .toc a.on {
+      color: var(--h1c);
+      border-left-color: var(--h1c)
+    }
+
+    .toc a:focus-visible {
+      outline: 2px solid var(--h1c);
+      outline-offset: 2px
+    }
+
+    /* ---------- type ---------- */
+    .eyebrow {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11.5px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+      margin-bottom: 1.1rem
+    }
+
+    h1 {
+      font-family: Fraunces, serif;
+      font-weight: 600;
+      font-size: 2.55rem;
+      line-height: 1.14;
+      letter-spacing: -.015em;
+      margin: 0 0 .9rem
+    }
+
+    .standfirst {
+      color: var(--ink-soft);
+      font-size: 1.06rem;
+      margin: 0 0 1.5rem
+    }
+
+    .byline {
+      display: flex;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: .25rem .8rem;
+      margin: 0 0 1.8rem;
+      padding-left: .9rem;
+      border-left: 3px solid var(--h1c)
+    }
+
+    .byline .name {
+      font-family: Fraunces, serif;
+      font-size: 1.3rem;
+      font-weight: 600;
+      letter-spacing: -.01em;
+      color: var(--ink);
+      text-decoration: none
+    }
+
+    .byline .site {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12.5px;
+      letter-spacing: .02em;
+      color: var(--h1c);
+      text-decoration: none
+    }
+
+    .byline .name:hover,
+    .byline .site:hover {
+      text-decoration: underline
+    }
+
+    h2 {
+      font-family: Fraunces, serif;
+      font-weight: 600;
+      font-size: 1.62rem;
+      letter-spacing: -.01em;
+      margin: 3.4rem 0 1rem
+    }
+
+    h3 {
+      font-family: Fraunces, serif;
+      font-weight: 400;
+      font-size: 1.2rem;
+      margin: 2.4rem 0 .7rem
+    }
+
+    h2 .num,
+    h3 .num {
+      font-family: "IBM Plex Mono", monospace;
+      font-weight: 400;
+      color: var(--h1c);
+      font-size: .72em;
+      margin-right: .6em
+    }
+
+    p {
+      margin: 0 0 1.15rem
+    }
+
+    a {
+      color: var(--h1c)
+    }
+
+    ul {
+      margin: 0 0 1.15rem;
+      padding-left: 1.15rem
+    }
+
+    li {
+      margin-bottom: .5rem
+    }
+
+    li ul {
+      margin: .45rem 0 .2rem;
+      color: var(--ink-soft);
+      font-size: .95em
+    }
+
+    /* ---------- meta strip ---------- */
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      margin: 0 0 2.4rem;
+      padding-bottom: 2.4rem;
+      border-bottom: 1px solid var(--rule)
+    }
+
+    .meta span,
+    .meta a {
+      background: var(--chip-bg);
+      border: 1px solid var(--rule);
+      border-radius: 3px;
+      padding: .22em .6em;
+      color: var(--ink-soft);
+      text-decoration: none;
+      letter-spacing: .02em
+    }
+
+    .meta a {
+      color: var(--h1c)
+    }
+
+    .meta a:hover {
+      border-color: var(--h1c)
+    }
+
+    .meta .key {
+      color: var(--ink-soft);
+      opacity: .75;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      font-size: .85em
+    }
+
+    /* ---------- chip ---------- */
+    .chip {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: .74em;
+      white-space: nowrap;
+      background: var(--chip-bg);
+      color: var(--ink-soft);
+      border: 1px solid var(--rule);
+      border-radius: 3px;
+      padding: .12em .45em;
+      letter-spacing: .02em;
+      vertical-align: .08em
+    }
+
+    /* ---------- the figure of digits ---------- */
+    figure.hero {
+      margin: 0 0 2.2rem
+    }
+
+    .plate {
+      border: 1px solid var(--rule);
+      border-radius: 5px;
+      background: var(--fig-fill);
+      padding: .8rem .8rem .4rem;
+      text-align: center
+    }
+
+    .plate svg {
+      display: block;
+      width: 100%;
+      max-width: 520px;
+      height: auto;
+      margin: 0 auto
+    }
+
+    figcaption {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11.5px;
+      line-height: 1.7;
+      color: var(--ink-soft);
+      margin-top: .7rem
+    }
+
+    /* ---------- part list ---------- */
+    .entry {
+      padding: 1rem 0;
+      border-bottom: 1px solid var(--rule)
+    }
+
+    .entry:first-of-type {
+      padding-top: .3rem
+    }
+
+    .entry .top {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 1rem;
+      flex-wrap: wrap
+    }
+
+    .entry .what {
+      font-weight: 600
+    }
+
+    .entry .what a {
+      text-decoration: none
+    }
+
+    .entry .what a:hover {
+      text-decoration: underline
+    }
+
+    .entry .where,
+    .entry .note {
+      color: var(--ink-soft)
+    }
+
+    .entry .note {
+      font-size: .94em;
+      margin-top: .3rem
+    }
+
+    /* ---------- collapsible cards ---------- */
+    details.card {
+      background: var(--panel);
+      border-left: 3px solid var(--h1c);
+      border-radius: 0 4px 4px 0;
+      margin: 1.2rem 0
+    }
+
+    details.card+details.card {
+      border-left-color: var(--accent)
+    }
+
+    details.card>summary {
+      list-style: none;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 1rem;
+      padding: .95rem 1.3rem;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+      color: var(--h1c)
+    }
+
+    details.card+details.card>summary {
+      color: var(--accent)
+    }
+
+    details.card>summary::-webkit-details-marker {
+      display: none
+    }
+
+    details.card>summary::after {
+      content: "+";
+      font-size: 15px;
+      color: var(--ink-soft)
+    }
+
+    details.card[open]>summary::after {
+      content: "\2212"
+    }
+
+    details.card>summary:focus-visible {
+      outline: 2px solid var(--h1c);
+      outline-offset: -2px
+    }
+
+    .card-body {
+      padding: 0 1.3rem 1.1rem;
+      font-size: .96em
+    }
+
+    .card-body>*:first-child {
+      margin-top: 0
+    }
+
+    /* ---------- footer ---------- */
+    footer {
+      margin-top: 5rem;
+      padding-top: 1.6rem;
+      border-top: 1px solid var(--rule);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11.5px;
+      line-height: 1.9;
+      color: var(--ink-soft)
+    }
+
+    /* ---------- responsive ---------- */
+    @media (max-width:900px) {
+      .wrap {
+        grid-template-columns: 1fr;
+        gap: 0
+      }
+
+      .toc {
+        grid-column: 1;
+        grid-row: 1;
+        position: static;
+        top: auto;
+        transform: none;
+        max-height: none;
+        padding: 2rem 0 1.4rem;
+        border-bottom: 1px solid var(--rule)
+      }
+
+      .main {
+        grid-column: 1;
+        grid-row: 2
+      }
+
+      .mark {
+        max-width: 230px;
+        margin-bottom: 1.4rem
+      }
+
+      .toc-nav {
+        columns: 2;
+        column-gap: 1.2rem
+      }
+
+      .main {
+        padding-top: 2rem
+      }
+
+      h1 {
+        font-size: 2rem
+      }
+
+      body {
+        font-size: 17px
+      }
+
+      .plate svg {
+        max-width: 320px
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <nav class="toc">
+      <div class="mark">
+        <span class="wm-big">TTNN</span>
+        <span class="wm-small">The Transformer,<br>Number by Number</span>
+        <span class="wm-rule"></span>
+        <a class="wm-author" href="https://haoma7.github.io" target="_blank"
+          rel="noopener noreferrer">Hao Ma &#8599;</a>
+        <span class="wm-count">11 parts &nbsp;&#183;&nbsp; 117 figures</span>
+      </div>
+
+      <div class="toc-nav">
+        <div class="toc-label">Contents</div>
+        <a href="#s1">01&nbsp;&nbsp;What this is</a>
+        <a href="#s2">02&nbsp;&nbsp;How to read it</a>
+        <a href="#s3">03&nbsp;&nbsp;The eleven parts</a>
+        <a href="#p0" class="lvl2">0&nbsp;&nbsp;Tokenisation</a>
+        <a href="#p1" class="lvl2">1&nbsp;&nbsp;Self-attention</a>
+        <a href="#p2" class="lvl2">2&nbsp;&nbsp;Multi-head attention</a>
+        <a href="#p3" class="lvl2">3&nbsp;&nbsp;Word order is lost</a>
+        <a href="#p4" class="lvl2">4&nbsp;&nbsp;Positional encoding</a>
+        <a href="#p5" class="lvl2">5&nbsp;&nbsp;The encoder block</a>
+        <a href="#p6" class="lvl2">6&nbsp;&nbsp;The decoder writes</a>
+        <a href="#p7" class="lvl2">7&nbsp;&nbsp;Cross-attention</a>
+        <a href="#p8" class="lvl2">8&nbsp;&nbsp;The two masks</a>
+        <a href="#p9" class="lvl2">9&nbsp;&nbsp;Training</a>
+        <a href="#p10" class="lvl2">10&nbsp;&nbsp;Choosing the word</a>
+      </div>
+    </nav>
+
+    <main class="main">
+      <div class="eyebrow">A tutorial series &nbsp;&#183;&nbsp; Eleven parts</div>
+      <h1>The Transformer, Number by Number</h1>
+      <p class="standfirst">Every step of the transformer worked out by hand on one three-word sentence. No step is
+        skipped, and every number in between is printed on the page.</p>
+
+      <p class="byline">
+        <a class="name" href="https://haoma7.github.io" target="_blank" rel="noopener noreferrer">Hao Ma</a>
+        <a class="site" href="https://haoma7.github.io" target="_blank"
+          rel="noopener noreferrer">haoma7.github.io &#8599;</a>
+      </p>
+
+      <figure class="hero">
+        <div class="plate">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="-70 60 760 800" width="100%" height="100%"
+               role="img"
+               aria-label="Optimus Prime drawn entirely out of digits: the armour plates are filled with rows of numbers instead of solid colour">
+            <defs>
+              <!-- 发光滤镜 -->
+              <filter id="glow-cyan" x="-30%" y="-30%" width="160%" height="160%">
+                <feGaussianBlur stdDeviation="8" result="blur" />
+                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+              </filter>
+
+              <!-- 核心高密度数字阵列模板 -->
+              <g id="num-block">
+                <text font-family="'Courier New', monospace" font-size="12" font-weight="900">
+                  <tspan x="0" y="12">0192837465019283</tspan>
+                  <tspan x="0" y="24">8475639201847563</tspan>
+                  <tspan x="0" y="36">2938475610293847</tspan>
+                  <tspan x="0" y="48">5748392019574839</tspan>
+                  <tspan x="0" y="60">1029384756102938</tspan>
+                  <tspan x="0" y="72">6574839201657483</tspan>
+                  <tspan x="0" y="84">3847561029384756</tspan>
+                  <tspan x="0" y="96">9283746501928374</tspan>
+                </text>
+              </g>
+
+              <!-- 各部位颜色数字纹理 -->
+              <pattern id="red-nums" width="115" height="100" patternUnits="userSpaceOnUse" patternTransform="rotate(2)">
+                <use href="#num-block" fill="var(--tf-red)" />
+              </pattern>
+              <pattern id="blue-nums" width="115" height="100" patternUnits="userSpaceOnUse" patternTransform="rotate(-2)">
+                <use href="#num-block" fill="var(--tf-blue)" />
+              </pattern>
+              <pattern id="silver-nums" width="115" height="100" patternUnits="userSpaceOnUse" patternTransform="rotate(1)">
+                <use href="#num-block" fill="var(--tf-steel)" />
+              </pattern>
+              <pattern id="cyan-nums" width="115" height="100" patternUnits="userSpaceOnUse" patternTransform="rotate(0)">
+                <use href="#num-block" fill="var(--tf-cyan)" />
+              </pattern>
+              <pattern id="yellow-nums" width="115" height="100" patternUnits="userSpaceOnUse">
+                <use href="#num-block" fill="var(--tf-gold)" />
+              </pattern>
+              <pattern id="weapon-nums" width="115" height="100" patternUnits="userSpaceOnUse" patternTransform="rotate(15)">
+                <use href="#num-block" fill="var(--tf-edge)" />
+              </pattern>
+              <pattern id="bg-nums" width="115" height="100" patternUnits="userSpaceOnUse">
+                <use href="#num-block" fill="var(--tf-haze)" />
+              </pattern>
+            </defs>
+
+            <!-- 背景渲染 -->
+            <rect x="-70" y="60" width="760" height="800" fill="url(#bg-nums)" />
+
+            <!-- 机甲拼装区 -->
+            <g stroke="var(--tf-gap)" stroke-width="2.5">
+    
+              <!-- === 腿部 === -->
+              <polygon points="360,510 310,510 270,650 330,650" fill="url(#silver-nums)"/>
+              <polygon points="345,650 255,650 210,820 330,820" fill="url(#blue-nums)"/>
+              <polygon points="340,630 280,630 265,680 335,680" fill="url(#silver-nums)"/>
+              <polygon points="440,510 490,510 530,650 470,650" fill="url(#silver-nums)"/>
+              <polygon points="455,650 545,650 590,820 470,820" fill="url(#blue-nums)"/>
+              <polygon points="460,630 520,630 535,680 465,680" fill="url(#silver-nums)"/>
+
+              <!-- === 躯干 === -->
+              <polygon points="330,440 470,440 440,510 360,510" fill="url(#blue-nums)"/>
+              <polygon points="390,440 410,440 420,490 380,490" fill="url(#yellow-nums)"/>
+              <polygon points="340,340 460,340 440,440 360,440" fill="url(#silver-nums)"/>
+              <line x1="344" y1="360" x2="456" y2="360" stroke="var(--tf-gap)" stroke-width="2"/>
+              <line x1="348" y1="380" x2="452" y2="380" stroke="var(--tf-gap)" stroke-width="2"/>
+              <line x1="352" y1="400" x2="448" y2="400" stroke="var(--tf-gap)" stroke-width="2"/>
+              <line x1="356" y1="420" x2="444" y2="420" stroke="var(--tf-gap)" stroke-width="2"/>
+              <polygon points="310,210 490,210 470,340 330,340" fill="url(#red-nums)"/>
+              <polygon points="390,210 410,210 410,230 390,230" fill="url(#silver-nums)"/>
+              <polygon points="325,230 395,230 395,320 340,320" fill="url(#cyan-nums)" filter="url(#glow-cyan)"/>
+              <polygon points="405,230 475,230 460,320 405,320" fill="url(#cyan-nums)" filter="url(#glow-cyan)"/>
+
+              <!-- === 头部 === -->
+              <polygon points="380,190 420,190 420,210 380,210" fill="url(#silver-nums)"/>
+              <polygon points="357,110 363,110 363,170 357,170" fill="url(#blue-nums)"/>
+              <polygon points="353,170 367,170 367,190 353,190" fill="url(#blue-nums)"/>
+              <polygon points="443,110 437,110 437,170 443,170" fill="url(#blue-nums)"/>
+              <polygon points="447,170 433,170 433,190 447,190" fill="url(#blue-nums)"/>
+              <path d="M 365,135 Q 400,90 435,135 Z" fill="url(#blue-nums)"/>
+              <polygon points="392,95 408,95 412,135 388,135" fill="url(#blue-nums)"/>
+              <polygon points="370,135 430,135 415,148 385,148" fill="url(#blue-nums)"/>
+              <polygon points="365,135 380,135 380,165 372,205 360,205" fill="url(#blue-nums)"/>
+              <polygon points="435,135 420,135 420,165 428,205 440,205" fill="url(#blue-nums)"/>
+              <polygon points="370,146 398,151 395,165 370,162" fill="var(--tf-gap)"/>
+              <polygon points="430,146 402,151 405,165 430,162" fill="var(--tf-gap)"/>
+              <polygon points="375,149 396,154 394,162 377,159" fill="url(#cyan-nums)" filter="url(#glow-cyan)"/>
+              <polygon points="425,149 404,154 406,162 423,159" fill="url(#cyan-nums)" filter="url(#glow-cyan)"/>
+              <polygon points="385,165 415,165 410,205 400,215 390,205" fill="url(#silver-nums)"/>
+              <polygon points="398,165 402,165 402,212 398,212" fill="url(#silver-nums)" stroke="var(--tf-gap)" stroke-width="1.5"/>
+              <line x1="388" y1="175" x2="397" y2="175" stroke="var(--tf-gap)" stroke-width="2"/>
+              <line x1="389" y1="185" x2="397" y2="185" stroke="var(--tf-gap)" stroke-width="2"/>
+              <line x1="390" y1="195" x2="397" y2="195" stroke="var(--tf-gap)" stroke-width="2"/>
+              <line x1="412" y1="175" x2="403" y2="175" stroke="var(--tf-gap)" stroke-width="2"/>
+              <line x1="411" y1="185" x2="403" y2="185" stroke="var(--tf-gap)" stroke-width="2"/>
+              <line x1="410" y1="195" x2="403" y2="195" stroke="var(--tf-gap)" stroke-width="2"/>
+
+              <!-- === 左臂 (下垂) === -->
+              <polygon points="500,210 590,210 610,300 485,320" fill="url(#red-nums)"/>
+              <polygon points="510,320 580,300 590,410 530,420" fill="url(#silver-nums)"/>
+              <polygon points="525,415 595,405 610,540 540,550" fill="url(#blue-nums)"/>
+              <polygon points="545,550 605,540 595,600 545,600" fill="url(#blue-nums)"/>
+
+              <!-- ========================================== -->
+              <!-- 核心修改区：图层反转与武器平移 -->
+              <!-- ========================================== -->
+
+              <!-- 第一层：超大型发光离子爆能枪 (置于底层，被手臂遮挡) -->
+              <!-- 坐标系整体向左下方平移，使得枪体刚好从右臂下方/左侧伸出 -->
+              <g id="weapon-blaster" stroke="var(--tf-cyan)" stroke-width="2.5">
+                <!-- 枪托 -->
+                <polygon points="144,387 159,399 119,449 104,437" fill="url(#weapon-nums)"/>
+                <!-- 瞄准镜 -->
+                <polygon points="73,445 83,453 43,503 33,495" fill="url(#silver-nums)"/>
+                <!-- 巨型主机匣 -->
+                <polygon points="99,433 124,453 60,533 35,513" fill="url(#weapon-nums)"/>
+                <!-- 机匣侧板 -->
+                <polygon points="90,445 110,461 55,520 35,504" fill="url(#silver-nums)"/>
+                <!-- 巨型下挂弹匣 (刚好在手腕下方突出) -->
+                <polygon points="92,493 122,517 106,537 76,513" fill="url(#weapon-nums)"/>
+                <!-- 弹匣发光能量核心 -->
+                <polygon points="97,505 112,517 102,529 87,517" fill="url(#cyan-nums)" filter="url(#glow-cyan)"/>
+                <!-- 枪管粗段 -->
+                <polygon points="45,521 55,529 23,569 13,561" fill="url(#weapon-nums)"/>
+                <!-- 枪管细段 -->
+                <polygon points="15,563 20,567 -12,607 -17,603" fill="url(#silver-nums)"/>
+                <!-- 枪口消焰器 -->
+                <polygon points="-22,599 -7,611 -23,631 -38,619" fill="url(#weapon-nums)"/>
+                <!-- 射击火控激光束 -->
+                <circle cx="-31" cy="625" r="28" fill="url(#cyan-nums)" filter="url(#glow-cyan)" stroke="none"/>
+                <line x1="-151" y1="775" x2="-31" y2="625" stroke="var(--tf-cyan)" stroke-width="18" stroke-dasharray="25,12" filter="url(#glow-cyan)" opacity="0.95"/>
+              </g>
+
+              <!-- 第二层：完整的右臂装甲 (置于顶层，完全展现在读者面前) -->
+              <!-- 肩甲 -->
+              <polygon points="300,210 210,210 190,300 315,320" fill="url(#red-nums)"/>
+    
+              <!-- 大臂 (直臂共线) -->
+              <polygon points="275,320 225,280 160,350 215,395" fill="url(#silver-nums)"/>
+    
+              <!-- 小臂 (加宽加厚，完全覆盖枪械背部，展现手臂力量感) -->
+              <polygon points="215,395 160,350 90,440 145,485" fill="url(#blue-nums)"/>
+
+              <!-- 拳头 (覆盖在枪身与弹匣的交界处，表现从上方握住枪体) -->
+              <!-- 手背基座 -->
+              <polygon points="90,440 140,480 120,505 70,465" fill="url(#blue-nums)"/>
+              <!-- 手指装甲细节 -->
+              <polygon points="80,455 125,490 115,502 70,467" fill="url(#silver-nums)"/>
+
+            </g>
+          </svg>
+        </div>
+        <figcaption><b>The series mark.</b> Optimus Prime is the other kind of transformer, and this one is built
+          number by number. Go close enough to any plate of his armour and there is nothing there but digits. The
+          model these eleven pages take apart is made the same way.</figcaption>
+      </figure>
+
+      <div class="meta">
+        <span><span class="key">parts</span>&nbsp; 11</span>
+        <span><span class="key">figures</span>&nbsp; 117</span>
+        <span><span class="key">example</span>&nbsp; I love LLMs &#8594; J&#8217;aime les grands mod&#232;les</span>
+        <span><span class="key">source</span>&nbsp; Vaswani and others, 2017</span>
+      </div>
+
+      <h2 id="s1"><span class="num">01</span>What this is</h2>
+
+      <p>A transformer is the architecture behind today&#8217;s large language models, and behind machine translation
+        before them. Most explanations of it stop at the diagram: a box marked <i>attention</i>, an arrow into a box
+        marked <i>feed-forward</i>. You reach the end and you still cannot say what number comes out of the first
+        box.</p>
+
+      <p>This series does the arithmetic instead. One sentence, <i>I love LLMs</i>, becomes a matrix of three rows
+        with four numbers in each row. That matrix then goes through every step of the model in <i>Attention Is
+        All You Need</i> (Vaswani and others, 2017). Every value in between is printed, and you can check any of them
+        with a pencil.</p>
+
+      <details class="card">
+        <summary>Who this is for</summary>
+        <div class="card-body">
+          <p>Someone who has met matrices before and wants to know what a transformer actually computes. A student
+            taking a first course on deep learning. An engineer who uses these models and would like to see inside
+            one. A reader who has tried the paper and stopped at Section 3.</p>
+          <p>You are assumed to be new to this subject, not new to everything. Terms specific to transformers are
+            defined where they first appear, and so is every symbol.</p>
+        </div>
+      </details>
+
+      <h2 id="s2"><span class="num">02</span>How to read it</h2>
+
+      <p>Start at Part 1 and read through to Part 10. Each part from Part 2 onward opens with a short paragraph naming
+        what it assumes, and which earlier section built each piece. You can tell in one look whether you are
+        ready.</p>
+
+      <p>Part 0 sits outside that order, and builds the matrix Part 1 starts from. Read it first, or leave it until
+        after Part 8. Nothing in Parts 1 to 8 depends on having read it.</p>
+
+      <p>You need matrix multiplication, transpose, and the dot product. Everything past that is built on the page:
+        softmax, layer normalisation, residual connections, the two masks, the loss, and the gradient.</p>
+
+      <h2 id="s3"><span class="num">03</span>The eleven parts</h2>
+
+      <div class="entry" id="p0">
+        <div class="top">
+          <span class="what"><a href="./TTNN-Part0-Tokenisation.html">Part 0 &#8212; How a Sentence Becomes
+              Numbers</a></span>
+        </div>
+        <div class="where">Eleven characters become tokens, tokens become id numbers, and id numbers become rows.
+          Byte-pair merges counted by hand, the three markers, and the embedding table.</div>
+      </div>
+
+      <div class="entry" id="p1">
+        <div class="top">
+          <span class="what"><a href="./TTNN-Part1-Self-Attention.html">Part 1 &#8212; Self-Attention</a></span>
+        </div>
+        <div class="where">What recurrence costs, what Query, Key and Value each are, and the whole attention formula
+          worked out on three words.</div>
+      </div>
+
+      <div class="entry" id="p2">
+        <div class="top">
+          <span class="what"><a href="./TTNN-Part2-Multihead-Attention.html">Part 2 &#8212; Multi-Head
+              Attention</a></span>
+        </div>
+        <div class="where">One head gives every token a single budget to spend. Why that is the wrong shape for
+          language, what splitting splits, and how many heads to use.</div>
+      </div>
+
+      <div class="entry" id="p3">
+        <div class="top">
+          <span class="what"><a href="./TTNN-Part3-Positional-Encoding-1.html">Part 3 &#8212; Why a Transformer Cannot
+              See Word Order</a></span>
+        </div>
+        <div class="where">Shuffle the sentence and the output rows only move with it. The proof that order is lost,
+          why no later layer can put it back, and why a plain counter fails.</div>
+      </div>
+
+      <div class="entry" id="p4">
+        <div class="top">
+          <span class="what"><a href="./TTNN-Part4-Positional-Encoding-2.html">Part 4 &#8212; How Positional Encoding
+              Works</a></span>
+        </div>
+        <div class="where">The sine and cosine formula worked by hand, where it is added, why it lets a model reason
+          about distance, and the rotary version that current models use instead.</div>
+      </div>
+
+      <div class="entry" id="p5">
+        <div class="top">
+          <span class="what"><a href="./TTNN-Part5-Encoder-Block.html">Part 5 &#8212; What Attention Needs Around
+              It</a></span>
+        </div>
+        <div class="where">Attention alone cannot answer a yes-or-no question about a row. The three things wrapped
+          around it &#8212; the residual addition, layer normalisation, the feed-forward network &#8212; and the
+          finished encoder block.</div>
+      </div>
+
+      <div class="entry" id="p6">
+        <div class="top">
+          <span class="what"><a href="./TTNN-Part6-Decoder-Inference.html">Part 6 &#8212; How the Decoder
+              Writes</a></span>
+        </div>
+        <div class="where">A row leaving the stack is not a word. The output head that turns one row into a word, the
+          loop that feeds the word back in, and the two markers the loop needs.</div>
+      </div>
+
+      <div class="entry" id="p7">
+        <div class="top">
+          <span class="what"><a href="./TTNN-Part7-Cross-Attention.html">Part 7 &#8212; Where the Encoder Stack Meets
+              the Decoder Stack</a></span>
+        </div>
+        <div class="where">Cross-attention is the step that carries the encoder&#8217;s rows into the decoder. One
+          such step worked by hand, the three sublayers of a decoder block, and the whole transformer in one figure.
+        </div>
+      </div>
+
+      <div class="entry" id="p8">
+        <div class="top">
+          <span class="what"><a href="./TTNN-Part8-Masks.html">Part 8 &#8212; What a Row Is Not Allowed to See</a></span>
+        </div>
+        <div class="where">On the second run the multiplication produces one score the rules forbid. The causal mask
+          that stops it counting, and the padding mask for sentences of different lengths sharing one batch.</div>
+      </div>
+
+      <div class="entry" id="p9">
+        <div class="top">
+          <span class="what"><a href="./TTNN-Part9-Training.html">Part 9 &#8212; How the Weights Are Corrected</a></span>
+        </div>
+        <div class="where">Every weight so far was written down by hand. Training is the correction: a sentence
+          somebody already wrote becomes a number, the number becomes a direction, and the direction changes every
+          weight.</div>
+      </div>
+
+      <div class="entry" id="p10">
+        <div class="top">
+          <span class="what"><a href="./TTNN-Part10-Generation.html">Part 10 &#8212; Choosing the Word</a></span>
+        </div>
+        <div class="where">Ten probabilities have to become one word. Greedy choosing, sampling, temperature, top-k
+          and top-p, beam search, when to stop, and what the KV cache saves.</div>
+      </div>
+
+      <footer>
+        The Transformer, Number by Number &nbsp;&#183;&nbsp; Eleven parts, 117 figures.<br>
+        Written by Hao Ma &nbsp;&#183;&nbsp;
+        <a href="https://haoma7.github.io" target="_blank" rel="noopener noreferrer">haoma7.github.io</a><br>
+        The model worked through is the one in Attention Is All You Need, Vaswani and others, 2017.<br>
+        Page last updated: September 2026
+      </footer>
+    </main>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+      var targets = links
+        .map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); })
+        .filter(Boolean);
+
+      var obs = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (!e.isIntersecting) return;
+          links.forEach(function (a) {
+            a.classList.toggle("on", a.getAttribute("href") === "#" + e.target.id);
+          });
+        });
+      }, { rootMargin: "0px 0px -70% 0px", threshold: 0 });
+
+      targets.forEach(function (t) { obs.observe(t); });
+    });
+  </script>
+</body>
+
+</html>
