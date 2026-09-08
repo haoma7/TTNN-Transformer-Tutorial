@@ -4,6 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="author" content="Hao Ma">
   <title>Self-Attention — The Transformer, Number by Number, Part 1 — Motivation, Q/K/V, and the Formula by Hand</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -476,6 +477,58 @@
       /* A figure must not sit beside a note; it needs the whole column. */
       figure { clear: right }
     }
+
+    /* ---------- home button and byline ---------- */
+    .homebar {
+      margin-bottom: 1.5rem
+    }
+
+    .homebar a {
+      display: inline-block;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11.5px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+      text-decoration: none;
+      background: var(--chip-bg);
+      border: 1px solid var(--rule);
+      border-radius: 999px;
+      padding: .36rem .9rem
+    }
+
+    .homebar a:hover {
+      color: var(--h1c);
+      border-color: var(--h1c)
+    }
+
+    .homebar a:focus-visible {
+      outline: 2px solid var(--h1c);
+      outline-offset: 2px
+    }
+
+    .byline {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12.5px;
+      line-height: 1.6;
+      color: var(--ink-soft);
+      margin: 0 0 1.4rem
+    }
+
+    .byline b {
+      color: var(--ink);
+      font-weight: 500
+    }
+
+    .byline a {
+      color: var(--h1c);
+      text-decoration: none;
+      border-bottom: 1px solid var(--rule)
+    }
+
+    .byline a:hover {
+      border-bottom-color: var(--h1c)
+    }
   </style>
 </head>
 
@@ -502,8 +555,10 @@
     </nav>
 
     <main class="main">
+      <div class="homebar"><a href="./index.html" aria-label="Back to the home page">&#8592;&nbsp;&nbsp;Home</a></div>
       <div class="eyebrow">The Transformer, Number by Number &nbsp;&#183;&nbsp; Part 1</div>
       <h1>Self-Attention</h1>
+      <p class="byline">By <b>Hao Ma</b> &nbsp;&#183;&nbsp; <a href="https://haoma7.github.io" rel="author">haoma7.github.io</a></p>
       <p class="standfirst">From the bottleneck in recurrent models, to what <em>Q</em>, <em>K</em> and <em>V</em>
         actually are, to the whole attention formula worked out by hand on three words.</p>
 
