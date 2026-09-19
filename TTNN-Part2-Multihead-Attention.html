@@ -1,0 +1,2287 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="author" content="Hao Ma">
+  <title>Multi-Head Attention — part 2 of The Transformer, Number by Number</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"
+    integrity="sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV" crossorigin="anonymous">
+
+  <style>
+    :root {
+      --paper: #FBFCFD;
+      --panel: #F2F5F8;
+      --ink: #16202B;
+      --ink-soft: #5A6B7A;
+      --rule: #D6DEE5;
+      --chip-bg: #EAF0F4;
+      --h1c: #2E6F8E;
+      --h2c: #B07D1A;
+      --accent: #7D4A72;
+      --fig-fill: #FFFFFF;
+      --fig-line: #16202B;
+      --fig-soft: #5A6B7A;
+      --fig-grid: #E4EAEF;
+      --measure: themeguard;
+    }
+
+    @media (prefers-color-scheme:dark) {
+      :root {
+        --paper: #101720;
+        --panel: #18212C;
+        --ink: #E3E9EE;
+        --ink-soft: #93A3B1;
+        --rule: #2A3644;
+        --chip-bg: #1E2833;
+        --h1c: #6FB6D4;
+        --h2c: #D9AC4E;
+        --accent: #C08FB6;
+        --fig-fill: #18212C;
+        --fig-line: #E3E9EE;
+        --fig-soft: #93A3B1;
+        --fig-grid: #243040;
+      }
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 2rem
+    }
+
+    @media (prefers-reduced-motion:reduce) {
+      html {
+        scroll-behavior: auto
+      }
+    }
+
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: "Source Serif 4", Georgia, serif;
+      font-size: 18px;
+      line-height: 1.72;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ---------- layout ---------- */
+    .wrap {
+      display: grid;
+      grid-template-columns: 246px minmax(0, 1fr);
+      gap: 3rem;
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 0 1.5rem
+    }
+
+    .main {
+      max-width: 720px;
+      padding: 3.5rem 0 6rem
+    }
+
+    /* ---------- table of contents ---------- */
+    .toc {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      height: 100vh;
+      overflow-y: auto;
+      padding: 3.5rem 0 2rem;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12.5px
+    }
+
+    .toc-label {
+      text-transform: uppercase;
+      letter-spacing: .13em;
+      font-size: 10.5px;
+      color: var(--ink-soft);
+      margin-bottom: 1rem
+    }
+
+    .toc a {
+      display: block;
+      padding: .34rem 0 .34rem .8rem;
+      color: var(--ink-soft);
+      text-decoration: none;
+      border-left: 2px solid var(--rule);
+      line-height: 1.45
+    }
+
+    .toc a:hover {
+      color: var(--ink)
+    }
+
+    .toc a.lvl2 {
+      padding-left: 1.7rem
+    }
+
+    .toc a.on {
+      color: var(--h1c);
+      border-left-color: var(--h1c)
+    }
+
+    .toc a:focus-visible {
+      outline: 2px solid var(--h1c);
+      outline-offset: 2px
+    }
+
+    /* ---------- type ---------- */
+    .eyebrow {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11.5px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+      margin-bottom: 1.1rem
+    }
+
+    h1 {
+      font-family: Fraunces, serif;
+      font-weight: 600;
+      font-size: 2.55rem;
+      line-height: 1.14;
+      letter-spacing: -.015em;
+      margin: 0 0 .9rem
+    }
+
+    .standfirst {
+      color: var(--ink-soft);
+      font-size: 1.06rem;
+      margin: 0 0 2.4rem;
+      padding-bottom: 2.4rem;
+      border-bottom: 1px solid var(--rule)
+    }
+
+    h2 {
+      font-family: Fraunces, serif;
+      font-weight: 600;
+      font-size: 1.62rem;
+      letter-spacing: -.01em;
+      margin: 3.4rem 0 1rem
+    }
+
+    h3 {
+      font-family: Fraunces, serif;
+      font-weight: 400;
+      font-size: 1.2rem;
+      margin: 2.4rem 0 .7rem
+    }
+
+    h2 .num,
+    h3 .num {
+      font-family: "IBM Plex Mono", monospace;
+      font-weight: 400;
+      color: var(--h1c);
+      font-size: .72em;
+      margin-right: .6em
+    }
+
+    p {
+      margin: 0 0 1.15rem
+    }
+
+    a {
+      color: var(--h1c)
+    }
+
+    /* ---------- signature: tensor shape chips ---------- */
+    .shape {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: .78em;
+      white-space: nowrap;
+      background: var(--chip-bg);
+      color: var(--ink-soft);
+      border: 1px solid var(--rule);
+      border-radius: 3px;
+      padding: .1em .45em;
+      letter-spacing: .02em
+    }
+
+    /* ---------- paper quotes ---------- */
+    blockquote {
+      margin: 1.8rem 0;
+      padding: .15rem 0 .15rem 1.3rem;
+      border-left: 3px solid var(--accent);
+      color: var(--ink-soft);
+      font-style: italic
+    }
+
+    blockquote cite {
+      display: block;
+      margin-top: .5rem;
+      font-style: normal;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11.5px;
+      letter-spacing: .04em
+    }
+
+    /* ---------- figures ---------- */
+    figure {
+      margin: 2.6rem 0;
+      width: 100%
+    }
+
+    .plate {
+      background: var(--fig-fill);
+      border: 1px solid var(--rule);
+      border-radius: 5px;
+      padding: 1.4rem 1.2rem;
+      background-image: linear-gradient(var(--fig-grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--fig-grid) 1px, transparent 1px);
+      background-size: 22px 22px
+    }
+
+    .plate svg {
+      display: block;
+      width: 100%;
+      height: auto
+    }
+
+    figcaption {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--ink-soft);
+      margin-top: .85rem
+    }
+
+    figcaption b {
+      color: var(--ink);
+      font-weight: 500
+    }
+
+    /* ---------- image slot for third-party figures ---------- */
+    .imgslot {
+      border: 1.5px dashed var(--rule);
+      border-radius: 5px;
+      background: var(--panel);
+      min-height: 210px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: .55rem;
+      padding: 2.2rem 1.5rem;
+      text-align: center
+    }
+
+    .imgslot .tag {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--accent)
+    }
+
+    .imgslot .what {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 13.5px;
+      color: var(--ink)
+    }
+
+    .imgslot .hint {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11.5px;
+      line-height: 1.7;
+      color: var(--ink-soft);
+      max-width: 46ch
+    }
+
+    /* ---------- placeholder ---------- */
+    .todo {
+      border-left: 3px solid var(--h2c);
+      border-radius: 0 4px 4px 0;
+      padding: 1rem 1.2rem;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12.5px;
+      line-height: 1.75;
+      color: var(--ink-soft);
+      background: var(--panel);
+      margin: 1.8rem 0
+    }
+
+    .todo b {
+      color: var(--h2c);
+      font-weight: 500;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      font-size: 11px;
+      display: block;
+      margin-bottom: .35rem
+    }
+
+    /* ---------- footer ---------- */
+    footer {
+      margin-top: 5rem;
+      padding-top: 1.6rem;
+      border-top: 1px solid var(--rule);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11.5px;
+      line-height: 1.9;
+      color: var(--ink-soft)
+    }
+
+    /* ---------- responsive ---------- */
+    @media (max-width:900px) {
+      .wrap {
+        grid-template-columns: 1fr;
+        gap: 0
+      }
+
+      .toc {
+        position: static;
+        height: auto;
+        padding: 2rem 0 0;
+        border-bottom: 1px solid var(--rule)
+      }
+
+      .toc-inner {
+        columns: 2;
+        column-gap: 1.2rem
+      }
+
+      .main {
+        padding-top: 2rem
+      }
+
+      h1 {
+        font-size: 2rem
+      }
+
+      body {
+        font-size: 17px
+      }
+    }
+
+    /* ---------- sub-headings and inline code ---------- */
+
+    h4 {
+      font-family: Fraunces, serif;
+      font-weight: 600;
+      font-size: 1.02rem;
+      letter-spacing: -.005em;
+      color: var(--ink);
+      margin: 2rem 0 .6rem;
+    }
+
+    code {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: .84em;
+      background: var(--chip-bg);
+      color: var(--ink);
+      border: 1px solid var(--rule);
+      border-radius: 3px;
+      padding: .1em .38em;
+      white-space: nowrap;
+    }
+
+    /* ---------- callout boxes: think / mistake / takeaway ---------- */
+
+    blockquote.think {
+      border-left-color: var(--h1c);
+      font-style: normal;
+    }
+
+    blockquote.mistake {
+      border-left-color: var(--h2c);
+      font-style: normal;
+    }
+
+    blockquote.takeaway {
+      border-left-color: var(--accent);
+      font-style: normal;
+      margin-bottom: .4rem;
+    }
+
+    blockquote.think b,
+    blockquote.mistake b,
+    blockquote.takeaway b {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+      display: block;
+      margin-bottom: .3rem;
+    }
+
+    blockquote.think b {
+      color: var(--h1c);
+    }
+
+    blockquote.mistake b {
+      color: var(--h2c);
+    }
+
+    blockquote.takeaway b {
+      color: var(--accent);
+    }
+
+
+    /* ---------- added: math and tables ---------- */
+    .katex-display {
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: .35rem 0
+    }
+
+    .katex {
+      font-size: 1.02em
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1.8rem 0;
+      font-size: .92em
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid var(--rule);
+      padding: .55rem .7rem;
+      text-align: left
+    }
+
+    th {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--ink-soft)
+    }
+      /* ---------- wide layout, shared with Part 7 ---------- */
+    /* The stylesheet stops the page at 1180px, which throws away most of a wide screen:
+       the figures stop growing and the margins sit empty. The wrap widens with the
+       viewport instead and the column with it, stopping at 1167px, where a prose line
+       holds about 150 characters. Measured on the rendered page. */
+    @media (min-width: 1260px) { .main { max-width: 846px } }
+    @media (min-width: 1380px) { .main { max-width: 929px } }
+    @media (min-width: 1480px) { .main { max-width: 994px } }
+    @media (min-width: 1560px) { .main { max-width: 1058px } }
+    @media (min-width: 1700px) { .wrap { max-width: 1760px } .main { max-width: 1167px } }
+    figure { width: 100% }
+
+    /* A margin note: it defines a word without stopping the sentence that uses it.
+       Below the width where a margin exists it is an inset block in the flow instead. */
+    .gloss {
+      font-size: 13.5px;
+      line-height: 1.55;
+      color: var(--soft);
+      border-left: 2px solid var(--h2c);
+      background: var(--panel);
+      padding: 0.55rem 0.9rem;
+      margin: 0 0 1.5rem 2.5rem;
+      max-width: 38ch;
+    }
+    .gloss b { color: var(--ink); font-weight: 600 }
+
+    /* The note needs 192px plus a 32px gap to the right of the column. */
+    @media (min-width: 1780px) {
+      .main { position: relative }
+      .gloss {
+        position: absolute;
+        left: 100%;
+        margin: -0.4rem 0 0 2rem;
+        width: 12rem;
+        max-width: none;
+        padding: 0.5rem 0 0;
+        border-left: 0;
+        border-top: 2px solid var(--h2c);
+        background: transparent;
+      }
+    }
+
+
+    /* A Common mistake box in the margin. It carries the same mark and label as the
+       in-flow version, at the size of a margin note. float + clear:right is what keeps
+       two of them from landing on top of each other: floats are not allowed to overlap
+       other floats, so a second note is pushed below the first instead of over it.
+       The negative right margin puts the whole box outside the text column, so no line
+       of prose is shortened by it. Below the width where a margin exists, the box stays
+       in the flow and looks as it always did. */
+    @media (min-width: 1780px) {
+      blockquote.mistake.side {
+        float: right;
+        clear: right;
+        width: 12rem;
+        margin: -0.4rem -14rem 1.5rem 0;
+        padding: 0.5rem 0 0;
+        border-left: 0;
+        border-top: 2px solid var(--h2c);
+        background: transparent;
+        font-size: 13.5px;
+        line-height: 1.55;
+        color: var(--ink-soft);
+      }
+      blockquote.mistake.side b { display: block; margin-bottom: .3rem }
+      /* A figure must not sit beside a note; it needs the whole column. */
+      figure { clear: right }
+    }
+
+    /* ---------- home button and byline ---------- */
+    .homebar {
+      margin-bottom: 1.5rem
+    }
+
+    .homebar a {
+      display: inline-block;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11.5px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+      text-decoration: none;
+      background: var(--chip-bg);
+      border: 1px solid var(--rule);
+      border-radius: 999px;
+      padding: .36rem .9rem
+    }
+
+    .homebar a:hover {
+      color: var(--h1c);
+      border-color: var(--h1c)
+    }
+
+    .homebar a:focus-visible {
+      outline: 2px solid var(--h1c);
+      outline-offset: 2px
+    }
+
+    .byline {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12.5px;
+      line-height: 1.6;
+      color: var(--ink-soft);
+      margin: 0 0 1.4rem
+    }
+
+    .byline b {
+      color: var(--ink);
+      font-weight: 500
+    }
+
+    .byline a {
+      color: var(--h1c);
+      text-decoration: none;
+      border-bottom: 1px solid var(--rule)
+    }
+
+    .byline a:hover {
+      border-bottom-color: var(--h1c)
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <nav class="toc">
+      <div class="toc-inner">
+        <div class="toc-label">Contents</div>
+        <a href="./TTNN-Part1-Self-Attention.html">← Part 1&nbsp;&nbsp;Self-Attention</a>
+        <a href="#s21">2.1&nbsp;&nbsp;Why one head is not enough</a>
+        <a href="#s22">2.2&nbsp;&nbsp;What splitting actually splits</a>
+        <a href="#s221" class="lvl2">2.2.1&nbsp;&nbsp;What the split does</a>
+        <a href="#s222" class="lvl2">2.2.2&nbsp;&nbsp;The layer on three words</a>
+        <a href="#s23">2.3&nbsp;&nbsp;One wide head vs many narrow ones</a>
+        <a href="#s24">2.4&nbsp;&nbsp;How many heads</a>
+        <a href="#s25">2.5&nbsp;&nbsp;The Math Behind It</a>
+        <a href="#s251" class="lvl2">2.5.1&nbsp;&nbsp;What \(d_{\text{model}}\) actually is</a>
+        <a href="#s252" class="lvl2">2.5.2&nbsp;&nbsp;Why the width cannot change</a>
+        <a href="#s253" class="lvl2">2.5.3&nbsp;&nbsp;What is free to vary</a>
+        <a href="#s254" class="lvl2">2.5.4&nbsp;&nbsp;Why a narrow head can express less</a>
+        <a href="#sa">A&nbsp;&nbsp;Appendix: how far the rank bound reaches</a>
+        <a href="./TTNN-Part3-Positional-Encoding-1.html">Part 3&nbsp;&nbsp;Why a Transformer Cannot See Word Order →</a>
+      </div>
+    </nav>
+
+    <main class="main">
+
+      <div class="homebar"><a href="./index.html" aria-label="Back to the home page">&#8592;&nbsp;&nbsp;Home</a></div>
+      <div class="eyebrow">The Transformer, Number by Number &nbsp;&#183;&nbsp; Part 2</div>
+      <h1>Multi-Head Attention</h1>
+      <p class="byline">By <b>Hao Ma</b> &nbsp;&#183;&nbsp; <a href="https://haoma7.github.io" rel="author">haoma7.github.io</a></p>
+      <p class="standfirst">One attention head gives every token a single budget to spend.
+        That turns out to be the wrong shape for language, and the fix is to run several
+        heads side by side on slices of the same vector.</p>
+
+      <div class="todo"><b>Before you start</b>This page assumes
+        <a href="./TTNN-Part1-Self-Attention.html">Part 1</a>: where \(\mathbf{Q}\),
+        \(\mathbf{K}\) and \(\mathbf{V}\) come from, how \(\mathbf{Q}\mathbf{K}^\top\) becomes an attention weight matrix, and what
+        \(d_k\) counts. If you can read <a href="./TTNN-Part1-Self-Attention.html">Part 1, Equation 1-1</a> and say what each symbol is, you are ready.
+      </div>
+
+      <h2 id="s21"><span class="num">2.1</span>Why one head is not enough</h2>
+
+      <p>Everything in <a href="./TTNN-Part1-Self-Attention.html#s12">Part 1, Section 1.2</a> used a
+        single attention weight matrix. It works. The paper
+        does not use a single matrix, and the reason is worth spelling out, because that reason is
+        the whole argument for the word <em>multi-head</em> in the title of this part.</p>
+
+      <p>Look again at the attention weight matrix in
+        <a href="./TTNN-Part1-Self-Attention.html#s122">Part 1, Section 1.2.2</a>
+        — the row for <code>love</code>, the middle one. That row is one
+        budget, and it has to be spent on every relationship <code>love</code> takes part in at
+        once. But a verb in a sentence is doing several unrelated jobs at the same time. It has a
+        subject to its left. It has an object to its right. It agrees in tense with something,
+        and it may be the answer to a question asked ten words earlier. Those are different
+        relations, and there is no reason the same set of weights should be right for all of
+        them.</p>
+
+      <blockquote class="think"><b>Think for a moment</b>
+        Suppose the best weights for finding the subject are <code>[0.8, 0.1, 0.1]</code>, and
+        the best weights for finding the object are <code>[0.1, 0.1, 0.8]</code>. With exactly
+        one row of weights available, what does the model end up learning?</blockquote>
+
+      <p>Something in the middle — roughly <code>[0.45, 0.1, 0.45]</code> — which is the right
+        answer to neither question. That is the real objection in the paper, and it is easy to state now that you have seen the
+        numbers: a single head produces one weighted average per position,
+        and averaging blurs together information that would have been more useful kept apart.
+        The paper's own way of putting it is that several heads let the model attend to
+        information from different <b>representation subspaces</b> at once. A representation
+        subspace is just a slice of the vector — a subset of the columns — which the model is
+        free to use for its own purpose. One head sees one slice and forms one opinion about the
+        sentence. Eight heads see eight slices and form eight opinions.</p>
+
+      <blockquote class="mistake side"><b>&#10007; Common mistake</b>
+        Attention weights often are heaviest on the diagonal, and it makes a memorable story, so
+        a popular claim spreads: <em>a single head pays too much attention to itself, and
+        multi-head exists to fix that</em>. That is wrong. It is an observation about trained
+        models, not the argument in the paper, and it is not always true. The paper's reason is
+        the averaging one above. Treat the diagonal as an illustration, not as the
+        justification.</blockquote>
+
+      <p>So the design is: run attention several times in parallel, each time on its own slice
+        of the vector, then join the results back together. Each parallel copy is called a
+        <b>head</b>. Four symbols appear in the two equations below, so here they are first:
+        \(h\) is the number of heads; the subscript \(i\) says <em>which</em> head, so
+        \(\text{head}_i\) is head number \(i\); \(\mathbf{W}_i^Q\), \(\mathbf{W}_i^K\) and
+        \(\mathbf{W}_i^V\) are the three projections that head \(i\) uses, and
+        <a href="#s22">Section 2.2</a> shows where they come from; and \(\mathbf{W}^O\) is the
+        matrix that recombines the heads at the end.
+      </p>
+
+      \[
+      \text{MultiHead}(\mathbf{Q},\mathbf{K},\mathbf{V})=\text{Concat}(\text{head}_1,\dots,\text{head}_h)\,\mathbf{W}^O,\tag{2-1}
+      \]
+      \[
+      \text{head}_i=\text{Attention}(\mathbf{Q}\mathbf{W}_i^Q,\,\mathbf{K}\mathbf{W}_i^K,\,\mathbf{V}\mathbf{W}_i^V) \tag{2-2}
+      \]
+
+      <p>Part 1 used one term without settling it, and the next equation needs it settled.
+        \(d_{\text{model}}\) is the width of the vector the model carries for each token:
+        one number per <b>slot</b> of that vector — a <em>slot</em> being where a number sits
+        inside one vector, counting from 0. The width is the same at the input to every layer
+        and at the output of every layer. The paper sets it to 512. \(d_{\text{model}}\) is the one size that
+        does not change anywhere in the network, which is why the paper can name it once and
+        then use it everywhere. <a href="#s25">Section 2.5</a> works out what forces it to stay
+        fixed; for now, read it as "the width of the vector each token carries".</p>
+
+      <p>One warning about numbering: slots inside a vector count from 0, as above, and columns
+        of a matrix count from 1, which is what everyone writing about matrices does. They point
+        at the same places: column 1 of \(\mathbf{Q}\) holds slot 0 of every row.
+        <a href="./TTNN-Part3-Positional-Encoding-1.html#s32">Part 3, Section 3.2</a> sets both
+        counts out in full. From here on this part talks about
+        <em>columns</em>, so every number you meet next to the word "column" starts at 1.</p>
+
+      <p>And the widths are tied to the head count, so that \(h\) heads cost about the same as
+        one:</p>
+
+      \[
+      d_q = d_k = d_v = \frac{d_{\text{model}}}{h} \tag{2-3}
+      \]
+
+      <p>With the paper's settings, \(d_{\text{model}} = 512\) and \(h = 8\), so each head
+        works in 64 dimensions instead of 512.</p>
+
+      <blockquote class="takeaway"><b>Key takeaway</b></blockquote>
+      <ul>
+        <li>One head gives one weighted average per position, and averaging blurs distinct
+          relations together.</li>
+        <li>Multi-head runs \(h\) attentions in parallel, each on its own slice of the vector,
+          and concatenates the results through \(\mathbf{W}^O\).</li>
+        <li>Equation 2-3 ties head width to head count: \(d_k = d_{\text{model}}/h\), which is
+          64 for the paper's base model.</li>
+        <li>The "a single head over-attends to itself" story is a widely repeated
+          illustration, not the paper's argument.</li>
+      </ul>
+
+      <h2 id="s22"><span class="num">2.2</span>What splitting actually splits</h2>
+
+      <h3 id="s221"><span class="num">2.2.1</span>What the split does</h3>
+
+      <p>"Split into eight heads" sounds like the model builds eight of everything. It does
+        not, and the order of operations is the part worth getting right, because it is also how
+        the code is written. Figure 1 shows the split on the very numbers this section is about
+        to compute; those numbers are worked out from scratch in Step 1 below, so read the
+        figure now for the shape of the operation and come back to it once you have them.</p>
+
+      <figure id="fig1">
+        <div class="plate">
+          <svg viewBox="0 0 960 329" xmlns="http://www.w3.org/2000/svg" role="img"
+            aria-label="The full-width Q matrix cut into two halves, one per head, with each half shown directly below the columns it came from">
+            <defs><marker id="arrow-f1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--fig-line,#16202B)"></path></marker></defs>
+            <g font-family="IBM Plex Mono, monospace" fill="var(--fig-line,#16202B)">
+              <text x="416" y="46" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)" font-weight="bold">Q</text>
+              <rect x="360" y="60" width="28" height="28" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.28" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="388" y="60" width="28" height="28" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.28" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="416" y="60" width="28" height="28" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.28" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
+              <rect x="444" y="60" width="28" height="28" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.28" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
+              <rect x="360" y="88" width="28" height="28" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.28" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="388" y="88" width="28" height="28" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.28" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="416" y="88" width="28" height="28" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.28" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
+              <rect x="444" y="88" width="28" height="28" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.28" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
+              <rect x="360" y="116" width="28" height="28" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.28" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="388" y="116" width="28" height="28" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.28" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="416" y="116" width="28" height="28" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.28" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
+              <rect x="444" y="116" width="28" height="28" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.28" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
+              <text x="374" y="77" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">2</text>
+              <text x="402" y="77" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+              <text x="430" y="77" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+              <text x="458" y="77" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+              <text x="374" y="105" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+              <text x="402" y="105" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">2</text>
+              <text x="430" y="105" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+              <text x="458" y="105" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+              <text x="374" y="133" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+              <text x="402" y="133" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+              <text x="430" y="133" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+              <text x="458" y="133" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">2</text>
+              <text x="352" y="77" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">I</text>
+              <text x="352" y="105" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">love</text>
+              <text x="352" y="133" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">LLMs</text>
+              <line x1="416" y1="50" x2="416" y2="154" stroke="var(--fig-line,#16202B)" stroke-width="1.6" stroke-dasharray="5 4"></line>
+              <text x="416" y="166" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">3 × 4</text>
+              <text x="310" y="164" font-size="11.5" text-anchor="end" fill="var(--h1c,#2E6F8E)">columns 1–2</text>
+              <text x="534" y="164" font-size="11.5" text-anchor="start" fill="var(--h2c,#B07D1A)">columns 3–4</text>
+              <text x="268" y="191" font-size="13" text-anchor="middle" fill="var(--h1c,#2E6F8E)" font-weight="bold">Q<tspan dy="3" font-size="8.3">1</tspan></text>
+              <text x="588" y="191" font-size="13" text-anchor="middle" fill="var(--h2c,#B07D1A)" font-weight="bold">Q<tspan dy="3" font-size="8.3">2</tspan></text>
+              <rect x="240" y="205" width="28" height="28" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.28" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="268" y="205" width="28" height="28" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.28" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="240" y="233" width="28" height="28" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.28" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="268" y="233" width="28" height="28" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.28" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="240" y="261" width="28" height="28" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.28" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="268" y="261" width="28" height="28" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.28" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <text x="254" y="222" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">2</text>
+              <text x="282" y="222" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+              <text x="254" y="250" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+              <text x="282" y="250" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">2</text>
+              <text x="254" y="278" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+              <text x="282" y="278" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+              <text x="232" y="222" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">I</text>
+              <text x="232" y="250" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">love</text>
+              <text x="232" y="278" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">LLMs</text>
+              <rect x="560" y="205" width="28" height="28" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.28" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
+              <rect x="588" y="205" width="28" height="28" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.28" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
+              <rect x="560" y="233" width="28" height="28" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.28" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
+              <rect x="588" y="233" width="28" height="28" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.28" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
+              <rect x="560" y="261" width="28" height="28" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.28" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
+              <rect x="588" y="261" width="28" height="28" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.28" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
+              <text x="574" y="222" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+              <text x="602" y="222" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+              <text x="574" y="250" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+              <text x="602" y="250" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+              <text x="574" y="278" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+              <text x="602" y="278" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">2</text>
+              <text x="552" y="222" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">I</text>
+              <text x="552" y="250" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">love</text>
+              <text x="552" y="278" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">LLMs</text>
+              <text x="268" y="311" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">3 × 2</text>
+              <text x="588" y="311" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">3 × 2</text>
+              <text x="650" y="72" font-size="11.5" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">K and V are cut</text>
+              <text x="650" y="88" font-size="11.5" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">exactly the same way.</text>
+              <text x="650" y="112" font-size="11.5" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">Nothing is copied and</text>
+              <text x="650" y="128" font-size="11.5" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">nothing is recomputed —</text>
+              <text x="650" y="144" font-size="11.5" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">the columns are simply</text>
+              <text x="650" y="160" font-size="11.5" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">dealt out to the heads.</text>
+              <text x="636" y="233" font-size="11.5" text-anchor="start" fill="var(--h2c,#B07D1A)">Row 1 of Q<tspan dy="3" font-size="8.3">2</tspan><tspan dy="-3"> is all</tspan></text>
+              <text x="636" y="249" font-size="11.5" text-anchor="start" fill="var(--h2c,#B07D1A)">zeros — head 2 has</text>
+              <text x="636" y="265" font-size="11.5" text-anchor="start" fill="var(--h2c,#B07D1A)">no query for &quot;I&quot;.</text>
+              <path d="M388,150 L274,175" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f1)"></path>
+              <path d="M444,150 L582,175" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f1)"></path>
+            </g>
+          </svg>
+        </div>
+        <figcaption><b>Figure 1.</b> What splitting into heads means concretely, with
+          \(d_{\text{model}} = 4\) and \(h = 2\). Each half sits directly under the columns it
+          came from, and every number below already appears above.</figcaption>
+      </figure>
+      <p>\(\mathbf{X}\) is multiplied by \(\mathbf{W}^Q\), \(\mathbf{W}^K\) and \(\mathbf{W}^V\) to give full-width \(\mathbf{Q}\), \(\mathbf{K}\)
+        and \(\mathbf{V}\). That step neither knows nor cares what \(h\) is — in real code you create a
+        single \(\mathbf{W}^Q\) of shape <span class="shape">\(d_{\text{model}} \times d_{\text{model}}\)</span>, not \(h\) separate
+        ones. Only afterwards are the columns dealt out into \(h\) groups, and that split is the
+        only place \(h\) enters at all.</p>
+
+      <blockquote class="mistake"><b>&#10007; Common mistake</b>
+        The paper writes the heads apart, so it is tempting to read Equation 2-2 as <em>the model
+        stores \(h\) separate projection matrices</em>, but that is wrong. It stores one. Slicing the columns of a single <span class="shape">\(d_{\text{model}} \times d_{\text{model}}\)</span>
+        \(\mathbf{W}^Q\) into \(h\) groups gives exactly the \(\mathbf{W}_i^Q\) of
+        Equation 2-2. The paper writes them apart so that it can name one head at a time. The
+        code keeps them together, because one large matrix multiply is faster than \(h\) small
+        ones.</blockquote>
+
+      <p>Each head then runs <a href="./TTNN-Part1-Self-Attention.html">Part 1, Equation 1-1</a>
+        on its own slice, independently of the others. The
+        \(h\) outputs are laid side by side again, and one final matrix \(\mathbf{W}^O\) mixes them back
+        into a single vector per token (Figure 2).</p>
+      <figure id="fig2">
+        <div class="plate">
+          <svg viewBox="0 0 960 470" xmlns="http://www.w3.org/2000/svg" role="img"
+            aria-label="Multi-head attention with two heads: one projection, then each half of Q, K and V is sent to its own head, attended, concatenated and projected">
+            <defs><marker id="arrow-f2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--fig-line,#16202B)"></path></marker><marker id="arrow-f2b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--h1c,#2E6F8E)"></path></marker><marker id="arrow-f2g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--h2c,#B07D1A)"></path></marker></defs>
+            <g font-family="IBM Plex Mono, monospace" fill="var(--fig-line,#16202B)">
+              <rect x="432" y="30" width="96" height="30" rx="4" fill="var(--fig-fill,#fff)" stroke="var(--fig-line,#16202B)" stroke-width="1.5"></rect>
+              <text x="480" y="50" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">X</text>
+              <text x="540" y="50" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">n × d<tspan dy="3" font-size="8.3">model</tspan></text>
+              <rect x="200" y="110" width="40" height="30" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.30" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="240" y="110" width="40" height="30" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.30" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
+              <text x="240" y="130" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">Q</text>
+              <text x="292" y="130" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">n × d<tspan dy="3" font-size="8.3">model</tspan></text>
+              <rect x="440" y="110" width="40" height="30" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.30" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="480" y="110" width="40" height="30" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.30" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
+              <text x="480" y="130" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">K</text>
+              <text x="532" y="130" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">n × d<tspan dy="3" font-size="8.3">model</tspan></text>
+              <rect x="680" y="110" width="40" height="30" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.30" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="720" y="110" width="40" height="30" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.30" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
+              <text x="720" y="130" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">V</text>
+              <text x="772" y="130" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">n × d<tspan dy="3" font-size="8.3">model</tspan></text>
+              <text x="334" y="83" font-size="11.5" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">W<tspan dy="-4" font-size="8.3">Q</tspan></text>
+              <text x="492" y="89" font-size="11.5" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">W<tspan dy="-4" font-size="8.3">K</tspan></text>
+              <text x="626" y="83" font-size="11.5" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">W<tspan dy="-4" font-size="8.3">V</tspan></text>
+              <rect x="128" y="200" width="224" height="84" rx="5" fill="none" stroke="var(--h1c,#2E6F8E)" stroke-width="1.4" stroke-dasharray="5 4"></rect>
+              <text x="240" y="222" font-size="12" text-anchor="middle" fill="var(--h1c,#2E6F8E)">head 1 &#160;·&#160; columns 1–2</text>
+              <text x="240" y="244" font-size="12.5" text-anchor="middle" fill="var(--fig-line,#16202B)">Q<tspan dy="3" font-size="8.3">1</tspan><tspan dy="-3"> &#160; K</tspan><tspan dy="3" font-size="8.3">1</tspan><tspan dy="-3"> &#160; V</tspan><tspan dy="3" font-size="8.3">1</tspan></text>
+              <text x="240" y="262" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">n × d<tspan dy="3" font-size="8.3">model</tspan><tspan dy="-3">/2</tspan></text>
+              <text x="240" y="278" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">scaled dot-product attn</text>
+              <rect x="608" y="200" width="224" height="84" rx="5" fill="none" stroke="var(--h2c,#B07D1A)" stroke-width="1.4" stroke-dasharray="5 4"></rect>
+              <text x="720" y="222" font-size="12" text-anchor="middle" fill="var(--h2c,#B07D1A)">head 2 &#160;·&#160; columns 3–4</text>
+              <text x="720" y="244" font-size="12.5" text-anchor="middle" fill="var(--fig-line,#16202B)">Q<tspan dy="3" font-size="8.3">2</tspan><tspan dy="-3"> &#160; K</tspan><tspan dy="3" font-size="8.3">2</tspan><tspan dy="-3"> &#160; V</tspan><tspan dy="3" font-size="8.3">2</tspan></text>
+              <text x="720" y="262" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">n × d<tspan dy="3" font-size="8.3">model</tspan><tspan dy="-3">/2</tspan></text>
+              <text x="720" y="278" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">scaled dot-product attn</text>
+              <rect x="192" y="316" width="96" height="30" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.30" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <text x="240" y="336" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">Z<tspan dy="3" font-size="8.3">1</tspan></text>
+              <text x="240" y="364" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">n × d<tspan dy="3" font-size="8.3">model</tspan><tspan dy="-3">/2</tspan></text>
+              <rect x="672" y="316" width="96" height="30" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.30" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
+              <text x="720" y="336" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">Z<tspan dy="3" font-size="8.3">2</tspan></text>
+              <text x="720" y="364" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">n × d<tspan dy="3" font-size="8.3">model</tspan><tspan dy="-3">/2</tspan></text>
+              <rect x="440" y="316" width="40" height="30" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.30" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="480" y="316" width="40" height="30" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.30" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
+              <text x="480" y="336" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">Z</text>
+              <text x="480" y="304" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">concatenate</text>
+              <text x="480" y="364" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">n × d<tspan dy="3" font-size="8.3">model</tspan></text>
+              <rect x="432" y="396" width="96" height="30" rx="4" fill="var(--fig-fill,#fff)" stroke="var(--fig-line,#16202B)" stroke-width="1.5"></rect>
+              <text x="480" y="416" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">output</text>
+              <text x="540" y="416" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">n × d<tspan dy="3" font-size="8.3">model</tspan></text>
+              <text x="490" y="388" font-size="11.5" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">W<tspan dy="-4" font-size="8.3">O</tspan></text>
+              <path d="M480,60 L240,105" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f2)"></path>
+              <path d="M480,60 L480,105" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f2)"></path>
+              <path d="M480,60 L720,105" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f2)"></path>
+              <path d="M240,284 L240,311" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f2)"></path>
+              <path d="M720,284 L720,311" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f2)"></path>
+              <path d="M288,331 L435,331" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f2)"></path>
+              <path d="M672,331 L525,331" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f2)"></path>
+              <path d="M480,346 L480,391" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f2)"></path>
+              <path d="M220,140 L180,195" fill="none" stroke="var(--h1c,#2E6F8E)" stroke-width="1.4" marker-end="url(#arrow-f2b)"></path>
+              <path d="M460,140 L240,195" fill="none" stroke="var(--h1c,#2E6F8E)" stroke-width="1.4" marker-end="url(#arrow-f2b)"></path>
+              <path d="M700,140 L300,195" fill="none" stroke="var(--h1c,#2E6F8E)" stroke-width="1.4" marker-end="url(#arrow-f2b)"></path>
+              <path d="M260,140 L660,195" fill="none" stroke="var(--h2c,#B07D1A)" stroke-width="1.4" marker-end="url(#arrow-f2g)"></path>
+              <path d="M500,140 L720,195" fill="none" stroke="var(--h2c,#B07D1A)" stroke-width="1.4" marker-end="url(#arrow-f2g)"></path>
+              <path d="M740,140 L780,195" fill="none" stroke="var(--h2c,#B07D1A)" stroke-width="1.4" marker-end="url(#arrow-f2g)"></path>
+            </g>
+          </svg>
+        </div>
+        <figcaption><b>Figure 2.</b> Multi-head attention with \(h = 2\): one projection produces
+          full-width Q, K and V, whose halves attend independently before being concatenated
+          and passed through \(\mathbf{W}^O\). Each head reaches into all three matrices, which
+          is why the lines cross — a head is a slice taken across Q, K and V together, not a
+          slice of any one of them.</figcaption>
+      </figure>
+
+      <h3 id="s222"><span class="num">2.2.2</span>The layer on three words</h3>
+
+      <p>Words are one thing; digits are another. The rest of this section runs the whole
+        layer on one sentence, starting from the embedded tokens, so you can follow every
+        number here without going back to Part 1 — the formula each head runs is Part 1's,
+        unchanged. The sentence is <code>I love LLMs</code>, and the
+        model width is \(d_{\text{model}} = 4\) with \(h = 2\) heads.</p>
+
+      <h4>The setup</h4>
+
+      <p>First \(\mathbf{X}\), the embedded sentence. Three tokens, four numbers each, so
+        <span class="shape">3 × 4</span>. Row \(i\) is token \(i\):
+      </p>
+
+      \[
+      \mathbf{X}=\begin{pmatrix}0&amp;0&amp;1&amp;1\\0&amp;1&amp;0&amp;1\\1&amp;0&amp;0&amp;1\end{pmatrix}
+      \]
+
+      <p>Then the three weight matrices that training produced, each
+        <span class="shape">4 × 4</span>. Note there is one of each, not one per head:
+      </p>
+
+      \[
+      \begin{aligned}
+      \mathbf{W}^Q&amp;=\begin{pmatrix}0&amp;-1&amp;1&amp;1\\0&amp;1&amp;0&amp;0\\1&amp;0&amp;0&amp;-1\\1&amp;1&amp;0&amp;1\end{pmatrix}\\[8pt]
+      \mathbf{W}^K&amp;=\begin{pmatrix}0&amp;-1&amp;0&amp;1\\-1&amp;1&amp;0&amp;0\\1&amp;-1&amp;1&amp;-1\\1&amp;1&amp;0&amp;1\end{pmatrix}\\[8pt]
+      \mathbf{W}^V&amp;=\begin{pmatrix}0&amp;0&amp;1&amp;0\\1&amp;0&amp;0&amp;1\\0&amp;1&amp;0&amp;0\\1&amp;0&amp;0&amp;0\end{pmatrix}
+      \end{aligned}
+      \]
+
+      <p>Small whole numbers, chosen so the arithmetic stays in your head. A real model has
+        decimals and 512 columns. Every step below would be identical.</p>
+
+      <p>These three are square only to keep the arithmetic small. In a real model
+        \(\mathbf{W}^Q\) and \(\mathbf{W}^K\) are
+        <span class="shape">\(d_{\text{model}} \times d_k\)</span> and \(\mathbf{W}^V\) is
+        <span class="shape">\(d_{\text{model}} \times d_v\)</span>;
+        <a href="./TTNN-Part1-Self-Attention.html#s133">Part 1, Section 1.3.3</a>
+        sets out which of those sizes are forced.</p>
+
+      <h4>Step 1 — project to full width</h4>
+
+      <p>Entry \((i,j)\) of \(\mathbf{X}\mathbf{W}^Q\) is row \(i\) of \(\mathbf{X}\) dotted with column \(j\) of
+        \(\mathbf{W}^Q\). The top-left entry takes row 1 of \(\mathbf{X}\), which is \((0,0,1,1)\), against
+        column 1 of \(\mathbf{W}^Q\), which is \((0,0,1,1)\):</p>
+
+      \[
+      (0)(0)+(0)(0)+(1)(1)+(1)(1)=2
+      \]
+
+      <p>Thirty-six such dot products fill in all three matrices:</p>
+
+      \[
+      \begin{aligned}
+      \mathbf{Q}=\mathbf{X}\mathbf{W}^Q&amp;=\begin{pmatrix}2&amp;1&amp;0&amp;0\\1&amp;2&amp;0&amp;1\\1&amp;0&amp;1&amp;2\end{pmatrix}\\[8pt]
+      \mathbf{K}=\mathbf{X}\mathbf{W}^K&amp;=\begin{pmatrix}2&amp;0&amp;1&amp;0\\0&amp;2&amp;0&amp;1\\1&amp;0&amp;0&amp;2\end{pmatrix}\\[8pt]
+      \mathbf{V}=\mathbf{X}\mathbf{W}^V&amp;=\begin{pmatrix}1&amp;1&amp;0&amp;0\\2&amp;0&amp;0&amp;1\\1&amp;0&amp;1&amp;0\end{pmatrix}
+      \end{aligned}
+      \]
+
+      <p>All three are <span class="shape">3 × 4</span>, full width. This step has not heard
+        of \(h\) — it would produce exactly these matrices for one head or for eight.</p>
+
+      <h4>Step 2 — deal the columns out</h4>
+
+      <p>Now \(h\) arrives, and it arrives only here. With \(d_{\text{model}} = 4\) and
+        \(h = 2\), each head gets two columns: head 1 takes columns 1 and 2, head 2 takes
+        columns 3 and 4. Head 1's three slices:</p>
+
+      \[
+      \begin{aligned}
+      \mathbf{Q}_1&amp;=\begin{pmatrix}2&amp;1\\1&amp;2\\1&amp;0\end{pmatrix}\\[6pt]
+      \mathbf{K}_1&amp;=\begin{pmatrix}2&amp;0\\0&amp;2\\1&amp;0\end{pmatrix}\\[6pt]
+      \mathbf{V}_1&amp;=\begin{pmatrix}1&amp;1\\2&amp;0\\1&amp;0\end{pmatrix}
+      \end{aligned}
+      \]
+
+      <p>And head 2's, taken from the same three matrices:</p>
+
+      \[
+      \begin{aligned}
+      \mathbf{Q}_2&amp;=\begin{pmatrix}0&amp;0\\0&amp;1\\1&amp;2\end{pmatrix}\\[6pt]
+      \mathbf{K}_2&amp;=\begin{pmatrix}1&amp;0\\0&amp;1\\0&amp;2\end{pmatrix}\\[6pt]
+      \mathbf{V}_2&amp;=\begin{pmatrix}0&amp;0\\0&amp;1\\1&amp;0\end{pmatrix}
+      \end{aligned}
+      \]
+
+      <p>No arithmetic happened. Every number above already appears in \(\mathbf{Q}\), \(\mathbf{K}\) or \(\mathbf{V}\)
+        — they have only been sorted into two piles. Each pile is
+        <span class="shape">3 × 2</span>, so \(d_k = d_v = 2\) inside a head, which is
+        \(d_{\text{model}}/h\) exactly as Equation 2-3 promised.
+      </p>
+
+      <h4>Step 3 — head 1 attends on its slice</h4>
+
+      <p>The same formula as always, on smaller matrices. Scores first:</p>
+
+      \[
+      \mathbf{Q}_1\mathbf{K}_1^\top=\begin{pmatrix}4&amp;2&amp;2\\2&amp;4&amp;1\\2&amp;0&amp;1\end{pmatrix}
+      \]
+
+      <p>Now the divisor changes, and this is the one part of the computation the split
+        really does alter. Inside a head \(d_k = 2\), not 4, so we divide by
+        \(\sqrt{2} \approx 1.414\) rather than by 2:</p>
+
+      \[
+      \frac{\mathbf{Q}_1\mathbf{K}_1^\top}{\sqrt{2}}
+      =\begin{pmatrix}2.83&amp;1.41&amp;1.41\\1.41&amp;2.83&amp;0.71\\1.41&amp;0&amp;0.71\end{pmatrix}
+      \]
+
+      <p>Then softmax along each row. Take row 2, the row for <code>love</code>:
+        \(e^{\sqrt{2}}=4.11\), \(e^{2\sqrt{2}}=16.92\) and \(e^{\sqrt{2}/2}=2.03\), which total
+        23.06 — the exponents are the unrounded scores, not the 1.41 printed above.
+        Dividing each by that total, and doing the same for rows 1 and 3:</p>
+
+      \[
+      \mathbf{A}_1=\begin{pmatrix}0.67&amp;0.16&amp;0.16\\0.18&amp;0.73&amp;0.09\\0.58&amp;0.14&amp;0.28\end{pmatrix}
+      \]
+
+      <p>Every number printed on this page is rounded to two decimals, which is why row 1
+        adds up to 0.99 rather than 1.</p>
+
+      <h4>Step 4 — head 2 does the same on the other slice</h4>
+
+      <p>Its scores:</p>
+
+      \[
+      \mathbf{Q}_2\mathbf{K}_2^\top=\begin{pmatrix}0&amp;0&amp;0\\0&amp;1&amp;2\\1&amp;2&amp;4\end{pmatrix}
+      \]
+
+      <p>And after dividing by \(\sqrt{2}\) and applying softmax:</p>
+
+      \[
+      \mathbf{A}_2=\begin{pmatrix}0.33&amp;0.33&amp;0.33\\0.14&amp;0.28&amp;0.58\\0.09&amp;0.18&amp;0.73\end{pmatrix}
+      \]
+
+      <blockquote class="think"><b>Think for a moment</b>
+        Row 1 of \(\mathbf{A}_2\) is three equal weights. Look back at \(\mathbf{Q}_2\) and work out why
+        before reading on.</blockquote>
+
+      <p>Row 1 of \(\mathbf{Q}_2\) is \((0,0)\) — the query vector for <code>I</code> sits entirely
+        in the half that went to head 1, so head 2 has nothing to ask with. Every score in
+        that row is a dot product with a zero vector, so all three come out 0, and softmax
+        over three equal numbers is a flat \(1/3\) each. Head 2 does not fail here; it
+        abstains, spreading its attention evenly because it has no reason to prefer
+        anything. Real models do this too, and heads that abstain on most inputs are exactly
+        the ones that prune away cheaply.</p>
+
+      <p>Now compare the two weight matrices, which is the point of the whole exercise
+        (Figure 3).</p>
+
+      <figure id="fig3">
+        <div class="plate">
+          <svg viewBox="0 0 960 267" xmlns="http://www.w3.org/2000/svg" role="img"
+            aria-label="The two heads produce genuinely different attention weight matrices for the same sentence">
+            <defs></defs>
+            <g font-family="IBM Plex Mono, monospace" fill="var(--fig-line,#16202B)">
+              <text x="290.0" y="48" font-size="12" text-anchor="middle" fill="var(--h1c,#2E6F8E)">head 1 &#160;·&#160; columns 1–2</text>
+              <text x="250" y="70" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">I</text>
+              <text x="290" y="70" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">love</text>
+              <text x="330" y="70" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">LLMs</text>
+              <rect x="230" y="80" width="40" height="25" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.64" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="270" y="80" width="40" height="25" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.23" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="310" y="80" width="40" height="25" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.23" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="230" y="105" width="40" height="25" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.24" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="270" y="105" width="40" height="25" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.68" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="310" y="105" width="40" height="25" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.17" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="230" y="130" width="40" height="25" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.56" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="270" y="130" width="40" height="25" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.21" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="310" y="130" width="40" height="25" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.32" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <text x="250" y="97" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.67</text>
+              <text x="290" y="97" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.16</text>
+              <text x="330" y="97" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.16</text>
+              <text x="250" y="122" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.18</text>
+              <text x="290" y="122" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.73</text>
+              <text x="330" y="122" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.09</text>
+              <text x="250" y="147" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.58</text>
+              <text x="290" y="147" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.14</text>
+              <text x="330" y="147" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.28</text>
+              <text x="222" y="97" font-size="11.5" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">I</text>
+              <text x="222" y="122" font-size="11.5" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">love</text>
+              <text x="222" y="147" font-size="11.5" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">LLMs</text>
+              <text x="290.0" y="175" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">3 × 3</text>
+              <text x="670.0" y="48" font-size="12" text-anchor="middle" fill="var(--h2c,#B07D1A)">head 2 &#160;·&#160; columns 3–4</text>
+              <text x="630" y="70" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">I</text>
+              <text x="670" y="70" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">love</text>
+              <text x="710" y="70" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">LLMs</text>
+              <rect x="610" y="80" width="40" height="25" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.36" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
+              <rect x="650" y="80" width="40" height="25" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.36" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
+              <rect x="690" y="80" width="40" height="25" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.36" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
+              <rect x="610" y="105" width="40" height="25" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.21" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
+              <rect x="650" y="105" width="40" height="25" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.32" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
+              <rect x="690" y="105" width="40" height="25" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.56" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
+              <rect x="610" y="130" width="40" height="25" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.17" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
+              <rect x="650" y="130" width="40" height="25" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.24" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
+              <rect x="690" y="130" width="40" height="25" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.68" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
+              <text x="630" y="97" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.33</text>
+              <text x="670" y="97" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.33</text>
+              <text x="710" y="97" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.33</text>
+              <text x="630" y="122" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.14</text>
+              <text x="670" y="122" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.28</text>
+              <text x="710" y="122" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.58</text>
+              <text x="630" y="147" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.09</text>
+              <text x="670" y="147" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.18</text>
+              <text x="710" y="147" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.73</text>
+              <text x="602" y="97" font-size="11.5" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">I</text>
+              <text x="602" y="122" font-size="11.5" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">love</text>
+              <text x="602" y="147" font-size="11.5" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">LLMs</text>
+              <text x="670.0" y="175" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">3 × 3</text>
+              <text x="480" y="96" font-size="11.5" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">same</text>
+              <text x="480" y="112" font-size="11.5" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">sentence,</text>
+              <text x="480" y="128" font-size="11.5" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">same Q, K, V,</text>
+              <text x="480" y="144" font-size="11.5" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">different halves</text>
+              <text x="480" y="207" font-size="12" text-anchor="middle" fill="var(--h1c,#2E6F8E)">head 1 sends &quot;LLMs&quot; back to &quot;I&quot; (0.58)</text>
+              <text x="480" y="225" font-size="12" text-anchor="middle" fill="var(--h2c,#B07D1A)">head 2 keeps &quot;LLMs&quot; on itself (0.73)</text>
+              <text x="480" y="249" font-size="11.5" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">neither row could hold both readings at once — that is the whole argument for h &gt; 1</text>
+            </g>
+          </svg>
+        </div>
+        <figcaption><b>Figure 3.</b> The two heads' attention weight matrices, from Step 3 and
+          Step 4 above. Same sentence, same \(\mathbf{Q}\), \(\mathbf{K}\) and \(\mathbf{V}\) — the only
+          difference is which two columns each head was given.</figcaption>
+      </figure>
+
+      <p>Look at row 3, the row for <code>LLMs</code>. Head 1 spends 0.58 of it on
+        <code>I</code>; head 2 spends 0.73 on <code>LLMs</code> itself. Those are two
+        different readings of the same word in the same sentence, and a single head is one
+        row of one matrix — it cannot hold both. Two heads can.
+      </p>
+
+      <h4>Step 5 — each head spends its weights on its own V slice</h4>
+
+      <p>Every head finishes by multiplying its weights into its own
+        <span class="shape">3 × 2</span> value slice:
+      </p>
+
+      \[
+      \begin{aligned}
+      \mathbf{Z}_1=\mathbf{A}_1\mathbf{V}_1&amp;=\begin{pmatrix}1.16&amp;0.67\\1.73&amp;0.18\\1.14&amp;0.58\end{pmatrix}\\[8pt]
+      \mathbf{Z}_2=\mathbf{A}_2\mathbf{V}_2&amp;=\begin{pmatrix}0.33&amp;0.33\\0.58&amp;0.28\\0.73&amp;0.18\end{pmatrix}
+      \end{aligned}
+      \]
+
+      <p>Each is <span class="shape">3 × 2</span>: three tokens, two numbers each, because a
+        head only ever sees its own \(d_v = 2\) columns. Neither head has produced anything
+        the next layer could use — both are half as wide as the model needs.</p>
+
+      <h4>Step 6 — lay the heads side by side</h4>
+
+      <p>Concatenation restores the full width. Nothing is added or averaged; the two slices
+        are simply written next to each other:</p>
+
+      \[
+      \operatorname{Concat}(\mathbf{Z}_1,\mathbf{Z}_2)
+      =\begin{pmatrix}1.16&amp;0.67&amp;0.33&amp;0.33\\1.73&amp;0.18&amp;0.58&amp;0.28\\1.14&amp;0.58&amp;0.73&amp;0.18\end{pmatrix}
+      \]
+
+      <p>Back to the shape <span class="shape">3 × 4</span>, which is where \(\mathbf{X}\) started.</p>
+
+      <h4>Step 7 — \(\mathbf{W}^O\) does the mixing</h4>
+
+      <p>The final matrix is <span class="shape">4 × 4</span> here, in general
+        \(hd_v \times d_{\text{model}}\):</p>
+
+      \[
+      \mathbf{W}^O=\begin{pmatrix}0&amp;0&amp;1&amp;1\\1&amp;1&amp;0&amp;0\\0&amp;1&amp;-1&amp;1\\1&amp;0&amp;0&amp;0\end{pmatrix}
+      \]
+
+      <p>Take the first entry of the output: row 1 of the concatenation dotted with column 1
+        of \(\mathbf{W}^O\). That column is \((0,1,0,1)\), which picks the second number from head 1's
+        slice and the second from head 2's:</p>
+
+      \[
+      (1.16)(0)+(0.67)(1)+(0.33)(0)+(0.33)(1)=0.67+0.33=1.00
+      \]
+
+      <p>One number, built from both heads at once. The matrix below prints it as 1.01,
+        because it was computed from the unrounded numbers. Eleven more dot products finish
+        the layer:</p>
+
+      \[
+      \operatorname{MultiHead}(\mathbf{Q},\mathbf{K},\mathbf{V})=\operatorname{Concat}(\mathbf{Z}_1,\mathbf{Z}_2) \mathbf{W}^O
+      =\begin{pmatrix}1.01&amp;1.01&amp;0.83&amp;1.50\\0.46&amp;0.75&amp;1.16&amp;2.31\\0.75&amp;1.31&amp;0.41&amp;1.87\end{pmatrix}
+      \]
+
+      <p>Three tokens in, three tokens out, four numbers each — the same
+        <span class="shape">3 × 4</span> that \(\mathbf{X}\) had at the top of this section. That the
+        shape survives the whole journey is not a coincidence, and <a href="#s25">Section 2.5</a> explains what
+        forces it.
+      </p>
+
+      <blockquote class="mistake side"><b>&#10007; Common mistake</b>
+        It is tempting to read this output as <em>evidence that multi-head is better</em>, but
+        that is wrong. Nothing on this page shows it: the weight matrices were made up and the model was never trained. The claim
+        multi-head attention actually makes is about what a trained model
+        <em>can represent</em> — with one head, row 3 must choose between looking at
+        <code>I</code> and looking at <code>LLMs</code>; with two, it does not have to.
+        Whether that freedom pays off is a question for measurement, which is what
+        <a href="#s24">Section 2.4</a> turns to.
+      </blockquote>
+
+      <blockquote class="takeaway"><b>Key takeaway</b></blockquote>
+      <ul>
+        <li>The projection runs once at full width. \(h\) does not appear until the columns
+          are dealt out.</li>
+        <li>Splitting moves no numbers — \(\mathbf{Q}_1\) and \(\mathbf{Q}_2\) are the columns of \(\mathbf{Q}\), sorted
+          into two piles.</li>
+        <li>The divisor shrinks with the slice: \(\sqrt{2}\) inside a head instead of
+          \(\sqrt{4}\) across the full width.</li>
+        <li>A head whose query slice is all zeros spreads its attention evenly. It abstains
+          rather than breaks.</li>
+        <li>Concatenation restores the width but mixes nothing. \(\mathbf{W}^O\) is where the heads
+          finally meet.</li>
+      </ul>
+
+      <p><b>Try it (5 minutes):</b> Compute row 2 of the concatenation yourself, from
+        \(\mathbf{A}_1\), \(\mathbf{V}_1\), \(\mathbf{A}_2\) and \(\mathbf{V}_2\) above. You should get
+        \((1.73,\ 0.18,\ 0.58,\ 0.28)\). Then say which two of those four numbers head 1 is
+        responsible for.</p>
+
+
+      <blockquote class="mistake"><b>&#10007; Common mistake</b>
+        Concatenation already produces the right width, so it is tempting to assume
+        <em>\(\mathbf{W}^O\) is bookkeeping, there to fix the shape</em>, but that is wrong. The
+        shape is already right after concatenation:
+        \(h\) slices of width \(d_{\text{model}}/h\) come to \(d_{\text{model}}\). \(\mathbf{W}^O\) is
+        there to <em>mix</em>. Without it, the output vector would be eight untouched slices
+        sitting next to each other, and no later layer could combine what two heads found unless
+        it did the mixing itself.</blockquote>
+
+      <p><b>Try it (3 minutes):</b> Take \(d_{\text{model}} = 512\) and \(h = 8\), with a
+        sentence of \(n\) tokens. Write down the shape of \(\mathbf{Q}\) after the projection, the
+        shape of one head's \(\mathbf{Q}_i\) after the split, and the shape after the concatenation.
+        Then find where in that sequence the number 8 first gets involved — and where it
+        disappears again.</p>
+
+      <h2 id="s23"><span class="num">2.3</span>One wide head vs many narrow ones</h2>
+
+      <p>A question that comes up constantly at this point: if the total width is the same
+        either way, what does splitting actually buy you?</p>
+
+      <p>Start with what does <em>not</em> change. One head of width \(d_{\text{model}}\), two
+        heads of width \(d_{\text{model}}/2\), three of width \(d_{\text{model}}/3\) — all three
+        use the same number of parameters and emit an output of the same shape. From the outside
+        they are interchangeable. For most of the computation they are also identical on the
+        inside (Figure 4).</p>
+
+      <figure id="fig4">
+        <div class="plate">
+          <svg viewBox="0 0 960 262" xmlns="http://www.w3.org/2000/svg" role="img"
+            aria-label="The same model width sliced into one, two or three heads">
+            <defs></defs>
+            <g font-family="IBM Plex Mono, monospace" fill="var(--fig-line,#16202B)">
+              <path d="M300,44 L300,36 L700,36 L700,44" fill="none" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1"></path>
+              <text x="500" y="28" font-size="11.5" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">d<tspan dy="3" font-size="8.3">model</tspan><tspan dy="-3"> &#160;—&#160; identical in all three cases</tspan></text>
+              <text x="286" y="79" font-size="12" text-anchor="end" fill="var(--fig-line,#16202B)">h = 1</text>
+              <rect x="300" y="60" width="400" height="30" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.28" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <text x="500" y="79" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">head 1</text>
+              <text x="714" y="79" font-size="11.5" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">d<tspan dy="3" font-size="8.3">k</tspan><tspan dy="-3"> = d</tspan><tspan dy="3" font-size="8.3">model</tspan></text>
+              <text x="286" y="139" font-size="12" text-anchor="end" fill="var(--fig-line,#16202B)">h = 2</text>
+              <rect x="300" y="120" width="200" height="30" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.28" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <text x="400" y="139" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">head 1</text>
+              <rect x="500" y="120" width="200" height="30" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.28" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
+              <text x="600" y="139" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">head 2</text>
+              <text x="714" y="139" font-size="11.5" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">d<tspan dy="3" font-size="8.3">k</tspan><tspan dy="-3"> = d</tspan><tspan dy="3" font-size="8.3">model</tspan><tspan dy="-3">/2</tspan></text>
+              <text x="286" y="199" font-size="12" text-anchor="end" fill="var(--fig-line,#16202B)">h = 3</text>
+              <rect x="300" y="180" width="133" height="30" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.28" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <text x="366" y="199" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">head 1</text>
+              <rect x="433" y="180" width="133" height="30" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.28" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
+              <text x="499" y="199" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">head 2</text>
+              <rect x="566" y="180" width="133" height="30" rx="3" fill="var(--accent,#7D4A72)" fill-opacity="0.28" stroke="var(--accent,#7D4A72)" stroke-width="1.5"></rect>
+              <text x="632" y="199" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">head 3</text>
+              <text x="714" y="199" font-size="11.5" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">d<tspan dy="3" font-size="8.3">k</tspan><tspan dy="-3"> = d</tspan><tspan dy="3" font-size="8.3">model</tspan><tspan dy="-3">/3</tspan></text>
+              <text x="500" y="244" font-size="11.5" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">nothing differs until the split — h decides only how finely Q, K and V are cut</text>
+            </g>
+          </svg>
+        </div>
+        <figcaption><b>Figure 4.</b> The same \(d_{\text{model}}\), cut three ways. Up to the
+          moment of the split, one wide head and several narrow ones do exactly the same
+          arithmetic.</figcaption>
+      </figure>
+
+      <p>That sets up a small test. Suppose I hand you \(\mathbf{Q}\), \(\mathbf{K}\) and \(\mathbf{V}\) and ask for the
+        output. You cannot compute it — not because anything is missing from the diagram, but
+        because I have not told you \(h\), and \(h\) decides where the cuts fall. At \(h = 2\)
+        each head sees half the columns; at \(h = 3\), a third of them.</p>
+
+      <p>Why does that matter so much? Because each head builds its own attention weight
+        matrix, independently, out of its own slice. One head gives you a single
+        \(n \times n\) weighting of the sequence. Two heads give you two, and nothing forces
+        them to agree (Figure 5).</p>
+
+      <figure id="fig5">
+        <div class="plate">
+          <svg viewBox="0 0 960 300" xmlns="http://www.w3.org/2000/svg" role="img"
+            aria-label="More heads means more independent attention patterns">
+            <defs></defs>
+            <g font-family="IBM Plex Mono, monospace" fill="var(--fig-line,#16202B)">
+              <text x="236" y="71" font-size="12" text-anchor="end" fill="var(--fig-line,#16202B)">h = 1</text>
+              <rect x="250" y="40" width="18" height="18" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.72" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2"></rect>
+              <rect x="268" y="40" width="18" height="18" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.16" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2"></rect>
+              <rect x="286" y="40" width="18" height="18" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.12" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2"></rect>
+              <rect x="250" y="58" width="18" height="18" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.18" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2"></rect>
+              <rect x="268" y="58" width="18" height="18" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.66" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2"></rect>
+              <rect x="286" y="58" width="18" height="18" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.16" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2"></rect>
+              <rect x="250" y="76" width="18" height="18" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.14" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2"></rect>
+              <rect x="268" y="76" width="18" height="18" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.16" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2"></rect>
+              <rect x="286" y="76" width="18" height="18" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.70" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2"></rect>
+              <text x="328" y="71" font-size="11.5" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">one pattern — every token gets exactly one weighting</text>
+              <text x="236" y="147" font-size="12" text-anchor="end" fill="var(--fig-line,#16202B)">h = 2</text>
+              <rect x="250" y="116" width="18" height="18" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.66" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2"></rect>
+              <rect x="268" y="116" width="18" height="18" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.20" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2"></rect>
+              <rect x="286" y="116" width="18" height="18" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.14" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2"></rect>
+              <rect x="250" y="134" width="18" height="18" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.22" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2"></rect>
+              <rect x="268" y="134" width="18" height="18" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.58" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2"></rect>
+              <rect x="286" y="134" width="18" height="18" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.20" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2"></rect>
+              <rect x="250" y="152" width="18" height="18" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.16" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2"></rect>
+              <rect x="268" y="152" width="18" height="18" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.18" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2"></rect>
+              <rect x="286" y="152" width="18" height="18" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.66" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2"></rect>
+              <rect x="320" y="116" width="18" height="18" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.18" stroke="var(--h2c,#B07D1A)" stroke-width="1.2"></rect>
+              <rect x="338" y="116" width="18" height="18" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.62" stroke="var(--h2c,#B07D1A)" stroke-width="1.2"></rect>
+              <rect x="356" y="116" width="18" height="18" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.20" stroke="var(--h2c,#B07D1A)" stroke-width="1.2"></rect>
+              <rect x="320" y="134" width="18" height="18" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.56" stroke="var(--h2c,#B07D1A)" stroke-width="1.2"></rect>
+              <rect x="338" y="134" width="18" height="18" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.16" stroke="var(--h2c,#B07D1A)" stroke-width="1.2"></rect>
+              <rect x="356" y="134" width="18" height="18" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.28" stroke="var(--h2c,#B07D1A)" stroke-width="1.2"></rect>
+              <rect x="320" y="152" width="18" height="18" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.24" stroke="var(--h2c,#B07D1A)" stroke-width="1.2"></rect>
+              <rect x="338" y="152" width="18" height="18" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.54" stroke="var(--h2c,#B07D1A)" stroke-width="1.2"></rect>
+              <rect x="356" y="152" width="18" height="18" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.22" stroke="var(--h2c,#B07D1A)" stroke-width="1.2"></rect>
+              <text x="398" y="147" font-size="11.5" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">a second pattern is free to look elsewhere</text>
+              <text x="236" y="223" font-size="12" text-anchor="end" fill="var(--fig-line,#16202B)">h = 3</text>
+              <rect x="250" y="192" width="18" height="18" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.62" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2"></rect>
+              <rect x="268" y="192" width="18" height="18" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.22" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2"></rect>
+              <rect x="286" y="192" width="18" height="18" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.16" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2"></rect>
+              <rect x="250" y="210" width="18" height="18" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.24" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2"></rect>
+              <rect x="268" y="210" width="18" height="18" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.54" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2"></rect>
+              <rect x="286" y="210" width="18" height="18" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.22" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2"></rect>
+              <rect x="250" y="228" width="18" height="18" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.18" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2"></rect>
+              <rect x="268" y="228" width="18" height="18" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.20" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2"></rect>
+              <rect x="286" y="228" width="18" height="18" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.62" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2"></rect>
+              <rect x="320" y="192" width="18" height="18" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.20" stroke="var(--h2c,#B07D1A)" stroke-width="1.2"></rect>
+              <rect x="338" y="192" width="18" height="18" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.60" stroke="var(--h2c,#B07D1A)" stroke-width="1.2"></rect>
+              <rect x="356" y="192" width="18" height="18" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.20" stroke="var(--h2c,#B07D1A)" stroke-width="1.2"></rect>
+              <rect x="320" y="210" width="18" height="18" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.54" stroke="var(--h2c,#B07D1A)" stroke-width="1.2"></rect>
+              <rect x="338" y="210" width="18" height="18" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.18" stroke="var(--h2c,#B07D1A)" stroke-width="1.2"></rect>
+              <rect x="356" y="210" width="18" height="18" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.28" stroke="var(--h2c,#B07D1A)" stroke-width="1.2"></rect>
+              <rect x="320" y="228" width="18" height="18" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.26" stroke="var(--h2c,#B07D1A)" stroke-width="1.2"></rect>
+              <rect x="338" y="228" width="18" height="18" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.52" stroke="var(--h2c,#B07D1A)" stroke-width="1.2"></rect>
+              <rect x="356" y="228" width="18" height="18" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.22" stroke="var(--h2c,#B07D1A)" stroke-width="1.2"></rect>
+              <rect x="390" y="192" width="18" height="18" rx="3" fill="var(--accent,#7D4A72)" fill-opacity="0.22" stroke="var(--accent,#7D4A72)" stroke-width="1.2"></rect>
+              <rect x="408" y="192" width="18" height="18" rx="3" fill="var(--accent,#7D4A72)" fill-opacity="0.24" stroke="var(--accent,#7D4A72)" stroke-width="1.2"></rect>
+              <rect x="426" y="192" width="18" height="18" rx="3" fill="var(--accent,#7D4A72)" fill-opacity="0.58" stroke="var(--accent,#7D4A72)" stroke-width="1.2"></rect>
+              <rect x="390" y="210" width="18" height="18" rx="3" fill="var(--accent,#7D4A72)" fill-opacity="0.20" stroke="var(--accent,#7D4A72)" stroke-width="1.2"></rect>
+              <rect x="408" y="210" width="18" height="18" rx="3" fill="var(--accent,#7D4A72)" fill-opacity="0.30" stroke="var(--accent,#7D4A72)" stroke-width="1.2"></rect>
+              <rect x="426" y="210" width="18" height="18" rx="3" fill="var(--accent,#7D4A72)" fill-opacity="0.52" stroke="var(--accent,#7D4A72)" stroke-width="1.2"></rect>
+              <rect x="390" y="228" width="18" height="18" rx="3" fill="var(--accent,#7D4A72)" fill-opacity="0.56" stroke="var(--accent,#7D4A72)" stroke-width="1.2"></rect>
+              <rect x="408" y="228" width="18" height="18" rx="3" fill="var(--accent,#7D4A72)" fill-opacity="0.22" stroke="var(--accent,#7D4A72)" stroke-width="1.2"></rect>
+              <rect x="426" y="228" width="18" height="18" rx="3" fill="var(--accent,#7D4A72)" fill-opacity="0.24" stroke="var(--accent,#7D4A72)" stroke-width="1.2"></rect>
+              <text x="468" y="223" font-size="11.5" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">a third adds another view again</text>
+              <text x="480" y="282" font-size="11.5" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">more heads → more independent weightings — but each one gets a narrower d<tspan dy="3" font-size="8.3">k</tspan><tspan dy="-3">, so bigger h is not always better</tspan></text>
+            </g>
+          </svg>
+        </div>
+        <figcaption><b>Figure 5.</b> Three panels, one per head count: at \(h = 1\) the sequence
+          gets a single weighting, at \(h = 2\) a second one is free to look elsewhere, at
+          \(h = 3\) a third. More heads buy more independent weightings but give each one a
+          narrower \(d_k\), so more heads and wider heads pull against each other, and
+          <a href="#s24">Section 2.4</a> measures which way to lean.</figcaption>
+      </figure>
+
+      <p>That is the payoff, and it is the direct answer to the objection raised in
+        <a href="#s21">Section 2.1</a>. One head can go on tracking
+        whatever that head finds most useful, while another learns to link a verb to the verb's
+        object, or a noun to the determiner in front of the noun, or whatever else turns out to be
+        worth a head of its own.</p>
+
+      <p>There is a second effect, and it is a cost rather than a benefit. Because \(h\)
+          sets \(d_k\), \(h\) also caps how much a single head can express — and the cap is
+          sharper than "less room for information." The cap is a hard ceiling on the <em>set of
+          patterns</em> a head can produce at all, one that no amount of training lifts.
+          <a href="#s254">Section 2.5.4</a> shows a head failing on a pattern you would
+          expect to be easy, and <a href="#sa">Appendix A</a> works out where the ceiling sits
+          in general. The short version: a head's attention scores have <b>rank</b> at most
+          \(d_k\), and a great many patterns need more rank than that. The <em>rank</em> of a
+          matrix is the number of its rows that are genuinely different — rows that are not
+          just other rows rescaled and added together. Appendix A,
+          <a href="#rank-def">Rank, in one paragraph</a>, gives the careful version.</p>
+
+        <blockquote class="mistake side"><b>&#10007; Common mistake</b>
+          \(h\) changes \(d_k\), and \(d_k\) sets the scaling factor \(\sqrt{d_k}\), so it is a
+          natural chain of thought to conclude <em>the softmax sees differently-scaled scores at
+          different head counts</em>. It reaches the wrong end. The division by
+          \(\sqrt{d_k}\) is designed precisely to cancel that difference: under the assumption in
+          <a href="./TTNN-Part1-Self-Attention.html#s132">Part 1, Section 1.3.2</a>, the scaled scores have variance about 1 whatever \(d_k\) is. Scaling is
+          what makes head counts comparable. The real cost of a large \(h\) is the rank limit
+          above, not a scale mismatch.</blockquote>
+
+        <blockquote class="takeaway"><b>Key takeaway</b></blockquote>
+        <ul>
+          <li>One wide head and \(h\) narrow heads use the same parameters and produce the same
+            output shape.</li>
+          <li>They are identical arithmetic right up to the split; \(h\) only decides where the
+            cuts fall.</li>
+          <li>What \(h\) heads buy is \(h\) independent weightings of the sequence instead of
+            one.</li>
+          <li>What they cost is expressive power per head. The ceiling is set by \(d_k\), and
+            <a href="#sa">Appendix A</a> works out exactly where it sits.</li>
+        </ul>
+
+        <h2 id="s24"><span class="num">2.4</span>How many heads</h2>
+
+        <p>Two effects pull in opposite directions. More heads means more independent weightings;
+          more heads also means a narrower \(d_k\) for each of them. Somewhere in between is a
+          best answer, and the paper measured it rather than guessed (Figure 6).</p>
+
+        <p>The measurement is reported in <b>BLEU</b>, the standard score for machine
+          translation: it compares what the model wrote against human translations of the same
+          sentences, higher is better, and on this benchmark a difference of half a point is
+          worth arguing about.</p>
+
+        <figure id="fig6">
+          <div class="plate">
+            <svg viewBox="0 0 960 400" xmlns="http://www.w3.org/2000/svg" role="img"
+              aria-label="BLEU rises from 24.9 at one head to 25.8 at eight and sixteen heads, then falls to 25.4 at thirty-two heads, so the penalty for too few heads is more than twice the penalty for too many.">
+              <defs>
+                <marker id="arrow-f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6"
+                  orient="auto-start-reverse">
+                  <path d="M0,0 L10,5 L0,10 z" fill="var(--h2c,#B07D1A)"></path>
+                </marker>
+              </defs>
+
+              <g font-family="IBM Plex Mono, monospace" fill="var(--fig-line,#16202B)">
+
+                <text x="40" y="40" font-size="13" fill="var(--h1c,#2E6F8E)">TABLE 3, ROW (A) + BASE &#160;·&#160;
+                  computation
+                  held constant</text>
+
+                <!-- gridlines -->
+                <g stroke="var(--rule,#D6DEE5)" stroke-width="1">
+                  <line x1="120" y1="111" x2="880" y2="111"></line>
+                  <line x1="120" y1="174" x2="880" y2="174"></line>
+                  <line x1="120" y1="237" x2="880" y2="237"></line>
+                </g>
+                <g font-size="11.5" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">
+                  <text x="110" y="115">25.8</text>
+                  <text x="110" y="178">25.4</text>
+                  <text x="110" y="241">25.0</text>
+                </g>
+                <text x="120" y="72" font-size="12" fill="var(--fig-soft,#5A6B7A)">BLEU on the English-to-German
+                  development set</text>
+
+                <!-- axes -->
+                <line x1="120" y1="300" x2="880" y2="300" stroke="var(--fig-line,#16202B)" stroke-width="1.4"></line>
+                <line x1="120" y1="90" x2="120" y2="300" stroke="var(--fig-line,#16202B)" stroke-width="1.4"></line>
+
+                <!-- best-setting reference -->
+                <line x1="120" y1="111" x2="880" y2="111" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2"
+                  stroke-dasharray="5 4"></line>
+
+                <!-- data line -->
+                <path d="M140,253 L396,159 L524,111 L652,111 L780,174" fill="none" stroke="var(--h1c,#2E6F8E)"
+                  stroke-width="2"></path>
+
+                <!-- points -->
+                <g fill="var(--h1c,#2E6F8E)">
+                  <circle cx="140" cy="253" r="5.5"></circle>
+                  <circle cx="396" cy="159" r="5.5"></circle>
+                  <circle cx="524" cy="111" r="5.5"></circle>
+                  <circle cx="652" cy="111" r="5.5"></circle>
+                  <circle cx="780" cy="174" r="5.5"></circle>
+                </g>
+                <g font-size="12.5" text-anchor="middle" fill="var(--fig-line,#16202B)">
+                  <text x="140" y="240">24.9</text>
+                  <text x="396" y="146">25.5</text>
+                  <text x="524" y="98">25.8</text>
+                  <text x="652" y="98">25.8</text>
+                  <text x="780" y="161">25.4</text>
+                </g>
+
+                <!-- x labels -->
+                <g font-size="12.5" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">
+                  <text x="140" y="322">h = 1</text>
+                  <text x="396" y="322">h = 4</text>
+                  <text x="524" y="322">h = 8</text>
+                  <text x="652" y="322">h = 16</text>
+                  <text x="780" y="322">h = 32</text>
+                </g>
+                <g font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">
+                  <text x="140" y="340">d<tspan dy="2.86" font-size="7.92">k</tspan><tspan dy="-2.86"> 512</tspan></text>
+                  <text x="396" y="340">d<tspan dy="2.86" font-size="7.92">k</tspan><tspan dy="-2.86"> 128</tspan></text>
+                  <text x="524" y="340">d<tspan dy="2.86" font-size="7.92">k</tspan><tspan dy="-2.86"> 64</tspan></text>
+                  <text x="652" y="340">d<tspan dy="2.86" font-size="7.92">k</tspan><tspan dy="-2.86"> 32</tspan></text>
+                  <text x="780" y="340">d<tspan dy="2.86" font-size="7.92">k</tspan><tspan dy="-2.86"> 16</tspan></text>
+                </g>
+
+                <!-- the two gaps, drawn to scale -->
+                <path d="M172,253 L172,111" fill="none" stroke="var(--h2c,#B07D1A)" stroke-width="1.3"
+                  stroke-dasharray="4 3" marker-start="url(#arrow-f6)" marker-end="url(#arrow-f6)"></path>
+                <text x="184" y="188" font-size="12.5" fill="var(--h2c,#B07D1A)">−0.9 BLEU</text>
+
+                <path d="M812,174 L812,111" fill="none" stroke="var(--h2c,#B07D1A)" stroke-width="1.3"
+                  stroke-dasharray="4 3" marker-start="url(#arrow-f6)" marker-end="url(#arrow-f6)"></path>
+                <text x="824" y="146" font-size="12.5" fill="var(--h2c,#B07D1A)">−0.4</text>
+
+                <path d="M524,368 L524,378 L652,378 L652,368" fill="none" stroke="var(--accent,#7D4A72)"
+                  stroke-width="1.2" stroke-dasharray="4 3"></path>
+                <text x="588" y="394" font-size="12" text-anchor="middle" fill="var(--accent,#7D4A72)">a tie, not a
+                  peak</text>
+              </g>
+            </svg>
+          </div>
+          <figcaption><b>Figure 6.</b> Table 3 of the paper — row (A), plus the base row that
+            supplies the \(h = 8\) point: BLEU on the English-to-German development set as the head
+            count varies, with total computation held constant. The drop is lopsided — one head
+            costs 0.9 BLEU, thirty-two costs 0.4.</figcaption>
+        </figure>
+
+        <p>The measured values are 24.9 at \(h = 1\), 25.5 at \(h = 4\), 25.8 at both \(h = 8\)
+          and \(h = 16\), and 25.4 at \(h = 32\). Three things are worth reading off that
+          list.</p>
+
+        <p>The first is that single-head attention is 0.9 BLEU worse than the best setting,
+          which is a large gap for this benchmark. That gap is the strongest evidence in the paper
+          for the argument in <a href="#s21">Section 2.1</a>.</p>
+
+        <p>The second is that the two ends are not symmetric. Too many heads also hurts, but by
+          0.4 rather than 0.9 — less than half as much. Going too narrow is a milder failure than
+          going too wide.</p>
+
+        <p>The third is that \(h = 8\) and \(h = 16\) score the same. Eight is not a peak the
+          authors found. Eight is a point on a flat stretch, and the authors took the cheaper end
+          of that stretch. If
+          you have seen eight described as an optimum, this table is where the claim comes from,
+          and it does not quite say that.</p>
+
+        <blockquote class="takeaway"><b>Key takeaway</b></blockquote>
+        <ul>
+          <li>Head count was measured with total computation held constant, so the comparison is
+            fair.</li>
+          <li>\(h = 1\) costs 0.9 BLEU; \(h = 32\) costs 0.4. The penalty for too few heads is
+            more than double the penalty for too many.</li>
+          <li>\(h = 8\) and \(h = 16\) tie at 25.8, so eight is a choice on a plateau rather than
+            a maximum.</li>
+        </ul>
+
+
+
+        <h2 id="s25"><span class="num">2.5</span>The Math Behind It</h2>
+
+        <p>This section is optional on a first pass. It answers two questions the earlier
+        sections raised without settling: why did <span class="shape">3 × 4</span> go into
+        the layer and <span class="shape">3 × 4</span> come out, and why does a narrow head
+        have less to say than a wide one?</p>
+
+        <h3 id="s251"><span class="num">2.5.1</span>What \(d_{\text{model}}\) actually is</h3>
+
+        <p><a href="#s21">Section 2.1</a> gave a working definition: the width of the vector the model carries
+          for each token. That is correct, but it undersells how rigid the number is. A more
+          useful picture is a <em>stream</em> — one vector per token, flowing from the
+          embedding layer to the output, with the same width at every point along the way
+          (Figure 7).</p>
+
+        <figure id="fig7">
+          <div class="plate">
+            <svg viewBox="0 0 960 342" xmlns="http://www.w3.org/2000/svg" role="img"
+            aria-label="A vertical residual stream of constant width, with two sublayers hanging off it and their internal widths marked as free">
+            <defs><marker id="arrow-f7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--fig-line,#16202B)"></path></marker><marker id="arrow-f7g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--h2c,#B07D1A)"></path></marker></defs>
+            <g font-family="IBM Plex Mono, monospace" fill="var(--fig-line,#16202B)">
+              <text x="308" y="30" font-size="12" text-anchor="middle" fill="var(--h1c,#2E6F8E)">the residual stream &#160;·&#160; width locked at d<tspan dy="3" font-size="8.3">model</tspan></text>
+              <rect x="260" y="50" width="96" height="30" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.20" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <text x="308" y="70" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">embeddings</text>
+              <text x="250" y="70" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">d<tspan dy="3" font-size="8.3">model</tspan></text>
+              <rect x="260" y="120" width="96" height="30" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.20" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <text x="308" y="140" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">x</text>
+              <text x="250" y="140" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">d<tspan dy="3" font-size="8.3">model</tspan></text>
+              <rect x="260" y="190" width="96" height="30" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.20" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <text x="308" y="210" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">x&#8242;</text>
+              <text x="250" y="210" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">d<tspan dy="3" font-size="8.3">model</tspan></text>
+              <rect x="260" y="260" width="96" height="30" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.20" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <text x="308" y="280" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">x&#8243;</text>
+              <text x="250" y="280" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">d<tspan dy="3" font-size="8.3">model</tspan></text>
+              <rect x="490" y="155" width="156" height="30" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.18" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
+              <text x="568" y="174" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">multi-head attention</text>
+              <text x="658" y="168" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">inside: d<tspan dy="3" font-size="8.3">k</tspan><tspan dy="-3"> = d</tspan><tspan dy="3" font-size="8.3">v</tspan><tspan dy="-3"> = 64</tspan></text>
+              <text x="658" y="183" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">free to be anything</text>
+              <text x="447" y="147" font-size="11" text-anchor="middle" fill="var(--h2c,#B07D1A)">out</text>
+              <text x="399" y="203" font-size="11" text-anchor="middle" fill="var(--h2c,#B07D1A)">back in</text>
+              <rect x="490" y="225" width="156" height="30" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.18" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
+              <text x="568" y="244" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">feed-forward</text>
+              <text x="658" y="238" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">inside: d<tspan dy="3" font-size="8.3">ff</tspan><tspan dy="-3"> = 2048</tspan></text>
+              <text x="658" y="253" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">free to be anything</text>
+              <text x="447" y="217" font-size="11" text-anchor="middle" fill="var(--h2c,#B07D1A)">out</text>
+              <text x="399" y="273" font-size="11" text-anchor="middle" fill="var(--h2c,#B07D1A)">back in</text>
+              <text x="190" y="184" font-size="11.5" text-anchor="end" fill="var(--h1c,#2E6F8E)">every</text>
+              <text x="190" y="199" font-size="11.5" text-anchor="end" fill="var(--h1c,#2E6F8E)">box on</text>
+              <text x="190" y="214" font-size="11.5" text-anchor="end" fill="var(--h1c,#2E6F8E)">this line</text>
+              <text x="190" y="229" font-size="11.5" text-anchor="end" fill="var(--h1c,#2E6F8E)">is d<tspan dy="3" font-size="8.3">model</tspan><tspan dy="-3"> wide</tspan></text>
+              <text x="480" y="324" font-size="11.5" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">a sublayer may be as wide as it likes inside &#8212; it must hand back the width it was given</text>
+              <path d="M308,80 L308,115" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f7)"></path>
+              <path d="M308,150 L308,185" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f7)"></path>
+              <path d="M308,220 L308,255" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f7)"></path>
+              <path d="M356,139 L485,164" fill="none" stroke="var(--h2c,#B07D1A)" stroke-width="1.3" marker-end="url(#arrow-f7g)"></path>
+              <path d="M490,178 L361,201" fill="none" stroke="var(--h2c,#B07D1A)" stroke-width="1.3" marker-end="url(#arrow-f7g)"></path>
+              <path d="M356,209 L485,234" fill="none" stroke="var(--h2c,#B07D1A)" stroke-width="1.3" marker-end="url(#arrow-f7g)"></path>
+              <path d="M490,248 L361,271" fill="none" stroke="var(--h2c,#B07D1A)" stroke-width="1.3" marker-end="url(#arrow-f7g)"></path>
+            </g>
+          </svg>
+          </div>
+          <figcaption><b>Figure 7.</b> The residual stream. Every box on the vertical line
+            carries the same width; the sublayers hanging off it may use any width they like
+            internally, but each must return what it was handed.</figcaption>
+        </figure>
+
+        <p>Sublayers do not sit <em>in</em> that stream so much as hang off it. Each one reads
+          the current vector, computes something, and adds its result back. In the paper's
+          notation, with \(x\) the vector arriving and \(\text{Sublayer}\) whatever that
+          sublayer computes:</p>
+
+        \[
+        \text{output} = \text{LayerNorm}\bigl(x + \text{Sublayer}(x)\bigr)\tag{2-4}
+        \]
+
+        <p>Two names in that formula belong to later parts, and this is the only place you will
+          meet them before then. \(\text{LayerNorm}\) puts a row on one scale without changing
+          how many numbers it holds; <a href="./TTNN-Part5-Encoder-Block.html#s53">Part 5,
+          Section 5.3</a> builds it. The feed-forward sublayer is the other thing that hangs off
+          the stream, and <a href="./TTNN-Part5-Encoder-Block.html#s54">Part 5, Section 5.4</a>
+          builds that. For this section all you need from either is that neither changes the
+          width.</p>
+
+        <blockquote class="mistake side"><b>&#10007; Common mistake</b>
+          It is tempting to read \(d_{\text{model}}\) as <em>the embedding size</em>. That part
+          is true: \(d_{\text{model}}\) is the embedding size. What the reading misses is that being
+          the embedding size is a consequence, not the definition. The embedding layer has to emit \(d_{\text{model}}\) numbers because
+          it is feeding the stream, not the other way round. Getting it backwards makes the next subsection look like an arbitrary rule
+          instead of a forced one.</blockquote>
+
+        <h3 id="s252"><span class="num">2.5.2</span>Why the width cannot change</h3>
+
+        <p>The plus sign in Equation 2-4 is the whole answer. Addition of vectors is entrywise:
+          the first number pairs with the first, the second with the second, and so on to the
+          end. It is only defined when both sides have the same number of entries.</p>
+
+        <p>Take \(d_{\text{model}} = 4\) and one token, so \(x\) is
+          <span class="shape">1 × 4</span>. Suppose the sublayer returns
+          <span class="shape">1 × 4</span> as well. Then the addition goes through, slot by
+          slot:
+        </p>
+
+        \[
+        \begin{array}{r|cccc}
+        x &amp; 0 &amp; 1 &amp; 0 &amp; 1\\
+        \text{Sublayer}(x) &amp; 0.46 &amp; 0.75 &amp; 1.16 &amp; 2.31\\\hline
+        \text{sum} &amp; 0.46 &amp; 1.75 &amp; 1.16 &amp; 3.31
+        \end{array}
+        \]
+
+        <p>Now suppose the sublayer had been built to return three numbers instead of four —
+          a perfectly reasonable thing for a matrix multiply to do, and nothing inside
+          attention prevents it. The same table:</p>
+
+        \[
+        \begin{array}{r|cccc}
+        x &amp; 0 &amp; 1 &amp; 0 &amp; 1\\
+        \text{Sublayer}(x) &amp; 0.46 &amp; 0.75 &amp; 1.16 &amp; -\\\hline
+        \text{sum} &amp; 0.46 &amp; 1.75 &amp; 1.16 &amp; \;?
+        \end{array}
+        \]
+
+        <p>The first three columns are fine. The fourth has a number on top and nothing
+          underneath. There is no sensible value to write: dropping it would silently discard
+          a quarter of what the residual path was carrying, and padding with zero would be an
+          invented number pretending to be a computed one. The operation is simply not
+          defined, and in code it raises a shape error rather than doing something clever.</p>
+
+        <blockquote class="think"><b>Think for a moment</b>
+          Attention on its own never runs into this. In <a href="#s22">Section 2.2</a> the layer took
+          <span class="shape">3 × 4</span> to <span class="shape">3 × 4</span>, but look at
+          \(\mathbf{W}^O\) — it was <span class="shape">4 × 4</span>. What in the mathematics of
+          attention forced that second 4 to be a 4?
+        </blockquote>
+
+        <p>Nothing did. \(\mathbf{W}^O\) could have been <span class="shape">4 × 3</span> or
+          <span class="shape">4 × 7</span>, and every matrix multiplication in <a href="#s22">Section 2.2</a>
+          would still have had matching shapes. Attention is perfectly happy to change the width. The
+          constraint comes from outside it — from the addition in Equation 2-4, which the
+          attention sublayer has to feed.
+        </p>
+
+        <p>Three other parts of the architecture are fixed by this same requirement:</p>
+
+        <ul>
+          <li><b>Positional encodings are added</b> to the embeddings, not concatenated, so
+            they must have \(d_{\text{model}}\) entries too.</li>
+          <li><b>The layers are stacked \(N\) times</b>, each identical in shape. If one layer
+            changed the width, the next would not fit, so a single width has to serve all of
+            them.</li>
+          <li><b>The two embedding layers and the pre-softmax linear layer share one weight
+              matrix</b> in the paper. Sharing is only possible if all three see the same
+            width.</li>
+        </ul>
+
+        <blockquote class="takeaway"><b>Key takeaway</b></blockquote>
+        <ul>
+          <li>The residual addition is entrywise, so it needs both sides to have the same
+            number of entries.</li>
+          <li>That single requirement is what makes \(d_{\text{model}}\) constant everywhere,
+            including at the embedding layer.</li>
+          <li>Attention itself does not require it — the constraint arrives from the residual
+            connection wrapped around attention.</li>
+        </ul>
+
+        <h3 id="s253"><span class="num">2.5.3</span>What is free to vary</h3>
+
+        <p>The width is locked <em>between</em> sublayers. Inside one, nothing is. This is
+          worth stating plainly, because it is easy to over-generalise from the previous
+          subsection and assume every dimension in the model must equal
+          \(d_{\text{model}}\).</p>
+
+        <ul>
+          <li>\(d_k\) and \(d_v\), the widths a single head works in. The paper sets
+            \(d_k = d_v = d_{\text{model}}/h = 64\), but that is a budgeting choice, not a
+            requirement. The one thing forced from outside is that \(\mathbf{W}^O\) must emit
+            \(d_{\text{model}}\) numbers, because it has to land on the stream; how many
+            numbers go <em>into</em> it is free.</li>
+          <li>\(d_{\text{ff}}\), the inner width of the feed-forward sublayer, set to 2048 in
+            the paper — four times \(d_{\text{model}}\), and free to be any other multiple.</li>
+          <li>The number of heads \(h\). The paper keeps \(hd_v = d_{\text{model}}\) so that \(h\)
+            heads cost the same as one, but nothing in the mathematics requires it.</li>
+        </ul>
+
+        <p>So a sublayer may be as wide or as narrow as it likes internally. It just has to
+          hand back the width it was given.</p>
+
+        <blockquote class="mistake side"><b>&#10007; Common mistake</b>
+          It is tempting to conclude that <em>a pretrained 300-dimensional word embedding forces
+          \(d_{\text{model}} = 300\)</em>, but that is wrong. Put a learned
+          <span class="shape">300 × 512</span> matrix immediately after the lookup and the
+          stream runs at 512 from there on. Modern large models do exactly this in reverse as
+          well, deliberately decoupling the embedding width from the stream width to avoid
+          spending an enormous number of parameters on a large vocabulary &mdash; the fixed list of
+          words the model can read, named in
+          <a href="./TTNN-Part6-Decoder-Inference.html#s641">Part 6, Section 6.4.1</a>.
+        </blockquote>
+
+        <p>One honest caveat. What must stay constant is the width of the residual stream, and
+          \(d_{\text{model}}\) is simply the name the paper gives that width. An architecture
+          built without residual connections could change width from layer to layer, and some
+          do. Within the Transformer, and within essentially everything built on it since, the
+          two are the same number because the architecture is built that way.</p>
+
+        <p><b>Try it (3 minutes):</b> You are building a model with
+          \(d_{\text{model}} = 768\) and want \(h = 12\) heads. Write down \(d_k\), the shape
+          of one head's \(\mathbf{W}_i^Q\), and the shape of \(\mathbf{W}^O\). Then say which of those three
+          numbers you could change without touching anything outside the attention
+          sublayer.</p>
+
+
+    
+            <h3 id="s254"><span class="num">2.5.4</span>Why a narrow head can express less</h3>
+
+      <p><a href="#s23">Section 2.3</a> claimed that a small \(d_k\) limits what a head can represent, and left
+        the reason here. This subsection makes that precise.</p>
+
+      <p>Here is what we want to test: <em>with enough training, a head can produce any
+        attention pattern you want.</em> Is that true?</p>
+
+      <p>To show it is not, we only need to find one pattern the head cannot produce. One is
+        enough — if the head fails even once, "any pattern" is wrong. So we build the
+        smallest head there is and look for something it cannot do.</p>
+
+      <p>One note on letters before we start, because two of them are about to sit next to
+        each other. \(\mathbf{Q}_i\) and \(\mathbf{K}_i\) are one head's slices, and the
+        subscript \(i\) names the <em>head</em>, exactly as in Equation 2-2. Rows inside those
+        slices are numbered with \(r\), and columns with \(j\). The rule is worth saying out
+        loud: a capital letter with a subscript names a head, and a lower-case letter with a
+        subscript names one row or one column inside it. So \(q_r\) is one token's
+        query and \(k_j\) is one token's key.</p>
+
+      <h4 id="smallest-head">The smallest possible head</h4>
+
+      <p>Set \(d_k = 1\). The head's slices keep the shape they had in <a href="#s22">Section 2.2</a>, only one
+        column wide instead of two, so \(\mathbf{Q}_i\) and \(\mathbf{K}_i\) are both
+        <span class="shape">3 × 1</span>. Suppose training produced these keys, with the rows
+        in the usual order <code>I</code>, <code>love</code>, <code>LLMs</code>:</p>
+
+      \[
+      \mathbf{K}_i=\begin{pmatrix}2\\0\\1\end{pmatrix}
+      \]
+
+      <p>Leave the queries as unknowns, since what we want to know is what the head
+        <em>could</em> learn:</p>
+
+      \[
+      \mathbf{Q}_i=\begin{pmatrix}q_1\\q_2\\q_3\end{pmatrix}
+      \]
+
+      <p>Now multiply. A <span class="shape">3 × 1</span> against a
+        <span class="shape">1 × 3</span> gives the full <span class="shape">3 × 3</span>
+        score matrix:</p>
+
+      \[
+      \mathbf{Q}_i\mathbf{K}_i^\top=\begin{pmatrix}2q_1&amp;0&amp;q_1\\2q_2&amp;0&amp;q_2\\2q_3&amp;0&amp;q_3\end{pmatrix}
+      \]
+
+      <p>Read the rows. Every one is \(q_r\) times the same triple \((2, 0, 1)\), which is
+        \(\mathbf{K}_i^\top\). Nine entries, but only three free numbers, and the shape of every row
+        fixed in advance. The head's entire freedom for row \(r\) is the single value
+        \(q_r\). Sweep it and watch the row change (Figure 8):</p>
+
+      <figure id="fig8">
+        <div class="plate">
+          <svg viewBox="0 0 960 256" xmlns="http://www.w3.org/2000/svg" role="img"
+            aria-label="With a head width of one, every attainable attention row lies on a single sweep, and the third token never wins">
+            <defs></defs>
+            <g font-family="IBM Plex Mono, monospace" fill="var(--fig-line,#16202B)">
+              <text x="480" y="34" font-size="11.5" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">d<tspan dy="3" font-size="8.3">k</tspan><tspan dy="-3"> = 1 &#160;·&#160; keys K</tspan><tspan dy="3" font-size="8.3">i</tspan><tspan dy="-3"> = (2, 0, 1)</tspan><tspan dy="-4.5" font-size="8.3">T</tspan><tspan dy="4.5"> &#160;·&#160; every row is q &#215; K</tspan><tspan dy="3" font-size="8.3">i</tspan><tspan dy="-7.5" font-size="8.3">T</tspan><tspan dy="4.5">, then softmax</tspan></text>
+              <text x="350" y="60" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">I</text>
+              <text x="390" y="60" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">love</text>
+              <text x="430" y="60" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">LLMs</text>
+              <rect x="330" y="70" width="40" height="25" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.79" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="370" y="70" width="40" height="25" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.12" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="410" y="70" width="40" height="25" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.20" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="330" y="95" width="40" height="25" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.64" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="370" y="95" width="40" height="25" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.17" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="410" y="95" width="40" height="25" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.29" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="330" y="120" width="40" height="25" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.36" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="370" y="120" width="40" height="25" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.36" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="410" y="120" width="40" height="25" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.36" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="330" y="145" width="40" height="25" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.17" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="370" y="145" width="40" height="25" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.64" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="410" y="145" width="40" height="25" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.29" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="330" y="170" width="40" height="25" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.12" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="370" y="170" width="40" height="25" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.79" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="410" y="170" width="40" height="25" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.20" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <text x="350" y="87" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.87</text>
+              <text x="390" y="87" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.02</text>
+              <text x="430" y="87" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.12</text>
+              <text x="350" y="112" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.67</text>
+              <text x="390" y="112" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.09</text>
+              <text x="430" y="112" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.24</text>
+              <text x="350" y="137" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.33</text>
+              <text x="390" y="137" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.33</text>
+              <text x="430" y="137" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.33</text>
+              <text x="350" y="162" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.09</text>
+              <text x="390" y="162" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.67</text>
+              <text x="430" y="162" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.24</text>
+              <text x="350" y="187" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.02</text>
+              <text x="390" y="187" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.87</text>
+              <text x="430" y="187" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.12</text>
+              <text x="322" y="87" font-size="11.5" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">q = 2</text>
+              <text x="322" y="112" font-size="11.5" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">q = 1</text>
+              <text x="322" y="137" font-size="11.5" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">q = 0</text>
+              <text x="322" y="162" font-size="11.5" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">q = &#8722;1</text>
+              <text x="322" y="187" font-size="11.5" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">q = &#8722;2</text>
+              <rect x="408" y="68" width="44" height="129" rx="4" fill="none" stroke="var(--h2c,#B07D1A)" stroke-width="1.6"></rect>
+              <path d="M260,78 L260,187" fill="none" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1" stroke-dasharray="3 3"></path>
+              <text x="252" y="110" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">one</text>
+              <text x="252" y="125" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">knob,</text>
+              <text x="252" y="140" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">one</text>
+              <text x="252" y="155" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">sweep</text>
+              <text x="490" y="86" font-size="11.5" text-anchor="start" fill="var(--h2c,#B07D1A)">The boxed column never wins.</text>
+              <text x="490" y="108" font-size="11.5" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">Its weight peaks at 0.33, in the</text>
+              <text x="490" y="123" font-size="11.5" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">three-way tie at q = 0, and falls</text>
+              <text x="490" y="138" font-size="11.5" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">away in both directions.</text>
+              <text x="490" y="166" font-size="11.5" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">No query makes this head attend</text>
+              <text x="490" y="181" font-size="11.5" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">mostly to &quot;LLMs&quot; — not a</text>
+              <text x="490" y="196" font-size="11.5" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">training failure, an impossibility.</text>
+              <text x="490" y="226" font-size="11.5" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">Only argmax(k) and argmin(k) can</text>
+              <text x="490" y="241" font-size="11.5" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">ever take the top weight.</text>
+            </g>
+          </svg>
+        </div>
+        <figcaption><b>Figure 8.</b> All five rows come from the same three keys; only \(q\)
+          changes. With \(d_k = 1\) the reachable rows form a one-parameter family, and one of
+          the three tokens is locked out of ever receiving the most attention.</figcaption>
+      </figure>
+
+      <p>Large positive \(q\) concentrates on <code>I</code>; large negative \(q\)
+        concentrates on <code>love</code>; \(q = 0\) gives a flat row. But <code>LLMs</code>
+        never takes the top weight. Its best showing is 0.33, in the three-way tie, and it
+        drops away in both directions.</p>
+
+      <h4 id="cannot-produce">A pattern it cannot produce</h4>
+
+      <p>Now pick a target that needs exactly what the sweep cannot deliver. Take the
+        plainest pattern imaginable — every token attending mostly to itself:</p>
+
+      \[
+      \mathbf{A}=\begin{pmatrix}0.8&amp;0.1&amp;0.1\\0.1&amp;0.8&amp;0.1\\0.1&amp;0.1&amp;0.8\end{pmatrix}
+      \]
+
+      <p>Row 3 of this target puts its largest weight on <code>LLMs</code>. The sweep says no
+        value of \(q_3\) does that. So this head cannot produce this \(\mathbf{A}\) — and "with
+        enough training, a head can produce any attention pattern you want" is wrong.</p>
+
+
+      <p>But look closely at what we just showed. It was one head, with keys I chose, failing
+        on one target — which does not yet rule out a cleverer head.
+        <a href="#sa">Appendix A</a> closes that gap. It proves that no choice of keys helps,
+        that the same limit applies at every \(d_k\), and that producing this \(\mathbf{A}\)
+        needs a score matrix of rank at least \(n - 1\). Nothing later in this part or in
+        Part 3 depends on the appendix, so you can safely skip it on a first reading.</p>
+
+      <p><b>Try it (3 minutes):</b> Take \(d_k = 1\) again with \(\mathbf{K}_i\) as above, and find the
+          \(q\) that gives <code>love</code> a weight above 0.95. Then try to find one that
+          gives <code>LLMs</code> a weight above 0.34, and convince yourself why the search
+          fails.</p>
+
+      <h2 id="sa"><span class="num">A</span>Appendix: how far the rank bound reaches</h2>
+
+      <p>This was pulled out of <a href="#s254">Section 2.5.4</a> so that a first reading runs
+        without stopping. Nothing later depends on it. It answers the three questions the
+        worked example left open — whether the keys mattered, whether \(d_k = 1\) mattered,
+        and how much rank the target \(\mathbf{A}\) really demands — and ends with the whole
+        argument written out as one list.</p>
+
+      <h3 id="q1-keys">Question 1 — was it the keys I picked?</h3>
+
+      <p>The keys \((2, 0, 1)^\top\) were chosen by hand. Maybe a better-trained head picks
+        keys that work.</p>
+
+      <p>It cannot. Row \(r\) of \(\mathbf{Q}_i\mathbf{K}_i^\top\) is \(q_r\bigl(\mathbf{K}_i\bigr)^{\!\top}\) — a single
+        scalar multiplying one fixed row. A positive scalar preserves the order of that
+        row's entries and a negative one reverses it, so no scalar can promote an entry that
+        is neither the largest nor the smallest. Writing \(k_j\) for the \(j\)-th entry of
+        \(\mathbf{K}_i\), the winner of row \(r\) is therefore the largest key when
+        \(q_r &gt; 0\), the smallest when \(q_r &lt; 0\), and nobody at all when \(q_r\) is
+        exactly 0:</p>
+
+      \[
+      \text{top-attended token of row } r=
+      \begin{cases}
+      \arg\max_j k_j, &amp; q_r &gt; 0\\[4pt]
+      \arg\min_j k_j, &amp; q_r &lt; 0\\[4pt]
+      \text{no winner — the row is flat}, &amp; q_r = 0
+      \end{cases}
+      \]
+
+      <p>Two candidates, ever — plus a flat row when \(q_r\) is exactly 0. With three tokens that leaves one permanently locked out —
+        whichever key lands in the middle. With 512 tokens it leaves 510 locked out. The
+        specific keys make no difference; only their order matters, and every order has
+        exactly one largest and one smallest.</p>
+
+      <h3 id="q2-dk">Question 2 — does this only happen at \(d_k = 1\)?</h3>
+
+      <p>No. And the way to see it is to redo the same calculation one size up.</p>
+
+      <p>Set \(d_k = 2\), so \(\mathbf{Q}_i\) and \(\mathbf{K}_i\) are both <span class="shape">3 × 2</span>.
+        Write the columns of \(\mathbf{Q}_i\) as \(\mathbf{q}^{(1)}, \mathbf{q}^{(2)}\) and the columns of \(\mathbf{K}_i\) as
+        \(\mathbf{k}^{(1)}, \mathbf{k}^{(2)}\). Multiplying out:</p>
+
+      \[
+      \mathbf{Q}_i\mathbf{K}_i^\top\;=\;\mathbf{q}^{(1)}\bigl(\mathbf{k}^{(1)}\bigr)^{\!\top}\;+\;\mathbf{q}^{(2)}\bigl(\mathbf{k}^{(2)}\bigr)^{\!\top}
+      \]
+
+      <p>Each term is the same object we met at \(d_k = 1\): a column times a row, every row
+        of it a scalar multiple of one fixed row. So at \(d_k = 2\), \(\mathbf{Q}_i\mathbf{K}_i^\top\) is a sum
+        of two such matrices, and row \(r\) is</p>
+
+      \[
+      \bigl(\mathbf{Q}_i\mathbf{K}_i^\top\bigr)_{r,:}\;=\;q_{r1}\bigl(\mathbf{k}^{(1)}\bigr)^{\!\top}\;+\;q_{r2}\bigl(\mathbf{k}^{(2)}\bigr)^{\!\top}
+      \]
+
+      <p>At \(d_k = 1\) row \(r\) was \(q_r\bigl(\mathbf{K}_i\bigr)^{\!\top}\) — a scalar multiple of a
+        single row. At \(d_k = 2\) it is a <em>linear combination</em> of two rows, with
+        \(q_{r1}\) and \(q_{r2}\) as the coefficients — a <em>linear combination</em> of two
+        rows means: multiply each row by a number, then add the two results. The pattern
+        continues: at a general
+        \(d_k\), row \(r\) is a linear combination of \(d_k\) fixed rows, namely the rows of
+        \(\mathbf{K}_i^\top\).</p>
+
+      <p>So the quantity that governs what a head can express is the number of rows in that
+        combination. That number has a name: the rank of \(\mathbf{Q}_i\mathbf{K}_i^\top\).</p>
+
+      <h3 id="rank-def">Rank, in one paragraph</h3>
+
+      <p>The rank of a matrix is the number of its rows that are linearly independent —
+        independent meaning no one of them equals a linear combination of the others. Three
+        rows that are all scalar multiples of a single row give rank 1. Three rows that are
+        linearly independent give rank 3. Rank counts independent rows and nothing else:
+        multiplying every entry of a matrix by 1000 leaves its rank unchanged. If this is
+        new, 3Blue1Brown's
+        <a href="https://www.3blue1brown.com/topics/linear-algebra">Essence of Linear
+        Algebra</a> builds the picture visually and MIT's
+        <a href="https://ocw.mit.edu/courses/18-06-linear-algebra-spring-2010/">18.06</a>
+        covers it in full.</p>
+
+      <p>With that term available, the calculation above generalises in one line. For any
+        \(\mathbf{X}\) with \(d\) columns and any \(\mathbf{Y}\) with \(d\) rows, row \(r\) of \(\mathbf{X}\mathbf{Y}\) is</p>
+
+      \[
+      (\mathbf{X}\mathbf{Y})_{r,:}\;=\;x_{r1}\,\mathbf{Y}_{1,:}\;+\;x_{r2}\,\mathbf{Y}_{2,:}\;+\;\dots\;+\;x_{rd}\,\mathbf{Y}_{d,:}
+      \]
+
+      <p>where \(\mathbf{Y}_{1,:}\) through \(\mathbf{Y}_{d,:}\) are the rows of \(\mathbf{Y}\), and \(x_{r1}\) through
+        \(x_{rd}\) are the entries of row \(r\) of \(\mathbf{X}\). Every row of \(\mathbf{X}\mathbf{Y}\) is therefore a
+        linear combination of the same \(d\) rows, so \(\mathbf{X}\mathbf{Y}\) has at most \(d\) linearly
+        independent rows:</p>
+
+      <div id="eq2-5">
+      \[
+      \operatorname{rank}(\mathbf{X}\mathbf{Y})\;\le\;d\tag{2-5}
+      \]
+      </div>
+
+      <p>Apply that with \(\mathbf{X} = \mathbf{Q}_i\) and \(\mathbf{Y} = \mathbf{K}_i^\top\), where \(d = d_k\):</p>
+
+      <div id="eq2-6">
+      \[
+      \operatorname{rank}\bigl(\mathbf{Q}_i\mathbf{K}_i^\top\bigr)\;\le\;d_k\tag{2-6}
+      \]
+      </div>
+
+      <p>One at \(d_k = 1\), two at \(d_k = 2\), and so on. That is the ceiling. Now for the
+        floor. Write \(\mathbf{S}\) for a score matrix — whatever a head hands to softmax.
+        How much rank must \(\mathbf{S}\) have, if softmax is to turn it into
+        \(\mathbf{A}\)?</p>
+
+      <h3 id="q3-floor">Question 3 — how much rank does a score matrix need in order to produce
+        \(\mathbf{A}\)?</h3>
+
+      <p>Work backwards. Rather than asking what this head can build, ask what
+        <em>anything</em> would have to build in order to produce \(\mathbf{A}\), the diagonal target
+        above with 0.8 on each diagonal entry and 0.1 elsewhere.</p>
+
+      <p>Softmax turns a score row into a weight row by computing \(e^{s_{rj}}\) and dividing
+        by the total of those exponentials. Set that equal to \(A_{rj}\) and take the log of
+        both sides:</p>
+
+      <div id="eq2-7">
+      \[
+      s_{rj}=\log A_{rj}+c_r\tag{2-7}
+      \]
+      </div>
+
+      <p>where \(c_r=\log\sum_j e^{s_{rj}}\) — the log of the total the softmax divided by, one
+        number for the whole of row \(r\). Read it as: the required scores are \(\log \mathbf{A}\), plus the same constant added
+        along each row. Nothing else works, and nothing else is needed.</p>
+
+      <p>So how much rank does \(\log \mathbf{A}\) have? All three. Writing
+        \(a = \log 0.8 - \log 0.1 = 2.079\) and \(b = \log 0.1 = -2.303\),</p>
+
+      \[
+      \log \mathbf{A} \;=\; a\mathbf{I} + b\mathbf{J}
+      \]
+
+      <p>with \(\mathbf{I}\) the identity and \(\mathbf{J}\) the all-ones matrix. Then
+        \(\det(\log \mathbf{A}) = a^2(a + 3b) = -20.9\), and a non-zero determinant means full rank,
+        so \(\operatorname{rank}(\log \mathbf{A}) = 3\).</p>
+
+      <p>And the constants? The added term \(\mathbf{c}\mathbf{1}^\top\) has every column equal
+        to \(\mathbf{c}\), so all its columns are scalar multiples of one another and
+        \(\operatorname{rank}(\mathbf{c}\mathbf{1}^\top) = 1\). What we need next is that
+        adding a rank-1 matrix cannot drop the rank by more than 1. That takes two short
+        steps.</p>
+
+      <p><b>Step A: ranks are subadditive.</b> Row \(r\) of \(\mathbf{X} + \mathbf{Y}\) is
+        row \(r\) of \(\mathbf{X}\) plus row \(r\) of \(\mathbf{Y}\). Every row of
+        \(\mathbf{X}\) is a linear combination of some \(\operatorname{rank}(\mathbf{X})\)
+        independent rows, and likewise for \(\mathbf{Y}\), so every row of
+        \(\mathbf{X} + \mathbf{Y}\) is a linear combination of those two sets pooled
+        together. Pooling them gives at most
+        \(\operatorname{rank}(\mathbf{X}) + \operatorname{rank}(\mathbf{Y})\) rows to draw
+        on, so</p>
+
+      <div id="eq2-8">
+      \[
+      \operatorname{rank}(\mathbf{X}+\mathbf{Y})\;\le\;\operatorname{rank}(\mathbf{X})+\operatorname{rank}(\mathbf{Y})\tag{2-8}
+      \]
+      </div>
+
+      <p><b>Step B: run it backwards.</b> We want a lower bound on
+        \(\operatorname{rank}(\mathbf{S})\), and Step A only gives upper bounds — so apply it
+        to a sum that produces \(\log \mathbf{A}\) rather than \(\mathbf{S}\). Since
+        \(\mathbf{S} = \log \mathbf{A} + \mathbf{c}\mathbf{1}^\top\), rearranging gives
+        \(\log \mathbf{A} = \mathbf{S} + \bigl(-\mathbf{c}\mathbf{1}^\top\bigr)\), and
+        negating a matrix leaves its rank alone. Step A applied to that sum reads</p>
+
+      \[
+      \underbrace{\operatorname{rank}(\log \mathbf{A})}_{=\,3}\;\le\;\operatorname{rank}(\mathbf{S})+\underbrace{\operatorname{rank}(\mathbf{c}\mathbf{1}^\top)}_{=\,1}
+      \]
+
+      <p>which rearranges to \(\operatorname{rank}(\mathbf{S}) \ge 3 - 1 = 2\). That is the
+        floor, and it holds for every \(\mathbf{S}\) that produces \(\mathbf{A}\).</p>
+
+      <blockquote class="think"><b>Think for a moment</b>
+        Step B works because subtracting \(\mathbf{c}\mathbf{1}^\top\) is as legitimate a
+        move as adding it. Where would the argument break if the perturbation had rank 3
+        instead of rank 1?</blockquote>
+
+      <p>The bound would become \(\operatorname{rank}(\mathbf{S}) \ge 3 - 3 = 0\), which
+        says nothing at all. A low-rank perturbation is what makes this useful: the smaller
+        the thing you add, the less it can disturb the rank of what you started with, and a
+        per-row constant is the smallest non-trivial perturbation there is.</p>
+
+      <p>Ceiling 1, floor 2. They do not meet — the same conclusion Figure 8 reached by hand,
+        now with a reason that does not depend on which keys were learned. Figure 9 puts the two
+        numbers on one axis.</p>
+
+      <figure id="fig9">
+          <div class="plate">
+            <svg viewBox="0 0 960 252" xmlns="http://www.w3.org/2000/svg" role="img"
+            aria-label="A rank axis showing the ceiling each head width can reach against the floor the target requires">
+            <defs></defs>
+            <g font-family="IBM Plex Mono, monospace" fill="var(--fig-line,#16202B)">
+              <text x="480" y="28" font-size="11.5" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">rank of the score matrix &#160;·&#160; three-token sentence</text>
+              <line x1="300" y1="54" x2="660" y2="54" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1"></line>
+              <text x="360" y="44" font-size="11.5" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">1</text>
+              <line x1="360" y1="50" x2="360" y2="58" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1"></line>
+              <text x="480" y="44" font-size="11.5" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">2</text>
+              <line x1="480" y1="50" x2="480" y2="58" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1"></line>
+              <text x="600" y="44" font-size="11.5" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">3</text>
+              <line x1="600" y1="50" x2="600" y2="58" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1"></line>
+              <line x1="480" y1="64" x2="480" y2="188" stroke="var(--h2c,#B07D1A)" stroke-width="1.6" stroke-dasharray="5 4"></line>
+              <text x="492" y="82" font-size="11.5" text-anchor="start" fill="var(--h2c,#B07D1A)">floor: every score matrix</text>
+              <text x="492" y="98" font-size="11.5" text-anchor="start" fill="var(--h2c,#B07D1A)">that produces A needs rank 2</text>
+              <rect x="300" y="116" width="60" height="22" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.30" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <rect x="300" y="156" width="180" height="22" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.30" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <text x="288" y="125" font-size="12" text-anchor="end" fill="var(--fig-line,#16202B)">d<tspan dy="3" font-size="8.3">k</tspan><tspan dy="-3"> = 1</tspan></text>
+              <text x="288" y="139" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">ceiling 1</text>
+              <text x="288" y="165" font-size="12" text-anchor="end" fill="var(--fig-line,#16202B)">d<tspan dy="3" font-size="8.3">k</tspan><tspan dy="-3"> = 2</tspan></text>
+              <text x="288" y="179" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">ceiling 2</text>
+              <path d="M364,127 L476,127" fill="none" stroke="var(--h2c,#B07D1A)" stroke-width="1.1" stroke-dasharray="4 3"></path>
+              <text x="420" y="121" font-size="11" text-anchor="middle" fill="var(--h2c,#B07D1A)">cannot reach</text>
+              <text x="494" y="171" font-size="11.5" text-anchor="start" fill="var(--h1c,#2E6F8E)">clears the floor</text>
+              <text x="480" y="218" font-size="11.5" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">clearing the floor is necessary, not sufficient &#8212; it says the target is not ruled out,</text>
+              <text x="480" y="234" font-size="11.5" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">while falling below it rules the target out for good</text>
+            </g>
+          </svg>
+          </div>
+          <figcaption><b>Figure 9.</b> Ceiling against floor: a head reaches every rank up to
+            \(d_k\), while every score matrix that produces \(\mathbf{A}\) sits at rank 2 or
+            above. At \(d_k = 1\) the two do not meet, which is what rules \(\mathbf{A}\)
+            out.</figcaption>
+        </figure>
+
+      <p>The same reasoning works for a sentence of any length. When \(\log \mathbf{A}\) has full rank,
+        every score matrix that produces \(\mathbf{A}\) has rank at least \(n - 1\). So a head whose
+        \(d_k\) is smaller than that cannot produce \(\mathbf{A}\) at all.</p>
+
+      <h3 id="recap">The whole argument in one place</h3>
+
+      <p>That took a while, so here is the path we walked, with the notation stripped out.</p>
+
+      <ol>
+        <li>We asked whether a head can produce any attention pattern, given enough
+          training.</li>
+        <li>We built the smallest head possible, \(d_k = 1\), and left its queries as
+          unknowns so that "any training outcome" was covered. Its score matrix turned out to
+          be \(q_r\) times one fixed row of keys — nine numbers, but only three of them free
+          (<a href="#smallest-head">2.5.4, The smallest possible head</a>).</li>
+        <li>Sweeping \(q_r\) showed that only two tokens can ever win a row: the one with the
+          largest key and the one with the smallest. Any token whose key falls in between
+          never wins (<a href="#fig8">Figure 8</a>).</li>
+        <li>We picked a target \(\mathbf{A}\) — each token attending mostly to itself — whose
+          third row needs precisely one of those in-between tokens to win. The head cannot do
+          it, so "any pattern" is already false
+          (<a href="#cannot-produce">2.5.4, A pattern it cannot produce</a>).</li>
+        <li>Were the keys the problem? No. A scalar multiplying a fixed row either preserves
+          the order of its entries or reverses it, and every set of keys has exactly one
+          largest entry and one smallest (<a href="#q1-keys">Question 1</a>).</li>
+        <li>Was \(d_k = 1\) the problem? Redoing the calculation at \(d_k = 2\) showed row
+          \(r\) is a linear combination of two fixed rows instead of a multiple of one, and
+          in general of \(d_k\) rows. That count is the rank, and
+          \(\operatorname{rank}(\mathbf{Q}_i\mathbf{K}_i^\top) \le d_k\). That is a ceiling
+          (<a href="#eq2-5">Equation 2-5</a>, <a href="#eq2-6">Equation 2-6</a>).</li>
+        <li>How high is the floor? Running softmax backwards, any \(\mathbf{S}\) with
+          \(\operatorname{softmax}(\mathbf{S}) = \mathbf{A}\) equals
+          \(\log \mathbf{A} + \mathbf{c}\mathbf{1}^\top\)
+          (<a href="#eq2-7">Equation 2-7</a>). Since
+          \(\operatorname{rank}(\log \mathbf{A}) = 3\) and
+          \(\operatorname{rank}(\mathbf{c}\mathbf{1}^\top) = 1\), subadditivity
+          (<a href="#eq2-8">Equation 2-8</a>) gives
+          \(\operatorname{rank}(\mathbf{S}) \ge 2\).</li>
+        <li>Ceiling 1, floor 2. No head with \(d_k = 1\) produces \(\mathbf{A}\), whatever it
+          learned — and for a sentence of length \(n\) the same three steps give a floor of
+          \(n - 1\) (<a href="#fig9">Figure 9</a>).</li>
+      </ol>
+
+      <p>The shape worth remembering is step 7. Everywhere else we reasoned forwards, about
+        what the head can do. There we reasoned backwards, about what \(\mathbf{A}\) demands. The
+        impossibility only becomes visible when the two are put side by side.</p>
+
+
+      <blockquote class="mistake"><b>&#10007; Common mistake</b>
+        It is tempting to turn Equation 2-6 into <em>\(\mathbf{A}\) has rank at most
+        \(d_k\)</em>, but that is wrong. Those are two different matrices. Equation 2-6 bounds \(\mathbf{S}\), the scores. \(\mathbf{A}\) is
+        what comes out of softmax afterwards, and softmax is not linear, so it can raise the
+        rank on the way through. \(\mathbf{A}_1\) back in <a href="#s22">Section 2.2</a> came from a head with
+        \(d_k = 2\), yet its three rows are independent, so
+        \(\operatorname{rank}(\mathbf{A}_1) = 3\) — higher than the bound on the scores that
+        produced it.
+        <br><br>
+        Equation 2-6 still decides which \(\mathbf{A}\) a head can reach, just by a longer
+        route. A head gets to \(\mathbf{A}\) in two moves: it builds \(\mathbf{S}\), then
+        softmax turns \(\mathbf{S}\) into \(\mathbf{A}\). Question 3 showed that every
+        \(\mathbf{S}\) that would produce our diagonal \(\mathbf{A}\) has rank 2 or more.
+        Equation 2-6 says a head with \(d_k = 1\) can only build \(\mathbf{S}\) of rank 1.
+        The first move already fails, so the second never happens — and none of that required
+        knowing the rank of \(\mathbf{A}\) itself.</blockquote>
+
+      <p>Now the numbers that matter in practice. At \(d_{\text{model}} = 768\) and
+        \(h = 12\), each head gets \(d_k = 64\). On a 512-token context that is a
+        <span class="shape">512 × 512</span> score matrix confined to rank 64, against an
+        arbitrary target that would want something near 511. Push to \(h = 64\) and \(d_k\)
+        falls to 12. The heads have not become worse at their job; the job has become
+        impossible to do in full.</p>
+
+      <p>It is worth being clear about what rank is measuring here, because the intuition it
+        rewards is not the obvious one. Rank measures how little the rows of a matrix repeat
+        one another: the more the rows say the same thing, the lower the rank. A target where every token attends to the same position has identical rows
+        and rank 1 — crude to look at, but cheap to build. Our diagonal target
+        \(\mathbf{A}\), where every token attends to itself, looks far more ordinary but is
+        the most expensive pattern a <span class="shape">3 × 3</span> matrix can hold: no row
+        repeats another.</p>
+
+      <p>So the bound is severe in principle. An arbitrary target for a 512-token sentence
+        wants a score matrix of rank near 511, and \(d_k = 64\) supplies 64. Whether that
+        gap matters in practice is a separate question, and the answer is less alarming than
+        the arithmetic suggests.</p>
+
+      <blockquote class="mistake"><b>&#10007; Common mistake</b>
+          \(d_k = 64\) is far below any realistic \(n\), so it is tempting to conclude that
+          <em>real models must therefore be broken</em>. That is wrong. The attention patterns
+          language actually needs are highly structured — attend to the previous token, to the matching bracket,
+          to the subject of the verb — and structured patterns are close to low rank already.
+          The bound says arbitrary patterns are out of reach, not useful ones. It becomes a real
+          constraint when \(h\) is pushed high enough that \(d_k\) falls below what even structured
+          patterns need, which is one reason some later architectures set \(d_k\) independently
+          instead of tying it to \(d_{\text{model}}/h\).</blockquote>
+
+    </main>
+  </div>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"
+    integrity="sha384-XjKyOOlGwcjNTAIQHIpgOno0Hl1YQqzUOEleOLALmuqehneUG+vnGctmUb0ZY0l8"
+    crossorigin="anonymous"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+    integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05"
+    crossorigin="anonymous"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      if (window.renderMathInElement) {
+        renderMathInElement(document.body, {
+          delimiters: [
+            { left: "\\[", right: "\\]", display: true },
+            { left: "$$", right: "$$", display: true },
+            { left: "\\(", right: "\\)", display: false },
+            { left: "$", right: "$", display: false }
+          ],
+          ignoredTags: ["script", "noscript", "style", "textarea", "pre", "code", "option"],
+          throwOnError: false
+        });
+      }
+
+      var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+      var targets = links
+        .map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); })
+        .filter(Boolean);
+
+      var obs = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (!e.isIntersecting) return;
+          links.forEach(function (a) {
+            a.classList.toggle("on", a.getAttribute("href") === "#" + e.target.id);
+          });
+        });
+      }, { rootMargin: "0px 0px -70% 0px", threshold: 0 });
+
+      targets.forEach(function (t) { obs.observe(t); });
+    });
+  </script>
+</body>
+
+</html>
