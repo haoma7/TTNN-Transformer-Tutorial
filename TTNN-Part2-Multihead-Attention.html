@@ -681,6 +681,24 @@
       \text{head}_i=\text{Attention}(\mathbf{Q}\mathbf{W}_i^Q,\,\mathbf{K}\mathbf{W}_i^K,\,\mathbf{V}\mathbf{W}_i^V) \tag{2-2}
       \]
 
+      <p>Equation 2-2 takes three inputs, named \(\mathbf{Q}\), \(\mathbf{K}\) and
+        \(\mathbf{V}\) in the paper. In this part one matrix goes into all three:</p>
+
+      \[
+      \mathbf{Q} = \mathbf{K} = \mathbf{V} = \mathbf{X}
+      \]
+
+      <p>where \(\mathbf{X}\) is the embedded sentence. So Equation 2-2 reads:</p>
+
+      \[
+      \text{head}_i=\text{Attention}(\mathbf{X}\mathbf{W}_i^Q,\,\mathbf{X}\mathbf{W}_i^K,\,\mathbf{X}\mathbf{W}_i^V)
+      \]
+
+      <p>Part 1's \(\mathbf{Q}\), \(\mathbf{K}\) and \(\mathbf{V}\) were not these three.
+        Those were \(\mathbf{X}\mathbf{W}^Q\) and its two partners, built before the formula
+        was applied. \(\mathbf{X}\mathbf{W}_1^Q\) is what <a href="#s222">Section 2.2.2</a>
+        works out as \(\mathbf{Q}_1\).</p>
+
       <p>Part 1 used one term without settling it, and the next equation needs it settled.
         \(d_{\text{model}}\) is the width of the vector the model carries for each token:
         one number per <b>slot</b> of that vector — a <em>slot</em> being where a number sits
@@ -1191,7 +1209,7 @@
         the layer:</p>
 
       \[
-      \operatorname{MultiHead}(\mathbf{Q},\mathbf{K},\mathbf{V})=\operatorname{Concat}(\mathbf{Z}_1,\mathbf{Z}_2) \mathbf{W}^O
+      \operatorname{MultiHead}(\mathbf{X},\mathbf{X},\mathbf{X})=\operatorname{Concat}(\mathbf{Z}_1,\mathbf{Z}_2) \mathbf{W}^O
       =\begin{pmatrix}1.01&amp;1.01&amp;0.83&amp;1.50\\0.46&amp;0.75&amp;1.16&amp;2.31\\0.75&amp;1.31&amp;0.41&amp;1.87\end{pmatrix}
       \]
 
