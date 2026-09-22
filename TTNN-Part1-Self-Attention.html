@@ -1946,6 +1946,33 @@
         a fact Section 1.3.2 will need. Do it for every query against
         every key at once, and one matrix multiply \(\mathbf{Q}\mathbf{K}^\top\) gives the whole table of scores.</p>
 
+      <blockquote class="think"><b>Think for a moment</b>
+        Write \(\mathbf{q}_1\), \(\mathbf{q}_2\), \(\mathbf{q}_3\) for the three rows of
+        \(\mathbf{Q}\) and \(\mathbf{k}_1\), \(\mathbf{k}_2\), \(\mathbf{k}_3\) for the three
+        rows of \(\mathbf{K}\). Using only those six vectors and the dot product, write out the
+        <span class="shape">3 × 3</span> matrix \(\mathbf{Q}\mathbf{K}^\top\), entry by
+        entry.
+      </blockquote>
+
+      <p>Transposing \(\mathbf{K}\) turns its rows into columns, so column \(j\) of
+        \(\mathbf{K}^\top\) is \(\mathbf{k}_j\). A matrix product puts row \(i\) of the left
+        factor against column \(j\) of the right one, so entry \((i,j)\) is
+        \(\mathbf{q}_i \cdot \mathbf{k}_j\):</p>
+
+      \[
+      \mathbf{Q}\mathbf{K}^\top=
+      \begin{pmatrix}
+      \mathbf{q}_1\cdot\mathbf{k}_1&amp;\mathbf{q}_1\cdot\mathbf{k}_2&amp;\mathbf{q}_1\cdot\mathbf{k}_3\\
+      \mathbf{q}_2\cdot\mathbf{k}_1&amp;\mathbf{q}_2\cdot\mathbf{k}_2&amp;\mathbf{q}_2\cdot\mathbf{k}_3\\
+      \mathbf{q}_3\cdot\mathbf{k}_1&amp;\mathbf{q}_3\cdot\mathbf{k}_2&amp;\mathbf{q}_3\cdot\mathbf{k}_3
+      \end{pmatrix}
+      \]
+
+      <p>Read it as a table: row \(i\) is token \(i\) asking, column \(j\) is token \(j\)
+        answering, and the cell is their score. Every query meets every key exactly once, which
+        is why the table is square and why one multiply is enough. Section 1.2.3 fills this
+        table with numbers.</p>
+
       <p>Two things then happen to that table before it can be used as a set of weights.</p>
 
       <p>First it is divided by \(\sqrt{d_k}\), where \(d_k\) is the width of one key vector — the number of
