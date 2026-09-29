@@ -1,0 +1,2219 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="author" content="Hao Ma">
+  <title>Why a Transformer Cannot See Word Order — part 3 of The Transformer, Number by Number</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"
+    integrity="sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV" crossorigin="anonymous">
+
+  <style>
+    :root {
+      --paper: #FBFCFD;
+      --panel: #F2F5F8;
+      --ink: #16202B;
+      --ink-soft: #5A6B7A;
+      --rule: #D6DEE5;
+      --chip-bg: #EAF0F4;
+      --h1c: #2E6F8E;
+      --h2c: #B07D1A;
+      --accent: #7D4A72;
+      --fig-fill: #FFFFFF;
+      --fig-line: #16202B;
+      --fig-soft: #5A6B7A;
+      --fig-grid: #E4EAEF;
+      --measure: themeguard;
+    }
+
+    @media (prefers-color-scheme:dark) {
+      :root {
+        --paper: #101720;
+        --panel: #18212C;
+        --ink: #E3E9EE;
+        --ink-soft: #93A3B1;
+        --rule: #2A3644;
+        --chip-bg: #1E2833;
+        --h1c: #6FB6D4;
+        --h2c: #D9AC4E;
+        --accent: #C08FB6;
+        --fig-fill: #18212C;
+        --fig-line: #E3E9EE;
+        --fig-soft: #93A3B1;
+        --fig-grid: #243040;
+      }
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 2rem
+    }
+
+    @media (prefers-reduced-motion:reduce) {
+      html {
+        scroll-behavior: auto
+      }
+    }
+
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: "Source Serif 4", Georgia, serif;
+      font-size: 18px;
+      line-height: 1.72;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ---------- layout ---------- */
+    .wrap {
+      display: grid;
+      grid-template-columns: 246px minmax(0, 1fr);
+      gap: 3rem;
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 0 1.5rem
+    }
+
+    .main {
+      max-width: 720px;
+      padding: 3.5rem 0 6rem
+    }
+
+    /* ---------- table of contents ---------- */
+    .toc {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      height: 100vh;
+      overflow-y: auto;
+      padding: 3.5rem 0 2rem;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12.5px
+    }
+
+    .toc-label {
+      text-transform: uppercase;
+      letter-spacing: .13em;
+      font-size: 10.5px;
+      color: var(--ink-soft);
+      margin-bottom: 1rem
+    }
+
+    .toc a {
+      display: block;
+      padding: .34rem 0 .34rem .8rem;
+      color: var(--ink-soft);
+      text-decoration: none;
+      border-left: 2px solid var(--rule);
+      line-height: 1.45
+    }
+
+    .toc a:hover {
+      color: var(--ink)
+    }
+
+    .toc a.lvl2 {
+      padding-left: 1.7rem
+    }
+
+    .toc a.on {
+      color: var(--h1c);
+      border-left-color: var(--h1c)
+    }
+
+    .toc a:focus-visible {
+      outline: 2px solid var(--h1c);
+      outline-offset: 2px
+    }
+
+    /* ---------- type ---------- */
+    .eyebrow {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11.5px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+      margin-bottom: 1.1rem
+    }
+
+    h1 {
+      font-family: Fraunces, serif;
+      font-weight: 600;
+      font-size: 2.55rem;
+      line-height: 1.14;
+      letter-spacing: -.015em;
+      margin: 0 0 .9rem
+    }
+
+    .standfirst {
+      color: var(--ink-soft);
+      font-size: 1.06rem;
+      margin: 0 0 2.4rem;
+      padding-bottom: 2.4rem;
+      border-bottom: 1px solid var(--rule)
+    }
+
+    h2 {
+      font-family: Fraunces, serif;
+      font-weight: 600;
+      font-size: 1.62rem;
+      letter-spacing: -.01em;
+      margin: 3.4rem 0 1rem
+    }
+
+    h3 {
+      font-family: Fraunces, serif;
+      font-weight: 400;
+      font-size: 1.2rem;
+      margin: 2.4rem 0 .7rem
+    }
+
+    h2 .num,
+    h3 .num {
+      font-family: "IBM Plex Mono", monospace;
+      font-weight: 400;
+      color: var(--h1c);
+      font-size: .72em;
+      margin-right: .6em
+    }
+
+    p {
+      margin: 0 0 1.15rem
+    }
+
+    a {
+      color: var(--h1c)
+    }
+
+    /* ---------- signature: tensor shape chips ---------- */
+    .shape {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: .78em;
+      white-space: nowrap;
+      background: var(--chip-bg);
+      color: var(--ink-soft);
+      border: 1px solid var(--rule);
+      border-radius: 3px;
+      padding: .1em .45em;
+      letter-spacing: .02em
+    }
+
+    /* ---------- paper quotes ---------- */
+    blockquote {
+      margin: 1.8rem 0;
+      padding: .15rem 0 .15rem 1.3rem;
+      border-left: 3px solid var(--accent);
+      color: var(--ink-soft);
+      font-style: italic
+    }
+
+    blockquote cite {
+      display: block;
+      margin-top: .5rem;
+      font-style: normal;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11.5px;
+      letter-spacing: .04em
+    }
+
+    /* ---------- figures ---------- */
+    figure {
+      margin: 2.6rem 0;
+      width: 100%
+    }
+
+    .plate {
+      background: var(--fig-fill);
+      border: 1px solid var(--rule);
+      border-radius: 5px;
+      padding: 1.4rem 1.2rem;
+      background-image: linear-gradient(var(--fig-grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--fig-grid) 1px, transparent 1px);
+      background-size: 22px 22px
+    }
+
+    .plate svg {
+      display: block;
+      width: 100%;
+      height: auto
+    }
+
+    .replay {
+      display: block;
+      margin: .55rem auto 0;
+      font: inherit;
+      font-size: .82rem;
+      color: var(--ink-soft);
+      background: none;
+      border: 1px solid var(--rule);
+      border-radius: 4px;
+      padding: .22rem .75rem;
+      cursor: pointer
+    }
+
+    .replay:hover,
+    .replay:focus {
+      color: var(--ink);
+      border-color: var(--ink-soft)
+    }
+
+    figcaption {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--ink-soft);
+      margin-top: .85rem
+    }
+
+    figcaption b {
+      color: var(--ink);
+      font-weight: 500
+    }
+
+    /* ---------- image slot for third-party figures ---------- */
+    .imgslot {
+      border: 1.5px dashed var(--rule);
+      border-radius: 5px;
+      background: var(--panel);
+      min-height: 210px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: .55rem;
+      padding: 2.2rem 1.5rem;
+      text-align: center
+    }
+
+    .imgslot .tag {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--accent)
+    }
+
+    .imgslot .what {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 13.5px;
+      color: var(--ink)
+    }
+
+    .imgslot .hint {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11.5px;
+      line-height: 1.7;
+      color: var(--ink-soft);
+      max-width: 46ch
+    }
+
+    /* ---------- placeholder ---------- */
+    .todo {
+      border-left: 3px solid var(--h2c);
+      border-radius: 0 4px 4px 0;
+      padding: 1rem 1.2rem;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12.5px;
+      line-height: 1.75;
+      color: var(--ink-soft);
+      background: var(--panel);
+      margin: 1.8rem 0
+    }
+
+    .todo b {
+      color: var(--h2c);
+      font-weight: 500;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      font-size: 11px;
+      display: block;
+      margin-bottom: .35rem
+    }
+
+    /* ---------- footer ---------- */
+    footer {
+      margin-top: 5rem;
+      padding-top: 1.6rem;
+      border-top: 1px solid var(--rule);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11.5px;
+      line-height: 1.9;
+      color: var(--ink-soft)
+    }
+
+    /* ---------- responsive ---------- */
+    @media (max-width:900px) {
+      .wrap {
+        grid-template-columns: 1fr;
+        gap: 0
+      }
+
+      .toc {
+        position: static;
+        height: auto;
+        padding: 2rem 0 0;
+        border-bottom: 1px solid var(--rule)
+      }
+
+      .toc-inner {
+        columns: 2;
+        column-gap: 1.2rem
+      }
+
+      .main {
+        padding-top: 2rem
+      }
+
+      h1 {
+        font-size: 2rem
+      }
+
+      body {
+        font-size: 17px
+      }
+    }
+
+    /* ---------- sub-headings and inline code ---------- */
+
+    h4 {
+      font-family: Fraunces, serif;
+      font-weight: 600;
+      font-size: 1.02rem;
+      letter-spacing: -.005em;
+      color: var(--ink);
+      margin: 2rem 0 .6rem;
+    }
+
+    code {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: .84em;
+      background: var(--chip-bg);
+      color: var(--ink);
+      border: 1px solid var(--rule);
+      border-radius: 3px;
+      padding: .1em .38em;
+      white-space: nowrap;
+    }
+
+    /* ---------- callout boxes: think / mistake / takeaway ---------- */
+
+    blockquote.think {
+      border-left-color: var(--h1c);
+      font-style: normal;
+    }
+
+    blockquote.mistake {
+      border-left-color: var(--h2c);
+      font-style: normal;
+    }
+
+    blockquote.takeaway {
+      border-left-color: var(--accent);
+      font-style: normal;
+      margin-bottom: .4rem;
+    }
+
+    blockquote.think b,
+    blockquote.mistake b,
+    blockquote.takeaway b {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+      display: block;
+      margin-bottom: .3rem;
+    }
+
+    blockquote.think b {
+      color: var(--h1c);
+    }
+
+    blockquote.mistake b {
+      color: var(--h2c);
+    }
+
+    blockquote.takeaway b {
+      color: var(--accent);
+    }
+
+
+    /* ---------- added: math and tables ---------- */
+    .katex-display {
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: .35rem 0
+    }
+
+    .katex {
+      font-size: 1.02em
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1.8rem 0;
+      font-size: .92em
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid var(--rule);
+      padding: .55rem .7rem;
+      text-align: left
+    }
+
+    th {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--ink-soft)
+    }
+      /* ---------- wide layout, shared with Part 7 ---------- */
+    /* The stylesheet stops the page at 1180px, which throws away most of a wide screen:
+       the figures stop growing and the margins sit empty. The wrap widens with the
+       viewport instead and the column with it, stopping at 1167px, where a prose line
+       holds about 150 characters. Measured on the rendered page. */
+    @media (min-width: 1260px) { .main { max-width: 846px } }
+    @media (min-width: 1380px) { .main { max-width: 929px } }
+    @media (min-width: 1480px) { .main { max-width: 994px } }
+    @media (min-width: 1560px) { .main { max-width: 1058px } }
+    @media (min-width: 1700px) { .wrap { max-width: 1760px } .main { max-width: 1167px } }
+    figure { width: 100% }
+
+    /* A margin note: it defines a word without stopping the sentence that uses it.
+       Below the width where a margin exists it is an inset block in the flow instead. */
+    .gloss {
+      font-size: 13.5px;
+      line-height: 1.55;
+      color: var(--soft);
+      border-left: 2px solid var(--h2c);
+      background: var(--panel);
+      padding: 0.55rem 0.9rem;
+      margin: 0 0 1.5rem 2.5rem;
+      max-width: 38ch;
+    }
+    .gloss b { color: var(--ink); font-weight: 600 }
+
+    /* The note needs 192px plus a 32px gap to the right of the column. */
+    @media (min-width: 1780px) {
+      .main { position: relative }
+      .gloss {
+        position: absolute;
+        left: 100%;
+        margin: -0.4rem 0 0 2rem;
+        width: 12rem;
+        max-width: none;
+        padding: 0.5rem 0 0;
+        border-left: 0;
+        border-top: 2px solid var(--h2c);
+        background: transparent;
+      }
+    }
+
+
+    /* A Common mistake box in the margin. It carries the same mark and label as the
+       in-flow version, at the size of a margin note. float + clear:right is what keeps
+       two of them from landing on top of each other: floats are not allowed to overlap
+       other floats, so a second note is pushed below the first instead of over it.
+       The negative right margin puts the whole box outside the text column, so no line
+       of prose is shortened by it. Below the width where a margin exists, the box stays
+       in the flow and looks as it always did. */
+    @media (min-width: 1780px) {
+      blockquote.mistake.side {
+        float: right;
+        clear: right;
+        width: 12rem;
+        margin: -0.4rem -14rem 1.5rem 0;
+        padding: 0.5rem 0 0;
+        border-left: 0;
+        border-top: 2px solid var(--h2c);
+        background: transparent;
+        font-size: 13.5px;
+        line-height: 1.55;
+        color: var(--ink-soft);
+      }
+      blockquote.mistake.side b { display: block; margin-bottom: .3rem }
+      /* A figure must not sit beside a note; it needs the whole column. */
+      figure { clear: right }
+    }
+
+    /* ---------- home button and byline ---------- */
+    .homebar {
+      margin-bottom: 1.5rem
+    }
+
+    .homebar a {
+      display: inline-block;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11.5px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+      text-decoration: none;
+      background: var(--chip-bg);
+      border: 1px solid var(--rule);
+      border-radius: 999px;
+      padding: .36rem .9rem
+    }
+
+    .homebar a:hover {
+      color: var(--h1c);
+      border-color: var(--h1c)
+    }
+
+    .homebar a:focus-visible {
+      outline: 2px solid var(--h1c);
+      outline-offset: 2px
+    }
+
+    .byline {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12.5px;
+      line-height: 1.6;
+      color: var(--ink-soft);
+      margin: 0 0 1.4rem
+    }
+
+    .byline b {
+      color: var(--ink);
+      font-weight: 500
+    }
+
+    .byline a {
+      color: var(--h1c);
+      text-decoration: none;
+      border-bottom: 1px solid var(--rule)
+    }
+
+    .byline a:hover {
+      border-bottom-color: var(--h1c)
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <nav class="toc">
+      <div class="toc-inner">
+        <div class="toc-label">Contents</div>
+        <a href="./TTNN-Part2-Multihead-Attention.html">← Part 2&nbsp;&nbsp;Multi-Head Attention</a>
+        <a href="#s31">3.1&nbsp;&nbsp;The problem: self-attention cannot see word order</a>
+        <a href="#s32">3.2&nbsp;&nbsp;Reverse the sentence, and the same vectors come back</a>
+        <a href="#s33">3.3&nbsp;&nbsp;Why the same vector is the wrong answer</a>
+        <a href="#s34">3.4&nbsp;&nbsp;The order is in the row numbers, and nothing reads them</a>
+        <a href="#s35">3.5&nbsp;&nbsp;The fix: positional encoding</a>
+        <a href="#s36">3.6&nbsp;&nbsp;The same example with positions added: different vectors now</a>
+        <a href="#s37">3.7&nbsp;&nbsp;Why not use a simple counter?</a>
+        <a href="#sa">A&nbsp;&nbsp;Appendix: the proof in full</a>
+        <a href="./TTNN-Part4-Positional-Encoding-2.html">Part 4&nbsp;&nbsp;How Positional Encoding Works →</a>
+      </div>
+    </nav>
+
+    <main class="main">
+
+      <div class="homebar"><a href="./index.html" aria-label="Back to the home page">&#8592;&nbsp;&nbsp;Home</a></div>
+      <div class="eyebrow">The Transformer, Number by Number &nbsp;&#183;&nbsp; Part 3</div>
+      <h1>Why a Transformer Cannot See Word Order</h1>
+      <p class="byline">By <b>Hao Ma</b> &nbsp;&#183;&nbsp; <a href="https://haoma7.github.io" rel="author">haoma7.github.io</a></p>
+      <p class="standfirst">Self-attention handles every token at the same time, so it never sees which token
+        came first. This part works one sentence and its reversal by hand: both give the same
+        output vectors, only in a different order. It then shows why nothing later in the model
+        can use that order. The fix is positional encoding, and the part ends by explaining
+        why the simplest version of it, a counter, does not work.</p>
+
+      <div class="todo"><b>Before you start</b>This page assumes you understand scaled dot-product attention from <a
+          href="./TTNN-Part1-Self-Attention.html">Part 1</a>, and that you know what matrices
+        \(\mathbf{Q}\), \(\mathbf{K}\), and \(\mathbf{V}\) are.
+      </div>
+
+      <h2 id="s31"><span class="num">3.1</span>The problem: self-attention cannot see word order</h2>
+
+      <p>In Part 1 and Part 2 you built the self-attention mechanism. It takes a sequence of tokens, computes queries,
+        keys, and values, and hands back a new sequence. Every output token is a weighted blend of the input tokens.</p>
+
+      <p>But the design has a fatal flaw: <strong>self-attention doesn't know what order the tokens arrived in.</strong></p>
+
+      <p>Compare it with a recurrent neural network, which reads a sentence one word at a time. It knows
+        <code>dog</code> came before <code>bites</code> because it processed <code>dog</code> first. Self-attention
+        processes every token at the exact same moment, and it compares every token to every other token with one
+        matrix multiplication.
+      </p>
+
+      <blockquote class="think"><b>Think for a moment</b>
+        If you take the sentence <code>dog bites man</code> and change it to <code>man bites dog</code>, the meaning
+        changes completely. How does the self-attention formula
+        \(\text{softmax}\left(\frac{\mathbf{Q}\mathbf{K}^\top}{\sqrt{d_k}}\right)\mathbf{V}\) react to that change?
+      </blockquote>
+
+      <p>It doesn't react at all. The formula does the exact same math either way, because it treats your sentence as a
+        bag of words rather than an ordered sequence. Without a sense of order, the model can't tell who is biting
+        whom.</p>
+
+      <figure id="fig1">
+        <div class="plate">
+        <svg viewBox="0 0 960 440" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A recurrent network takes the three words one after another, so each step has to wait for the one before it and the work is finished only after step 3. Self-attention takes all three at the same moment and is finished after step 1, which is why nothing in it records which word came first.">
+          <defs><marker id="arrow-f1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--h2c,#B07D1A)"></path></marker></defs>
+          <g font-family="IBM Plex Mono, monospace">
+          <text x="40" y="46" font-size="13" fill="var(--h2c,#B07D1A)">RECURRENT &#160;&#183;&#160; one word at a time</text>
+          <text x="359" y="84" font-size="12" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">step 1</text>
+          <text x="527" y="84" font-size="12" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">step 2</text>
+          <text x="695" y="84" font-size="12" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">step 3</text>
+          <rect x="300" y="96" width="118" height="44" rx="4" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1.5"></rect>
+          <rect x="300" y="96" width="118" height="44" rx="4" fill="var(--h2c,#B07D1A)" fill-opacity="0.22" stroke="var(--h2c,#B07D1A)" stroke-width="2" stroke-opacity="1"><animate attributeName="fill-opacity" values="0;0;0.55;0.55;0.22;0.22;0;0" keyTimes="0.000;0.080;0.095;0.260;0.275;0.880;0.940;1.000" dur="9s" repeatCount="indefinite" begin="indefinite"></animate><animate attributeName="stroke-opacity" values="0;0;1;1;1;1;0;0" keyTimes="0.000;0.080;0.095;0.260;0.275;0.880;0.940;1.000" dur="9s" repeatCount="indefinite" begin="indefinite"></animate><animate attributeName="stroke-width" values="2;2;4;4;2;2;2;2" keyTimes="0.000;0.080;0.095;0.260;0.275;0.880;0.940;1.000" dur="9s" repeatCount="indefinite" begin="indefinite"></animate></rect>
+          <text x="359" y="124" font-size="14" text-anchor="middle" fill="var(--fig-line,#16202B)">dog</text>
+          <rect x="468" y="96" width="118" height="44" rx="4" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1.5"></rect>
+          <rect x="468" y="96" width="118" height="44" rx="4" fill="var(--h2c,#B07D1A)" fill-opacity="0.22" stroke="var(--h2c,#B07D1A)" stroke-width="2" stroke-opacity="1"><animate attributeName="fill-opacity" values="0;0;0.55;0.55;0.22;0.22;0;0" keyTimes="0.000;0.260;0.275;0.440;0.455;0.880;0.940;1.000" dur="9s" repeatCount="indefinite" begin="indefinite"></animate><animate attributeName="stroke-opacity" values="0;0;1;1;1;1;0;0" keyTimes="0.000;0.260;0.275;0.440;0.455;0.880;0.940;1.000" dur="9s" repeatCount="indefinite" begin="indefinite"></animate><animate attributeName="stroke-width" values="2;2;4;4;2;2;2;2" keyTimes="0.000;0.260;0.275;0.440;0.455;0.880;0.940;1.000" dur="9s" repeatCount="indefinite" begin="indefinite"></animate></rect>
+          <text x="527" y="124" font-size="14" text-anchor="middle" fill="var(--fig-line,#16202B)">bites</text>
+          <rect x="636" y="96" width="118" height="44" rx="4" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1.5"></rect>
+          <rect x="636" y="96" width="118" height="44" rx="4" fill="var(--h2c,#B07D1A)" fill-opacity="0.22" stroke="var(--h2c,#B07D1A)" stroke-width="2" stroke-opacity="1"><animate attributeName="fill-opacity" values="0;0;0.55;0.55;0.22;0.22;0;0" keyTimes="0.000;0.440;0.455;0.620;0.635;0.880;0.940;1.000" dur="9s" repeatCount="indefinite" begin="indefinite"></animate><animate attributeName="stroke-opacity" values="0;0;1;1;1;1;0;0" keyTimes="0.000;0.440;0.455;0.620;0.635;0.880;0.940;1.000" dur="9s" repeatCount="indefinite" begin="indefinite"></animate><animate attributeName="stroke-width" values="2;2;4;4;2;2;2;2" keyTimes="0.000;0.440;0.455;0.620;0.635;0.880;0.940;1.000" dur="9s" repeatCount="indefinite" begin="indefinite"></animate></rect>
+          <text x="695" y="124" font-size="14" text-anchor="middle" fill="var(--fig-line,#16202B)">man</text>
+          <text x="772" y="124" font-size="12" fill="var(--h2c,#B07D1A)" opacity="1">finished after step 3<animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0.000;0.620;0.635;0.880;0.940;1.000" dur="9s" repeatCount="indefinite" begin="indefinite"></animate></text>
+          <path d="M426,118 L460,118" fill="none" stroke="var(--h2c,#B07D1A)" stroke-width="2" marker-end="url(#arrow-f1)" opacity="1"><animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0.000;0.230;0.245;0.880;0.940;1.000" dur="9s" repeatCount="indefinite" begin="indefinite"></animate></path>
+          <path d="M594,118 L628,118" fill="none" stroke="var(--h2c,#B07D1A)" stroke-width="2" marker-end="url(#arrow-f1)" opacity="1"><animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0.000;0.410;0.425;0.880;0.940;1.000" dur="9s" repeatCount="indefinite" begin="indefinite"></animate></path>
+          <text x="40" y="192" font-size="12" fill="var(--h2c,#B07D1A)">&#9632; step 3 cannot start until step 2 has finished &#8212; the order is built into the wiring</text>
+          <line x1="40" y1="226" x2="920" y2="226" stroke="var(--rule,#D6DEE5)" stroke-width="1"></line>
+          <text x="40" y="258" font-size="13" fill="var(--h1c,#2E6F8E)">SELF-ATTENTION &#160;&#183;&#160; all three at once</text>
+          <text x="359" y="296" font-size="12" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">step 1</text>
+          <text x="527" y="296" font-size="12" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">step 1</text>
+          <text x="695" y="296" font-size="12" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">step 1</text>
+          <rect x="300" y="308" width="118" height="44" rx="4" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1.5"></rect>
+          <rect x="300" y="308" width="118" height="44" rx="4" fill="var(--h1c,#2E6F8E)" fill-opacity="0.22" stroke="var(--h1c,#2E6F8E)" stroke-width="2" stroke-opacity="1"><animate attributeName="fill-opacity" values="0;0;0.55;0.55;0.22;0.22;0;0" keyTimes="0.000;0.080;0.095;0.260;0.275;0.880;0.940;1.000" dur="9s" repeatCount="indefinite" begin="indefinite"></animate><animate attributeName="stroke-opacity" values="0;0;1;1;1;1;0;0" keyTimes="0.000;0.080;0.095;0.260;0.275;0.880;0.940;1.000" dur="9s" repeatCount="indefinite" begin="indefinite"></animate><animate attributeName="stroke-width" values="2;2;4;4;2;2;2;2" keyTimes="0.000;0.080;0.095;0.260;0.275;0.880;0.940;1.000" dur="9s" repeatCount="indefinite" begin="indefinite"></animate></rect>
+          <text x="359" y="336" font-size="14" text-anchor="middle" fill="var(--fig-line,#16202B)">dog</text>
+          <rect x="468" y="308" width="118" height="44" rx="4" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1.5"></rect>
+          <rect x="468" y="308" width="118" height="44" rx="4" fill="var(--h1c,#2E6F8E)" fill-opacity="0.22" stroke="var(--h1c,#2E6F8E)" stroke-width="2" stroke-opacity="1"><animate attributeName="fill-opacity" values="0;0;0.55;0.55;0.22;0.22;0;0" keyTimes="0.000;0.080;0.095;0.260;0.275;0.880;0.940;1.000" dur="9s" repeatCount="indefinite" begin="indefinite"></animate><animate attributeName="stroke-opacity" values="0;0;1;1;1;1;0;0" keyTimes="0.000;0.080;0.095;0.260;0.275;0.880;0.940;1.000" dur="9s" repeatCount="indefinite" begin="indefinite"></animate><animate attributeName="stroke-width" values="2;2;4;4;2;2;2;2" keyTimes="0.000;0.080;0.095;0.260;0.275;0.880;0.940;1.000" dur="9s" repeatCount="indefinite" begin="indefinite"></animate></rect>
+          <text x="527" y="336" font-size="14" text-anchor="middle" fill="var(--fig-line,#16202B)">bites</text>
+          <rect x="636" y="308" width="118" height="44" rx="4" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1.5"></rect>
+          <rect x="636" y="308" width="118" height="44" rx="4" fill="var(--h1c,#2E6F8E)" fill-opacity="0.22" stroke="var(--h1c,#2E6F8E)" stroke-width="2" stroke-opacity="1"><animate attributeName="fill-opacity" values="0;0;0.55;0.55;0.22;0.22;0;0" keyTimes="0.000;0.080;0.095;0.260;0.275;0.880;0.940;1.000" dur="9s" repeatCount="indefinite" begin="indefinite"></animate><animate attributeName="stroke-opacity" values="0;0;1;1;1;1;0;0" keyTimes="0.000;0.080;0.095;0.260;0.275;0.880;0.940;1.000" dur="9s" repeatCount="indefinite" begin="indefinite"></animate><animate attributeName="stroke-width" values="2;2;4;4;2;2;2;2" keyTimes="0.000;0.080;0.095;0.260;0.275;0.880;0.940;1.000" dur="9s" repeatCount="indefinite" begin="indefinite"></animate></rect>
+          <text x="695" y="336" font-size="14" text-anchor="middle" fill="var(--fig-line,#16202B)">man</text>
+          <text x="772" y="336" font-size="12" fill="var(--h1c,#2E6F8E)" opacity="1">finished after step 1<animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0.000;0.260;0.275;0.880;0.940;1.000" dur="9s" repeatCount="indefinite" begin="indefinite"></animate></text>
+          <path d="M284,298 L274,298 L274,362 L284,362" fill="none" stroke="var(--h1c,#2E6F8E)" stroke-width="1.4"></path>
+          <text x="264" y="334" font-size="12" text-anchor="end" fill="var(--h1c,#2E6F8E)">one step</text>
+          <text x="40" y="404" font-size="12" fill="var(--h1c,#2E6F8E)">&#9632; nothing waits for anything, so nothing in the mechanism records which word was first</text>
+          </g></svg>
+        </div>
+        <figcaption><b>Figure 1.</b> The same three words through both mechanisms. A recurrent
+          network has to finish one word before it starts the next, so the order is built into
+          the wiring. Self-attention takes all three in one step, and that is exactly why
+          nothing inside it records which word came first.</figcaption>
+      </figure>
+
+      <p>Figure 1 puts the two side by side. Now let's prove it by running the numbers.</p>
+
+      <h2 id="s32"><span class="num">3.2</span>Reverse the sentence, and the same vectors come back</h2>
+
+      <p>Take the three-word sentence from Part 1, <code>I love LLMs</code>, and push it through self-attention by
+        hand. Then swap the words to <code>LLMs love I</code> and watch what happens to the output.</p>
+
+      <h4>The original sequence: I love LLMs</h4>
+
+      <p>We reuse the setup from Part 1 exactly, so nothing here has to be taken on trust. The
+        embedding step turns <code>I</code> into \((0, 0, 1, 1)\), <code>love</code> into
+        \((0, 1, 0, 1)\), and <code>LLMs</code> into \((1, 0, 0, 1)\). Four numbers each, so the
+        input matrix \(\mathbf{X}\) is <span class="shape">3 × 4</span>. Row 1 is <code>I</code>,
+        row 2 is <code>love</code>, row 3 is <code>LLMs</code>:</p>
+
+      \[
+      \mathbf{X} = \begin{pmatrix} 0 &amp; 0 &amp; 1 &amp; 1 \\ 0 &amp; 1 &amp; 0 &amp; 1 \\ 1 &amp; 0 &amp; 0 &amp; 1 \end{pmatrix}
+      \]
+
+      <blockquote class="takeaway"><b>Two words we will keep straight</b>
+        There are two different "wheres" in this part, and they are easy to confuse, so here
+        are the names for them &mdash; used this way from here to the end.
+        <ul>
+          <li><b>Position</b> is <em>where a word sits in the sentence</em>, counting from 0.
+            In <code>I love LLMs</code>, <code>I</code> is at position 0, <code>love</code> at
+            position 1, <code>LLMs</code> at position 2. Position picks a <em>row</em> of
+            \(\mathbf{X}\).</li>
+          <li><b>Slot</b> is <em>where a number sits inside one vector</em>, also
+            counting from 0. In this part that vector is one word's row of \(\mathbf{X}\):
+            <code>I</code> is \((0, 0, 1, 1)\), so its slot 0 holds 0, slot 2
+            holds 1, and slot 3 holds 1. Slot picks a <em>column</em> of \(\mathbf{X}\). Later
+            parts use the word for any vector of numbers, not only for a word's row, and the
+            counting is the same in all of them.</li>
+        </ul>
+        Same three words either way, so whenever you meet a number in this part, the first
+        question to ask is which of the two it is counting.
+        <p><b>One warning about numbering</b>, because two systems are about to sit next to
+        each other. Positions and slots count from 0, as above. Rows and columns of a matrix
+        count from 1, which is what everyone writing about matrices does. They point at the
+        same places: row 1 of \(\mathbf{X}\) is the word at position 0, and column 1 holds
+        slot 0 of every row. Outside this box the two counts never share a sentence, so every
+        number you meet next to the word <em>row</em> or <em>column</em> starts at 1, and every
+        number next to <em>position</em> or <em>slot</em> starts at 0.</p>
+      </blockquote>
+
+      <p>The three weight matrices are the ones training produced in Part 1, each
+        <span class="shape">4 × 4</span>:</p>
+
+      \[
+      \begin{aligned}
+      \mathbf{W}^Q&amp;=\begin{pmatrix}0&amp;-1&amp;1&amp;1\\0&amp;1&amp;0&amp;0\\1&amp;0&amp;0&amp;-1\\1&amp;1&amp;0&amp;1\end{pmatrix}\\[8pt]
+      \mathbf{W}^K&amp;=\begin{pmatrix}0&amp;-1&amp;0&amp;1\\-1&amp;1&amp;0&amp;0\\1&amp;-1&amp;1&amp;-1\\1&amp;1&amp;0&amp;1\end{pmatrix}\\[8pt]
+      \mathbf{W}^V&amp;=\begin{pmatrix}0&amp;0&amp;1&amp;0\\1&amp;0&amp;0&amp;1\\0&amp;1&amp;0&amp;0\\1&amp;0&amp;0&amp;0\end{pmatrix}
+      \end{aligned}
+      \]
+
+      <p>Multiplying \(\mathbf{X}\) by each of them gives the Query, Key and Value matrices. Part 1
+        worked one of those dot products in full and left the pattern for the other
+        thirty-five, so here are the results:</p>
+
+      \[
+      \begin{aligned}
+      \mathbf{Q}=\mathbf{X}\mathbf{W}^Q&amp;=\begin{pmatrix}2&amp;1&amp;0&amp;0\\1&amp;2&amp;0&amp;1\\1&amp;0&amp;1&amp;2\end{pmatrix}\\[8pt]
+      \mathbf{K}=\mathbf{X}\mathbf{W}^K&amp;=\begin{pmatrix}2&amp;0&amp;1&amp;0\\0&amp;2&amp;0&amp;1\\1&amp;0&amp;0&amp;2\end{pmatrix}\\[8pt]
+      \mathbf{V}=\mathbf{X}\mathbf{W}^V&amp;=\begin{pmatrix}1&amp;1&amp;0&amp;0\\2&amp;0&amp;0&amp;1\\1&amp;0&amp;1&amp;0\end{pmatrix}
+      \end{aligned}
+      \]
+
+      <p>Now compute the attention scores, \(\mathbf{Q}\mathbf{K}^\top\):</p>
+
+      \[
+      \mathbf{Q}\mathbf{K}^\top = \begin{pmatrix} 4 &amp; 2 &amp; 2 \\ 2 &amp; 5 &amp; 3 \\ 3 &amp; 2 &amp; 5 \end{pmatrix}
+      \]
+
+      <p>Every entry is one dot product between a row of \(\mathbf{Q}\) and a row of \(\mathbf{K}\).
+        Entry \((1,2)\) asks how well <code>I</code>'s query matches <code>love</code>'s key:
+        \((2,1,0,0)\cdot(0,2,0,1) = 0 + 2 + 0 + 0 = 2\). The other eight follow the same way.</p>
+
+      <p>Notice this matrix is not symmetric &mdash; entry \((1,3)\) is 2 while entry \((3,1)\) is 3.
+        Asking is not the same as being asked, and that asymmetry survives everything below.</p>
+
+      <p>Next, divide by \(\sqrt{d_k}\). Here \(d_k = 4\), so that's \(\sqrt{4} = 2\). Then apply softmax
+        to each row to get the weight matrix \(\mathbf{A}\):</p>
+
+      \[
+      \frac{\mathbf{Q}\mathbf{K}^\top}{2} = \begin{pmatrix} 2.0 &amp; 1.0 &amp; 1.0 \\ 1.0 &amp; 2.5 &amp; 1.5 \\ 1.5 &amp; 1.0 &amp; 2.5 \end{pmatrix}
+      \]
+      \[
+      \mathbf{A} = \operatorname{softmax}\begin{pmatrix} 2.0 &amp; 1.0 &amp; 1.0 \\ 1.0 &amp; 2.5 &amp; 1.5 \\ 1.5 &amp; 1.0 &amp; 2.5 \end{pmatrix}
+      = \begin{pmatrix} 0.58 &amp; 0.21 &amp; 0.21 \\ 0.14 &amp; 0.63 &amp; 0.23 \\ 0.23 &amp; 0.14 &amp; 0.63 \end{pmatrix}
+      \]
+
+      <p>Everything from here on is rounded to two decimals, so a row may add up to 0.99 rather than 1.</p>
+
+      <p>Finally, multiply the weights by the values \(\mathbf{V}\) to get the output \(\mathbf{Z}\):</p>
+
+      \[
+      \mathbf{Z} = \mathbf{A}\mathbf{V} = \begin{pmatrix} 0.58 &amp; 0.21 &amp; 0.21 \\ 0.14 &amp; 0.63 &amp; 0.23 \\ 0.23 &amp; 0.14 &amp; 0.63 \end{pmatrix}
+      \begin{pmatrix}1&amp;1&amp;0&amp;0\\2&amp;0&amp;0&amp;1\\1&amp;0&amp;1&amp;0\end{pmatrix}
+      = \begin{pmatrix} 1.21 &amp; 0.58 &amp; 0.21 &amp; 0.21 \\ 1.63 &amp; 0.14 &amp; 0.23 &amp; 0.63 \\ 1.14 &amp; 0.23 &amp; 0.63 &amp; 0.14 \end{pmatrix}
+      \]
+
+      <p>The first row is the output for <code>I</code>: \((1.21, 0.58, 0.21, 0.21)\).<br>
+        The second row is the output for <code>love</code>: \((1.63, 0.14, 0.23, 0.63)\).<br>
+        The third row is the output for <code>LLMs</code>: \((1.14, 0.23, 0.63, 0.14)\).</p>
+
+      <h4>The reversed sequence: LLMs love I</h4>
+
+      <p>Now feed the model the reversed sentence, <code>LLMs love I</code>. Row 1 is now <code>LLMs</code>, row
+        2 is <code>love</code>, and row 3 is <code>I</code>.</p>
+
+      \[
+      \mathbf{X}_{\text{swapped}} = \begin{pmatrix} 1 &amp; 0 &amp; 0 &amp; 1 \\ 0 &amp; 1 &amp; 0 &amp; 1 \\ 0 &amp; 0 &amp; 1 &amp; 1 \end{pmatrix}
+      \]
+
+      <p>The weight matrices haven't changed, so \(\mathbf{Q}\), \(\mathbf{K}\), and \(\mathbf{V}\) just swap their
+        rows too:</p>
+
+      <h4>Why do the weight matrices not move too?</h4>
+
+      <p>Hold on, you might say: we shuffled the rows of \(\mathbf{X}\), so why not shuffle
+        \(\mathbf{W}^Q\), \(\mathbf{W}^K\) and \(\mathbf{W}^V\) as well?</p>
+
+      <p><b>They are a different kind of object.</b> \(\mathbf{X}\) is data — it is
+        this sentence, and it changes the moment you type a different one.
+        \(\mathbf{W}^Q\) is a <em>parameter</em>. Training set its numbers once, and they
+        stay put for every sentence the model will ever see, in every language, of every
+        length. Nothing inside \(\mathbf{W}^Q\) could shuffle, because it was never tied to
+        your sentence in the first place. Figure 2 draws this with the real numbers:
+        <code>I</code>, <code>love</code> and <code>LLMs</code> each go through the same
+        \(\mathbf{W}^Q\), and each comes out as its own row of \(\mathbf{Q}\).</p>
+
+      <figure id="fig2">
+        <div class="plate">
+          <svg viewBox="0 46 960 254" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The three rows of X, for I, love and LLMs, each go through the same matrix W Q and each comes out as its own row of Q. W Q never sees which row it is working on, so reordering the rows of X only reorders the rows of Q.">
+            <defs><marker id="arrow-f2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--fig-soft,#5A6B7A)"></path></marker></defs>
+            <g font-family="IBM Plex Mono, monospace">
+            <text x="190" y="74" font-size="12" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">rows of X</text>
+            <text x="480" y="90" font-size="12" text-anchor="middle" fill="var(--h2c,#B07D1A)">W<tspan baseline-shift="super" font-size="9">Q</tspan> &#183; one matrix</text>
+            <text x="770" y="74" font-size="12" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">rows of Q = XW<tspan baseline-shift="super" font-size="9">Q</tspan></text>
+            <text x="118" y="120.0" font-size="12" text-anchor="end" fill="var(--h1c,#2E6F8E)">I</text>
+            <text x="842" y="120.0" font-size="12" fill="var(--h1c,#2E6F8E)">I</text>
+            <rect x="130" y="104" width="30" height="24" fill="var(--h1c,#2E6F8E)" fill-opacity="0.14" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="145" y="120.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+            <rect x="710" y="104" width="30" height="24" fill="var(--h1c,#2E6F8E)" fill-opacity="0.14" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="725" y="120.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">2</text>
+            <rect x="160" y="104" width="30" height="24" fill="var(--h1c,#2E6F8E)" fill-opacity="0.14" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="175" y="120.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+            <rect x="740" y="104" width="30" height="24" fill="var(--h1c,#2E6F8E)" fill-opacity="0.14" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="755" y="120.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+            <rect x="190" y="104" width="30" height="24" fill="var(--h1c,#2E6F8E)" fill-opacity="0.14" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="205" y="120.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+            <rect x="770" y="104" width="30" height="24" fill="var(--h1c,#2E6F8E)" fill-opacity="0.14" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="785" y="120.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+            <rect x="220" y="104" width="30" height="24" fill="var(--h1c,#2E6F8E)" fill-opacity="0.14" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="235" y="120.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+            <rect x="800" y="104" width="30" height="24" fill="var(--h1c,#2E6F8E)" fill-opacity="0.14" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="815" y="120.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+            <path d="M256,116.0 C320,116.0 320,152.0 360,152.0" fill="none" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.2"></path>
+            <path d="M600,152.0 C640,152.0 640,116.0 702,116.0" fill="none" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.2" marker-end="url(#arrow-f2)"></path>
+            <text x="118" y="156.0" font-size="12" text-anchor="end" fill="var(--h1c,#2E6F8E)">love</text>
+            <text x="842" y="156.0" font-size="12" fill="var(--h1c,#2E6F8E)">love</text>
+            <rect x="130" y="140" width="30" height="24" fill="var(--h1c,#2E6F8E)" fill-opacity="0.14" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="145" y="156.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+            <rect x="710" y="140" width="30" height="24" fill="var(--h1c,#2E6F8E)" fill-opacity="0.14" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="725" y="156.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+            <rect x="160" y="140" width="30" height="24" fill="var(--h1c,#2E6F8E)" fill-opacity="0.14" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="175" y="156.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+            <rect x="740" y="140" width="30" height="24" fill="var(--h1c,#2E6F8E)" fill-opacity="0.14" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="755" y="156.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">2</text>
+            <rect x="190" y="140" width="30" height="24" fill="var(--h1c,#2E6F8E)" fill-opacity="0.14" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="205" y="156.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+            <rect x="770" y="140" width="30" height="24" fill="var(--h1c,#2E6F8E)" fill-opacity="0.14" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="785" y="156.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+            <rect x="220" y="140" width="30" height="24" fill="var(--h1c,#2E6F8E)" fill-opacity="0.14" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="235" y="156.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+            <rect x="800" y="140" width="30" height="24" fill="var(--h1c,#2E6F8E)" fill-opacity="0.14" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="815" y="156.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+            <path d="M256,152.0 C320,152.0 320,152.0 360,152.0" fill="none" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.2"></path>
+            <path d="M600,152.0 C640,152.0 640,152.0 702,152.0" fill="none" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.2" marker-end="url(#arrow-f2)"></path>
+            <text x="118" y="192.0" font-size="12" text-anchor="end" fill="var(--h1c,#2E6F8E)">LLMs</text>
+            <text x="842" y="192.0" font-size="12" fill="var(--h1c,#2E6F8E)">LLMs</text>
+            <rect x="130" y="176" width="30" height="24" fill="var(--h1c,#2E6F8E)" fill-opacity="0.14" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="145" y="192.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+            <rect x="710" y="176" width="30" height="24" fill="var(--h1c,#2E6F8E)" fill-opacity="0.14" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="725" y="192.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+            <rect x="160" y="176" width="30" height="24" fill="var(--h1c,#2E6F8E)" fill-opacity="0.14" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="175" y="192.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+            <rect x="740" y="176" width="30" height="24" fill="var(--h1c,#2E6F8E)" fill-opacity="0.14" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="755" y="192.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+            <rect x="190" y="176" width="30" height="24" fill="var(--h1c,#2E6F8E)" fill-opacity="0.14" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="205" y="192.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+            <rect x="770" y="176" width="30" height="24" fill="var(--h1c,#2E6F8E)" fill-opacity="0.14" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="785" y="192.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+            <rect x="220" y="176" width="30" height="24" fill="var(--h1c,#2E6F8E)" fill-opacity="0.14" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="235" y="192.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+            <rect x="800" y="176" width="30" height="24" fill="var(--h1c,#2E6F8E)" fill-opacity="0.14" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="815" y="192.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">2</text>
+            <path d="M256,188.0 C320,188.0 320,152.0 360,152.0" fill="none" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.2"></path>
+            <path d="M600,152.0 C640,152.0 640,188.0 702,188.0" fill="none" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.2" marker-end="url(#arrow-f2)"></path>
+            <path d="M360,152.0 L412,152.0" fill="none" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.2" marker-end="url(#arrow-f2)"></path>
+            <path d="M546,152.0 L600,152.0" fill="none" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.2"></path>
+            <rect x="420" y="104.0" width="30" height="24" fill="var(--h2c,#B07D1A)" fill-opacity="0.16" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="435" y="120.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+            <rect x="450" y="104.0" width="30" height="24" fill="var(--h2c,#B07D1A)" fill-opacity="0.16" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="465" y="120.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">&#8722;1</text>
+            <rect x="480" y="104.0" width="30" height="24" fill="var(--h2c,#B07D1A)" fill-opacity="0.16" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="495" y="120.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+            <rect x="510" y="104.0" width="30" height="24" fill="var(--h2c,#B07D1A)" fill-opacity="0.16" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="525" y="120.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+            <rect x="420" y="128.0" width="30" height="24" fill="var(--h2c,#B07D1A)" fill-opacity="0.16" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="435" y="144.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+            <rect x="450" y="128.0" width="30" height="24" fill="var(--h2c,#B07D1A)" fill-opacity="0.16" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="465" y="144.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+            <rect x="480" y="128.0" width="30" height="24" fill="var(--h2c,#B07D1A)" fill-opacity="0.16" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="495" y="144.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+            <rect x="510" y="128.0" width="30" height="24" fill="var(--h2c,#B07D1A)" fill-opacity="0.16" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="525" y="144.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+            <rect x="420" y="152.0" width="30" height="24" fill="var(--h2c,#B07D1A)" fill-opacity="0.16" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="435" y="168.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+            <rect x="450" y="152.0" width="30" height="24" fill="var(--h2c,#B07D1A)" fill-opacity="0.16" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="465" y="168.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+            <rect x="480" y="152.0" width="30" height="24" fill="var(--h2c,#B07D1A)" fill-opacity="0.16" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="495" y="168.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+            <rect x="510" y="152.0" width="30" height="24" fill="var(--h2c,#B07D1A)" fill-opacity="0.16" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="525" y="168.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">&#8722;1</text>
+            <rect x="420" y="176.0" width="30" height="24" fill="var(--h2c,#B07D1A)" fill-opacity="0.16" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="435" y="192.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+            <rect x="450" y="176.0" width="30" height="24" fill="var(--h2c,#B07D1A)" fill-opacity="0.16" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="465" y="192.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+            <rect x="480" y="176.0" width="30" height="24" fill="var(--h2c,#B07D1A)" fill-opacity="0.16" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="495" y="192.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+            <rect x="510" y="176.0" width="30" height="24" fill="var(--h2c,#B07D1A)" fill-opacity="0.16" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="525" y="192.5" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+            <rect x="420" y="104.0" width="120" height="96" fill="none" stroke="var(--h2c,#B07D1A)" stroke-width="1.6"></rect>
+            <text x="480" y="220" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">learned once, used for every row</text>
+            <text x="480" y="262" font-size="12" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">each row goes through the same W<tspan baseline-shift="super" font-size="9">Q</tspan> on its own &#8212; W<tspan baseline-shift="super" font-size="9">Q</tspan> never sees a row number</text>
+            <text x="480" y="284" font-size="12" text-anchor="middle" fill="var(--h2c,#B07D1A)">reorder the rows on the left and the rows on the right reorder with them</text>
+            </g></svg>
+        </div>
+        <figcaption><b>Figure 2.</b> One weight matrix, applied to each token row on its
+          own. Because the calculation for a row never consults the row number, shuffling
+          the input rows shuffles the output rows and changes nothing inside them.</figcaption>
+      </figure>
+
+      \[
+      \begin{aligned}
+      \mathbf{Q}_{\text{swapped}}&amp;=\begin{pmatrix}1&amp;0&amp;1&amp;2\\1&amp;2&amp;0&amp;1\\2&amp;1&amp;0&amp;0\end{pmatrix}\\[8pt]
+      \mathbf{K}_{\text{swapped}}&amp;=\begin{pmatrix}1&amp;0&amp;0&amp;2\\0&amp;2&amp;0&amp;1\\2&amp;0&amp;1&amp;0\end{pmatrix}\\[8pt]
+      \mathbf{V}_{\text{swapped}}&amp;=\begin{pmatrix}1&amp;0&amp;1&amp;0\\2&amp;0&amp;0&amp;1\\1&amp;1&amp;0&amp;0\end{pmatrix}
+      \end{aligned}
+      \]
+
+      <p>Every row is one of the rows you already computed, sitting somewhere new. No new
+        arithmetic happened.</p>
+
+      <p>Now compute the new scores, \(\mathbf{Q}_{\text{swapped}}\mathbf{K}_{\text{swapped}}^\top\):</p>
+
+      \[
+      \mathbf{Q}_{\text{swapped}}\mathbf{K}_{\text{swapped}}^\top = \begin{pmatrix} 5 &amp; 2 &amp; 3 \\ 3 &amp; 5 &amp; 2 \\ 2 &amp; 2 &amp; 4 \end{pmatrix}
+      \]
+
+      <blockquote class="think"><b>Think for a moment</b>
+        Put the two score matrices side by side. They aren't the same matrix. Is anything
+        about them the same?</blockquote>
+
+      <p>Look at the two sets of nine numbers:</p>
+
+      \[
+      \mathbf{Q}\mathbf{K}^\top=\begin{pmatrix} 4 &amp; 2 &amp; 2 \\ 2 &amp; 5 &amp; 3 \\ 3 &amp; 2 &amp; 5 \end{pmatrix}
+      \qquad
+      \mathbf{Q}_{\text{swapped}}\mathbf{K}_{\text{swapped}}^\top=\begin{pmatrix} 5 &amp; 2 &amp; 3 \\ 3 &amp; 5 &amp; 2 \\ 2 &amp; 2 &amp; 4 \end{pmatrix}
+      \]
+
+      <p>The same nine numbers are present in both, and the second matrix is the first one
+        flipped: the row order reversed, and the column order reversed with it. The 4 that sat
+        in the top-left corner is now in the bottom-right corner.</p>
+
+      <h3>Why it had to happen: X appears twice in the score</h3>
+
+      <p>Write the score matrix in terms of \(\mathbf{X}\):</p>
+
+      \[
+      \mathbf{Q}\mathbf{K}^\top = \mathbf{X}\mathbf{W}^Q\,(\mathbf{X}\mathbf{W}^K)^\top = \mathbf{X}\,\mathbf{W}^Q\mathbf{W}^{K\top}\,\mathbf{X}^\top
+      \]
+
+      <p>\(\mathbf{X}\) appears twice. On the left it supplies the rows of the result, and on
+        the right, as \(\mathbf{X}^\top\), it supplies the columns. Reverse the rows of
+        \(\mathbf{X}\) and both copies change, so the rows of the score matrix reverse and its
+        columns reverse with them. No score changes value, because each one is a single
+        word's row of \(\mathbf{X}\), times \(\mathbf{W}^Q\mathbf{W}^{K\top}\), times another
+        word's row. For example, <code>I</code> asking and <code>love</code> answering is</p>
+
+      \[
+      \mathbf{x}_{\texttt{I}}\,\mathbf{W}^Q\mathbf{W}^{K\top}\,\mathbf{x}_{\texttt{love}}^\top = 2
+      \]
+
+      <p>in either sentence. That depends on which two words they are, and not on where they
+        sit.</p>
+
+      <p>Figure 3 follows two scores. The 4 is <code>I</code> asking and <code>I</code>
+        answering, so it moves from the top-left corner to the bottom-right corner. The 2 is
+        <code>I</code> asking and <code>love</code> answering. Its row moves from the top to
+        the bottom, but its column stays, because <code>love</code> is in the middle of both
+        sentences. <a href="#sa1">Appendix A.1</a> shows the same thing for any reordering,
+        not only a reversal.</p>
+
+      <figure id="fig3">
+        <div class="plate">
+        <svg viewBox="0 0 960 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The score matrix has the word list along both edges. Reversing the sentence reverses the row labels and the column labels together, so each entry keeps its own pair of words and only changes address.">
+          <g font-family="IBM Plex Mono, monospace">
+            <text x="40" y="38" font-size="13" fill="var(--h1c,#2E6F8E)">THE SCORE MATRIX IS LABELLED BY WORDS ON BOTH EDGES</text>
+            <text x="40" y="58" font-size="12" fill="var(--fig-soft,#5A6B7A)">rows = the word asking (query) &#160;&#183;&#160; columns = the word answering (key)</text>
+            <text x="176" y="90" font-size="12.5" fill="var(--h1c,#2E6F8E)">ORIGINAL &#160;&#183;&#160; I love LLMs</text>
+            <text x="205" y="122" font-size="11.5" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">I</text>
+            <text x="263" y="122" font-size="11.5" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">love</text>
+            <text x="321" y="122" font-size="11.5" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">LLMs</text>
+            <text x="164" y="157" font-size="11.5" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">I</text>
+            <rect x="176" y="132" width="58" height="40" fill="var(--h2c,#B07D1A)" fill-opacity="0.3" stroke="var(--h2c,#B07D1A)" stroke-width="2"></rect>
+            <text x="205" y="158" font-size="15" text-anchor="middle" fill="var(--fig-line,#16202B)">4</text>
+            <rect x="234" y="132" width="58" height="40" fill="var(--accent,#7D4A72)" fill-opacity="0.26" stroke="var(--accent,#7D4A72)" stroke-width="2"></rect>
+            <text x="263" y="158" font-size="15" text-anchor="middle" fill="var(--fig-line,#16202B)">2</text>
+            <rect x="292" y="132" width="58" height="40" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="321" y="158" font-size="15" text-anchor="middle" fill="var(--fig-line,#16202B)">2</text>
+            <text x="164" y="197" font-size="11.5" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">love</text>
+            <rect x="176" y="172" width="58" height="40" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="205" y="198" font-size="15" text-anchor="middle" fill="var(--fig-line,#16202B)">2</text>
+            <rect x="234" y="172" width="58" height="40" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="263" y="198" font-size="15" text-anchor="middle" fill="var(--fig-line,#16202B)">5</text>
+            <rect x="292" y="172" width="58" height="40" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="321" y="198" font-size="15" text-anchor="middle" fill="var(--fig-line,#16202B)">3</text>
+            <text x="164" y="237" font-size="11.5" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">LLMs</text>
+            <rect x="176" y="212" width="58" height="40" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="205" y="238" font-size="15" text-anchor="middle" fill="var(--fig-line,#16202B)">3</text>
+            <rect x="234" y="212" width="58" height="40" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="263" y="238" font-size="15" text-anchor="middle" fill="var(--fig-line,#16202B)">2</text>
+            <rect x="292" y="212" width="58" height="40" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="321" y="238" font-size="15" text-anchor="middle" fill="var(--fig-line,#16202B)">5</text>
+            <text x="616" y="90" font-size="12.5" fill="var(--h2c,#B07D1A)">SWAPPED &#160;&#183;&#160; LLMs love I</text>
+            <text x="645" y="122" font-size="11.5" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">LLMs</text>
+            <text x="703" y="122" font-size="11.5" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">love</text>
+            <text x="761" y="122" font-size="11.5" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">I</text>
+            <text x="604" y="157" font-size="11.5" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">LLMs</text>
+            <rect x="616" y="132" width="58" height="40" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="645" y="158" font-size="15" text-anchor="middle" fill="var(--fig-line,#16202B)">5</text>
+            <rect x="674" y="132" width="58" height="40" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="703" y="158" font-size="15" text-anchor="middle" fill="var(--fig-line,#16202B)">2</text>
+            <rect x="732" y="132" width="58" height="40" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="761" y="158" font-size="15" text-anchor="middle" fill="var(--fig-line,#16202B)">3</text>
+            <text x="604" y="197" font-size="11.5" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">love</text>
+            <rect x="616" y="172" width="58" height="40" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="645" y="198" font-size="15" text-anchor="middle" fill="var(--fig-line,#16202B)">3</text>
+            <rect x="674" y="172" width="58" height="40" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="703" y="198" font-size="15" text-anchor="middle" fill="var(--fig-line,#16202B)">5</text>
+            <rect x="732" y="172" width="58" height="40" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="761" y="198" font-size="15" text-anchor="middle" fill="var(--fig-line,#16202B)">2</text>
+            <text x="604" y="237" font-size="11.5" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">I</text>
+            <rect x="616" y="212" width="58" height="40" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="645" y="238" font-size="15" text-anchor="middle" fill="var(--fig-line,#16202B)">2</text>
+            <rect x="674" y="212" width="58" height="40" fill="var(--accent,#7D4A72)" fill-opacity="0.26" stroke="var(--accent,#7D4A72)" stroke-width="2"></rect>
+            <text x="703" y="238" font-size="15" text-anchor="middle" fill="var(--fig-line,#16202B)">2</text>
+            <rect x="732" y="212" width="58" height="40" fill="var(--h2c,#B07D1A)" fill-opacity="0.3" stroke="var(--h2c,#B07D1A)" stroke-width="2"></rect>
+            <text x="761" y="238" font-size="15" text-anchor="middle" fill="var(--fig-line,#16202B)">4</text>
+            <text x="40" y="292" font-size="12.5" fill="var(--h2c,#B07D1A)">&#9632; I asking, I answering &#8212; the 4 moves from the top-left corner to the bottom-right corner, and is still 4</text>
+            <text x="40" y="314" font-size="12.5" fill="var(--accent,#7D4A72)">&#9632; I asking, love answering &#8212; the 2 moves from row 1, column 2 to row 3, column 2, and is still 2</text>
+            <text x="40" y="340" font-size="12" fill="var(--fig-soft,#5A6B7A)">Both label strips reversed together, so every entry kept its own pair of words and only changed address.</text>
+          </g>
+        </svg>
+        </div>
+        <figcaption><b>Figure 3.</b> The two score matrices with the word list written along
+          both edges. Reversing the sentence reverses the row labels and the column labels
+          together, so each entry keeps its own pair of words and only changes address
+          &mdash; which is why no number in the matrix changes value.</figcaption>
+      </figure>
+
+      <h4>Softmax and the output</h4>
+
+      <p>Everything downstream inherits this. Softmax works on one row at a time. It never
+        looks at the row number, and inside a row it turns each score into its share of the
+        row's total, which is the same in whatever order the scores are added. So the
+        attention weights \(\mathbf{A}\) go through the same change &mdash; the same numbers,
+        moved the same way:</p>
+
+      \[
+      \mathbf{A}=\begin{pmatrix} 0.58 &amp; 0.21 &amp; 0.21 \\ 0.14 &amp; 0.63 &amp; 0.23 \\ 0.23 &amp; 0.14 &amp; 0.63 \end{pmatrix}
+      \qquad
+      \mathbf{A}_{\text{swapped}} = \begin{pmatrix} 0.63 &amp; 0.14 &amp; 0.23 \\ 0.23 &amp; 0.63 &amp; 0.14 \\ 0.21 &amp; 0.21 &amp; 0.58 \end{pmatrix}
+      \]
+
+      <p>Before going on to the output, read one row of these. <code>love</code> is the
+        middle word, and it stays in the middle when the sentence is reversed. Row 2 of
+        \(\mathbf{A}\) says how much <code>love</code> paid attention to each word. Here it
+        is in both sentences, with the words written above the numbers so you can see who is
+        who:</p>
+
+      \[
+      \begin{array}{lccc}
+      \text{I love LLMs:} &amp; \underset{\texttt{I}}{0.14} &amp; \underset{\texttt{love}}{0.63} &amp; \underset{\texttt{LLMs}}{0.23} \\[10pt]
+      \text{LLMs love I:} &amp; \underset{\texttt{LLMs}}{0.23} &amp; \underset{\texttt{love}}{0.63} &amp; \underset{\texttt{I}}{0.14}
+      \end{array}
+      \]
+
+      <p>In the first sentence, <code>love</code> gives <code>I</code> a weight of 0.14, and
+        <code>I</code> is the word on its <em>left</em>. In the second sentence,
+        <code>love</code> gives <code>I</code> a weight of 0.14, and <code>I</code> is now the
+        word on its <em>right</em>. Same word, opposite side, identical weight. And
+        <code>LLMs</code> gets 0.23 from either side too.</p>
+
+      <p>"Attention did not use the order" means this, in numbers: every weight depends on
+        <em>which word</em> and never on <em>which side</em>.</p>
+
+      <p>Now multiply the weights by the new values \(\mathbf{V}_{\text{swapped}}\) to get the final output:</p>
+
+      \[
+      \mathbf{Z}_{\text{swapped}} = \mathbf{A}_{\text{swapped}}\mathbf{V}_{\text{swapped}}
+      = \begin{pmatrix} 0.63 &amp; 0.14 &amp; 0.23 \\ 0.23 &amp; 0.63 &amp; 0.14 \\ 0.21 &amp; 0.21 &amp; 0.58 \end{pmatrix}
+      \begin{pmatrix}1&amp;0&amp;1&amp;0\\2&amp;0&amp;0&amp;1\\1&amp;1&amp;0&amp;0\end{pmatrix}
+      = \begin{pmatrix} 1.14 &amp; 0.23 &amp; 0.63 &amp; 0.14 \\ 1.63 &amp; 0.14 &amp; 0.23 &amp; 0.63 \\ 1.21 &amp; 0.58 &amp; 0.21 &amp; 0.21 \end{pmatrix}
+      \]
+
+      <p>Look closely at \(\mathbf{Z}_{\text{swapped}}\).<br>
+        Row 1 is the output for <code>LLMs</code>: \((1.14, 0.23, 0.63, 0.14)\).<br>
+        Row 2 is the output for <code>love</code>: \((1.63, 0.14, 0.23, 0.63)\).<br>
+        Row 3 is the output for <code>I</code>: \((1.21, 0.58, 0.21, 0.21)\).</p>
+
+      <p>Those are the exact same vectors you got the first time. They just changed rows. The vector produced for
+        <code>I</code> is exactly the same whether <code>I</code> came first or last. The self-attention layer
+        completely ignored your word order &mdash; Figure 4 is the whole section in one picture.
+      </p>
+
+      <figure id="fig4">
+        <div class="plate">
+        <svg viewBox="0 0 960 520" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The same sentence and its reversal go into a self-attention layer. The three output rows that come back are the same three vectors in both cases, reordered to follow the words.">
+          <defs>
+            <marker id="arrow-f4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--fig-line,#16202B)"></path>
+            </marker>
+          </defs>
+          <g font-family="IBM Plex Mono, monospace">
+            <text x="40" y="82" font-size="13" fill="var(--h1c,#2E6F8E)">ORIGINAL SEQUENCE &#160;&#183;&#160; I love LLMs</text>
+            <text x="190" y="102" font-size="12" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">Input X</text>
+            <text x="744" y="102" font-size="12" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">Output Z</text>
+            <rect x="118" y="110" width="36" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="136" y="130" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+            <rect x="640" y="110" width="52" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="666" y="130" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1.21</text>
+            <rect x="154" y="110" width="36" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="172" y="130" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+            <rect x="692" y="110" width="52" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="718" y="130" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.58</text>
+            <rect x="190" y="110" width="36" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="208" y="130" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+            <rect x="744" y="110" width="52" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="770" y="130" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.21</text>
+            <rect x="226" y="110" width="36" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="244" y="130" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+            <rect x="796" y="110" width="52" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="822" y="130" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.21</text>
+            <text x="108" y="130" font-size="12" text-anchor="end" fill="var(--h1c,#2E6F8E)">I</text>
+            <text x="858" y="130" font-size="12" fill="var(--h1c,#2E6F8E)">I</text>
+            <rect x="118" y="140" width="36" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="136" y="160" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+            <rect x="640" y="140" width="52" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="666" y="160" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1.63</text>
+            <rect x="154" y="140" width="36" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="172" y="160" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+            <rect x="692" y="140" width="52" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="718" y="160" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.14</text>
+            <rect x="190" y="140" width="36" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="208" y="160" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+            <rect x="744" y="140" width="52" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="770" y="160" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.23</text>
+            <rect x="226" y="140" width="36" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="244" y="160" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+            <rect x="796" y="140" width="52" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="822" y="160" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.63</text>
+            <text x="108" y="160" font-size="12" text-anchor="end" fill="var(--h1c,#2E6F8E)">love</text>
+            <text x="858" y="160" font-size="12" fill="var(--h1c,#2E6F8E)">love</text>
+            <rect x="118" y="170" width="36" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="136" y="190" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+            <rect x="640" y="170" width="52" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="666" y="190" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1.14</text>
+            <rect x="154" y="170" width="36" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="172" y="190" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+            <rect x="692" y="170" width="52" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="718" y="190" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.23</text>
+            <rect x="190" y="170" width="36" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="208" y="190" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+            <rect x="744" y="170" width="52" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="770" y="190" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.63</text>
+            <rect x="226" y="170" width="36" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="244" y="190" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+            <rect x="796" y="170" width="52" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="822" y="190" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.14</text>
+            <text x="108" y="190" font-size="12" text-anchor="end" fill="var(--h1c,#2E6F8E)">LLMs</text>
+            <text x="858" y="190" font-size="12" fill="var(--h1c,#2E6F8E)">LLMs</text>
+            <rect x="302" y="118" width="152" height="74" rx="4" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-line,#16202B)" stroke-width="1.5"></rect>
+            <text x="378" y="160" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">Self-Attention</text>
+            <path d="M270,155 L294,155" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f4)"></path>
+            <path d="M462,155 L632,155" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f4)"></path>
+            <line x1="40" y1="262" x2="920" y2="262" stroke="var(--rule,#D6DEE5)" stroke-width="1"></line>
+            <text x="40" y="322" font-size="13" fill="var(--h2c,#B07D1A)">SWAPPED SEQUENCE &#160;&#183;&#160; LLMs love I</text>
+            <text x="190" y="342" font-size="12" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">Input X</text>
+            <text x="744" y="342" font-size="12" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">Output Z</text>
+            <rect x="118" y="350" width="36" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="136" y="370" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+            <rect x="640" y="350" width="52" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="666" y="370" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1.14</text>
+            <rect x="154" y="350" width="36" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="172" y="370" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+            <rect x="692" y="350" width="52" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="718" y="370" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.23</text>
+            <rect x="190" y="350" width="36" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="208" y="370" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+            <rect x="744" y="350" width="52" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="770" y="370" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.63</text>
+            <rect x="226" y="350" width="36" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="244" y="370" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+            <rect x="796" y="350" width="52" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="822" y="370" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.14</text>
+            <text x="108" y="370" font-size="12" text-anchor="end" fill="var(--h2c,#B07D1A)">LLMs</text>
+            <text x="858" y="370" font-size="12" fill="var(--h2c,#B07D1A)">LLMs</text>
+            <rect x="118" y="380" width="36" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="136" y="400" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+            <rect x="640" y="380" width="52" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="666" y="400" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1.63</text>
+            <rect x="154" y="380" width="36" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="172" y="400" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+            <rect x="692" y="380" width="52" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="718" y="400" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.14</text>
+            <rect x="190" y="380" width="36" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="208" y="400" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+            <rect x="744" y="380" width="52" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="770" y="400" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.23</text>
+            <rect x="226" y="380" width="36" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="244" y="400" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+            <rect x="796" y="380" width="52" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="822" y="400" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.63</text>
+            <text x="108" y="400" font-size="12" text-anchor="end" fill="var(--h2c,#B07D1A)">love</text>
+            <text x="858" y="400" font-size="12" fill="var(--h2c,#B07D1A)">love</text>
+            <rect x="118" y="410" width="36" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="136" y="430" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+            <rect x="640" y="410" width="52" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="666" y="430" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">1.21</text>
+            <rect x="154" y="410" width="36" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="172" y="430" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text>
+            <rect x="692" y="410" width="52" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="718" y="430" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.58</text>
+            <rect x="190" y="410" width="36" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="208" y="430" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+            <rect x="744" y="410" width="52" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="770" y="430" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.21</text>
+            <rect x="226" y="410" width="36" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="244" y="430" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text>
+            <rect x="796" y="410" width="52" height="30" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect>
+            <text x="822" y="430" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.21</text>
+            <text x="108" y="430" font-size="12" text-anchor="end" fill="var(--h2c,#B07D1A)">I</text>
+            <text x="858" y="430" font-size="12" fill="var(--h2c,#B07D1A)">I</text>
+            <rect x="302" y="358" width="152" height="74" rx="4" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-line,#16202B)" stroke-width="1.5"></rect>
+            <text x="378" y="400" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">Self-Attention</text>
+            <path d="M270,395 L294,395" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f4)"></path>
+            <path d="M462,395 L632,395" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f4)"></path>
+            <path d="M894,125 L912,125 L912,425 L894,425" fill="none" stroke="var(--h2c,#B07D1A)" stroke-width="1.4" stroke-dasharray="4 3"></path>
+            <text x="906" y="269" font-size="11.5" text-anchor="end" fill="var(--h2c,#B07D1A)">identical</text>
+            <text x="906" y="285" font-size="11.5" text-anchor="end" fill="var(--h2c,#B07D1A)">output</text>
+            <text x="40" y="492" font-size="12" fill="var(--fig-soft,#5A6B7A)">Changing the input order only rearranges the rows &#8212; it does not change the math, so the same three vectors come back.</text>
+          </g>
+        </svg>
+        </div>
+        <figcaption><b>Figure 4.</b> Without positional encodings, self-attention processes the sentence as a bag of
+          words. Swapping the inputs exactly swaps the outputs, leaving the output vectors of <code>I</code>,
+          <code>love</code>, and <code>LLMs</code> unchanged. The model cannot tell which word came first.
+        </figcaption>
+      </figure>
+
+      <h3>Does this hold in general?</h3>
+
+      <p>You have seen one case, and you might reasonably blame the result on the setup:
+        one particular sentence and one particular set of weights. The setup isn't the reason.
+        The same result holds for every embedding, every weight matrix and every sentence
+        length, and it has a name: self-attention is <b>permutation-equivariant</b> &mdash;
+        shuffle the input and you get the original output, shuffled the same way.</p>
+
+      <p>The proof takes about half a page and needs one new idea (writing a shuffle as a
+        matrix). Read the proof whenever you like, but not right now: nothing in the rest of this
+        part depends on it. It is <a href="#sa1">Appendix A.1</a>.</p>
+
+      <blockquote class="takeaway"><b>Key takeaway</b></blockquote>
+      <ul>
+        <li><b>Position</b> is where a word sits in the sentence, counting from 0.
+          <b>Slot</b> is where a number sits inside one vector, also counting from 0. Rows and
+          columns of a matrix count from 1, and the two counts never share a sentence
+          outside the box above.</li>
+        <li>Shuffle the rows of \(\mathbf{X}\) and every output vector comes back unchanged,
+          in the shuffled order. Worked here for <code>I love LLMs</code> against
+          <code>LLMs love I</code>.</li>
+        <li>The reason is that every step &mdash; the three projections, the dot products, the
+          softmax, the weighted sum &mdash; reads a row's <em>contents</em> and never its
+          address.</li>
+      </ul>
+
+      <p><b>Try it (3 minutes):</b> Swap the first and third rows of \(\mathbf{X}\) and redo
+        \(\mathbf{Q}\mathbf{K}^\top\) by hand. You should find that every entry of the new
+        matrix is an entry of the old one, sitting at a different address. Then say which
+        single entry did not move at all, and why.</p>
+
+      <h2 id="s33"><span class="num">3.3</span>Why the same vector is the wrong answer</h2>
+
+      <p>Section 3.2 left you with a fact: shuffle the words and the same output vectors come
+        back, just in different rows. This section and the next are about what that means for the model.</p>
+
+      <p>You probably have three objections at this point, and all three are fair:</p>
+      <ul>
+        <li>Is the identical output really a problem?</li>
+        <li>The rows are still in order, so is the order still there?</li>
+        <li>Couldn't a later layer just read the row numbers and use them?</li>
+      </ul>
+
+      <p>This section answers the first. Section 3.4 answers the other two.</p>
+
+      <h4>Wait &mdash; should it not be the same?</h4>
+
+      <p>You might be thinking: in <code>I love LLMs</code> and <code>LLMs love I</code>,
+        <code>I</code> is the same word. So it seems right that the layer gives <code>I</code>
+        the same output vector in both sentences. Why would a different vector be better?</p>
+
+      <p>That would be right if the layer's job were to describe the word on its own, but
+        that is not its job. The embedding already does that: it gives <code>bank</code> one
+        fixed vector, the same in every sentence. The attention layer exists to describe the
+        word <em>as it is used in this sentence</em>. The <code>bank</code> in "river bank" is
+        a different thing from the <code>bank</code> in "bank account", and the embedding
+        cannot tell them apart. Attention can: its output vector for <code>bank</code> changes
+        when the words around <code>bank</code> change.</p>
+
+      <p>Each word's output vector is its row of \(\mathbf{Z}\). Ideally, that vector would
+        depend on two things:</p>
+      <ul>
+        <li><em>which</em> words are around it</li>
+        <li><em>where</em> those words are</li>
+      </ul>
+
+      <p>Attention handles the first, as the
+        <code>bank</code> example shows. Section 3.2 showed that it does not handle the
+        second: moving the words around left every output vector unchanged.</p>
+
+      <h4>dog bites man, man bites dog</h4>
+
+      <p>Take two sentences built from the same three words:</p>
+
+      \[
+      \texttt{dog}\ \texttt{bites}\ \texttt{man}
+      \qquad\text{against}\qquad
+      \texttt{man}\ \texttt{bites}\ \texttt{dog}
+      \]
+
+      <p>One describes an ordinary afternoon. The other would be on the front page. Run both
+        through the layer. The
+        bag of words is identical, so by the argument above every output vector is identical
+        too — the three vectors simply come out in a different order.</p>
+
+      <p>Look at the middle word. <code>bites</code> sits at position 1 in both sentences, so
+        the reordering doesn't even move it. Its output vector is the same vector, down to
+        the last decimal, in the ordinary sentence and in the front-page one. And
+        <code>bites</code> is exactly the word whose meaning depends on the order &mdash; it's
+        the word that has to know who is doing the biting. It comes out of the layer with no
+        opinion on the matter.</p>
+
+      <p>So the identical output is not a sign that the layer is consistent. It shows that the
+        word order never reached the contents of the rows. The rest of this part is
+        about putting the order into the rows.</p>
+
+      <blockquote class="takeaway"><b>Key takeaway</b></blockquote>
+      <ul>
+        <li>The output of an attention layer is meant to describe a word <em>as it appears in
+          this sentence</em>. Getting the same vector for <code>bites</code> in
+          <code>dog bites man</code> and <code>man bites dog</code> is the failure, not the
+          feature.</li>
+        <li>The identical output does not mean the layer is consistent. It means the word order
+          never reached the contents of the rows.</li>
+      </ul>
+
+      <p><b>Try it (2 minutes):</b> Write <code>dog bites man</code> and
+        <code>man bites dog</code> one under the other. For each of the three words, say whether
+        it moved, and whether its output vector changes. You should get two words that moved
+        and zero vectors that changed. Then say in one sentence why that count would be zero
+        for any reordering of these three words, not only this swap.</p>
+
+      <h2 id="s34"><span class="num">3.4</span>The order is in the row numbers, and nothing reads them</h2>
+
+      <blockquote class="think"><b>Think for a moment</b>
+        After the swap, every output vector stayed the same, and the three vectors came out in
+        a new order that follows the words. So is the word order lost, or is it still
+        somewhere in the output?</blockquote>
+
+      <h4>Yes, the order is still there &mdash; and attention never read it</h4>
+
+      <p>Yes, the order is still there. Row 1 of \(\mathbf{Z}\) is still the first word and
+        row 3 is still the last. Anyone who looks at the row numbers of \(\mathbf{Z}\) can
+        see the order. But attention does not use the row numbers, and
+        you have already seen this three times:</p>
+      <ul>
+        <li>In Section 3.2, <code>I</code> moved from first to last, and its output vector
+          stayed exactly the same.</li>
+        <li>In the same example, <code>love</code> gave <code>I</code> a weight of 0.14
+          whether <code>I</code> came before <code>love</code> or after <code>love</code>.</li>
+        <li>In Section 3.3, <code>dog</code> and <code>man</code> changed places around
+          <code>bites</code>, and <code>bites</code> still came out as the same vector.</li>
+      </ul>
+
+      <p>The row numbers really are still there for anyone to see, and this was attention's only chance to use them
+        &mdash; the layer is finished, and the next thing these vectors meet is the
+        feed-forward network. So it is fair to ask whether something further down the model
+        could pick the row numbers up instead. That is the rest of this section.</p>
+
+      <h4>Nothing after attention reads it either</h4>
+
+      <p>First, get precise about what "reading the row number" would take. A component uses
+        position only if <b>some parameter of it is different for different positions</b> —
+        a weight matrix \(\mathbf{W}^{(0)}\) reserved for position 0, a different
+        \(\mathbf{W}^{(1)}\) for position 1, and so on. Then position 0 and position 2 get different treatment, and the model can tell
+        them apart.</p>
+
+      <p>If no step has weights like that, the row number is only a label, and nothing in the
+        model reacts to it. So the question is: does any step after attention use one weight
+        matrix for position 0, a different one for position 1, and so on?</p>
+
+      <p><b>The feed-forward network doesn't.</b> The feed-forward network is the step that sits after
+        attention inside every Transformer layer. Part 5 builds it properly, and all we need here
+        is its shape. It never looks at the sequence at all. It takes one row at a time and pushes it
+        through a small two-layer network:</p>
+
+      \[
+      \operatorname{FFN}(\mathbf{z}_i)=\max(0,\ \mathbf{z}_i\mathbf{W}_1+\mathbf{b}_1)\,\mathbf{W}_2+\mathbf{b}_2
+      \]
+
+      <p>Read the subscripts. The row index \(i\) appears on \(\mathbf{z}_i\) and nowhere
+        else. \(\mathbf{W}_1, \mathbf{b}_1, \mathbf{W}_2, \mathbf{b}_2\) carry no \(i\) —
+        there's one set of them, shared by every position in every sentence. Computing row 1
+        and computing row 3 is literally the same arithmetic with different numbers fed in.</p>
+
+      <p>Figure 2 already drew this situation. One shared set of weights, applied to each row on
+        its own, with the row number used as an address and never as an ingredient. Shuffle
+        the rows going in and the rows come out shuffled, contents untouched.</p>
+
+      <p><b>The next attention layer doesn't either.</b> The proof in
+        <a href="#sa1">Appendix A.1</a> never mentions which layer it's talking about. Layer
+        two is exactly as order-blind as layer one, for exactly the same reason.</p>
+
+      <p>Put those together. Every block in the stack passes a shuffle straight through, and
+        blocks that pass a shuffle through still pass it through when you stack them. So the
+        whole network behaves like one big order-blind layer: shuffle the words and every
+        token's final vector is unchanged, just relocated. The row numbers were available the
+        entire way down and not one parameter was wired to notice them.</p>
+
+
+      <h4>Why no component gets its own weights per position</h4>
+
+      <p>All of this could be avoided by giving each position its own weights:
+        \(\mathbf{W}^{(0)}\) for position 0, \(\mathbf{W}^{(1)}\) for position 1, out to
+        \(\mathbf{W}^{(499)}\).
+        Nobody does, and it is worth seeing why, because it explains why position has to
+        arrive some other way.</p>
+
+      <ul>
+        <li><b>The length gets frozen.</b> Train with 500 positions and a 501st token has no
+          weights to be processed by. The model simply cannot read a longer sentence.</li>
+        <li><b>The later positions barely train.</b> \(\mathbf{W}^{(437)}\) only receives a gradient
+          from sentences of 438 tokens or more. Sentences that long are rare, so that matrix stays close to whatever it was initialised
+        as.</li>
+        <li><b>Every rule has to be learned 500 times.</b> "An adjective usually comes before
+          its noun" would be learned at position 5, and position 300 would gain nothing from that lesson
+          and would have to discover the same rule again from scratch.</li>
+      </ul>
+
+      <p>Sharing one set of weights across all positions buys the opposite of all three: any
+        length, dense training signal, and one rule that works everywhere. You would be giving up
+        far too much. So the order-blindness isn't an oversight — it is the price of sharing one set of
+        weights. So position cannot come from giving each position its own
+        weights.</p>
+
+      <h4>After the encoder, the row numbers are gone</h4>
+
+      <p>In a translation model, the layers that read the English sentence are the
+        <b>encoder</b>. The part that writes the translation is the <b>decoder</b>. The
+        decoder reads the encoder's output through cross-attention, which
+        <a href="./TTNN-Part1-Self-Attention.html#s125">Part 1, Section 1.2.5</a> introduced
+        and Part 7 works through with numbers. Cross-attention is still attention, so what it
+        hands the decoder is a weighted sum of the encoder's rows. A sum comes out the same
+        in whatever order its terms are added. Reverse the English sentence: every row keeps
+        its numbers and every weight stays with its row, so the sum is the same vector.
+        <a href="#sa2">Appendix A.2</a> writes this out step by step, and it is meant to be read
+        after Part 7. Figure 5 shows where cross-attention sits between the two.</p>
+
+      <figure id="fig5">
+        <div class="plate"><svg viewBox="-14.8 0 980 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The whole transformer. The encoder on the left runs once into C, the decoder on the right runs once per word it writes, including the run that produces &lt;end&gt;, the side door carries K and V across on every run, and the output head feeds each word back in at the bottom."><defs><marker id="arrow-f5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="var(--fig-line,#16202B)"></path></marker><marker id="arrow-f5-gold" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="var(--h2c,#B07D1A)"></path></marker><marker id="arrow-f5-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="var(--h1c,#2E6F8E)"></path></marker><marker id="arrow-f5-plum" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="var(--accent,#7D4A72)"></path></marker><animate id="fig5clock" attributeName="opacity" values="0;0" dur="18.0s" begin="indefinite" fill="freeze"></animate></defs><g font-family="IBM Plex Mono, monospace" fill="var(--fig-line,#16202B)"><g opacity="1"><animate attributeName="opacity" values="0;0;1;1" keyTimes="0.0000;0.0167;0.0556;1.0000" dur="18.0s" begin="fig5clock.begin" fill="freeze"></animate><text x="150" y="36" font-size="13.4" text-anchor="middle" fill="var(--h2c,#B07D1A)">ENCODER  ·  runs once</text><rect x="60" y="330" width="180" height="30" rx="4" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-line,#16202B)" stroke-width="1.500"></rect><text x="150" y="350" font-size="12.9" text-anchor="middle" fill="var(--fig-line,#16202B)">I  love  LLMs</text><text x="150" y="392" font-size="11.2" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">+ positional encoding</text><text x="150" y="408" font-size="11.2" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">at the bottom, once</text></g><g opacity="1"><animate attributeName="opacity" values="0;0;1;1" keyTimes="0.0000;0.0611;0.1000;1.0000" dur="18.0s" begin="fig5clock.begin" fill="freeze"></animate><path d="M150,330 L150,306" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.400" marker-end="url(#arrow-f5)"></path></g><g opacity="1"><animate attributeName="opacity" values="0;0;1;1" keyTimes="0.0000;0.0611;0.1000;1.0000" dur="18.0s" begin="fig5clock.begin" fill="freeze"></animate><rect x="60" y="152" width="180" height="150" rx="4" fill="var(--panel,#F2F5F8)" stroke="var(--h2c,#B07D1A)" stroke-width="1.500"></rect><text x="150" y="214" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">six encoder</text><text x="150" y="234" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">blocks</text><text x="150" y="262" font-size="11.7" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">Part 5</text></g><g opacity="1"><animate attributeName="opacity" values="0;0;1;1" keyTimes="0.0000;0.1222;0.1611;1.0000" dur="18.0s" begin="fig5clock.begin" fill="freeze"></animate><rect x="60" y="96" width="180" height="30" rx="4" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.500"></rect><text x="150" y="116" font-size="12.9" text-anchor="middle" fill="var(--fig-line,#16202B)">C · three rows</text><path d="M150,152 L150,130" fill="none" stroke="var(--h2c,#B07D1A)" stroke-width="1.400" marker-end="url(#arrow-f5-gold)"></path></g><g opacity="1"><animate attributeName="opacity" values="0;0;1;0.4;0.4;1;1;0.4;0.4;1;1;0.4;0.4;1;1;0.4;1;1" keyTimes="0.0000;0.1778;0.2167;0.3778;0.4000;0.4111;0.4278;0.4389;0.5889;0.6000;0.6167;0.6278;0.7778;0.7889;0.8056;0.8167;0.9778;1.0000" dur="18.0s" begin="fig5clock.begin" fill="freeze"></animate><text x="560" y="36" font-size="13.4" text-anchor="middle" fill="var(--h1c,#2E6F8E)">DECODER  ·  runs once per word</text><rect x="430" y="330" width="260" height="30" rx="4" fill="var(--fig-fill,#FFFFFF)" stroke="var(--accent,#7D4A72)" stroke-width="1.500"></rect><text x="560" y="350" font-size="12.9" text-anchor="middle" fill="var(--fig-line,#16202B)">&lt;start&gt;  J’aime  les  …</text><text x="560" y="392" font-size="11.2" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">+ positional encoding</text><text x="560" y="408" font-size="11.2" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">at the bottom, every run</text></g><g opacity="1"><animate attributeName="opacity" values="0;0;1;0.4;0.4;1;1;0.4;0.4;1;1;0.4;0.4;1;1;0.4;1;1" keyTimes="0.0000;0.2667;0.3056;0.3778;0.4778;0.4889;0.5056;0.5167;0.6667;0.6778;0.6944;0.7056;0.8556;0.8667;0.8833;0.8944;0.9778;1.0000" dur="18.0s" begin="fig5clock.begin" fill="freeze"></animate><rect x="430" y="152" width="260" height="150" rx="4" fill="var(--panel,#F2F5F8)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.500"></rect><text x="560" y="196" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">six decoder blocks</text><text x="560" y="220" font-size="11.7" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">each: self-attention,</text><text x="560" y="238" font-size="11.7" text-anchor="middle" fill="var(--h2c,#B07D1A)" font-weight="bold">cross-attention,</text><text x="560" y="256" font-size="11.7" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">feed-forward</text><text x="560" y="282" font-size="11.2" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">Section 7.5</text><path d="M560,330 L560,306" fill="none" stroke="var(--accent,#7D4A72)" stroke-width="1.400" marker-end="url(#arrow-f5-plum)"></path></g><g opacity="1"><animate attributeName="opacity" values="0;0;1;0.4;0.4;1;1;0.4;0.4;1;1;0.4;0.4;1;1;0.4;1;1" keyTimes="0.0000;0.2333;0.2722;0.3778;0.4389;0.4500;0.4667;0.4778;0.6278;0.6389;0.6556;0.6667;0.8167;0.8278;0.8444;0.8556;0.9778;1.0000" dur="18.0s" begin="fig5clock.begin" fill="freeze"></animate><path d="M240,111 L332,111 L332,238 L424,238" fill="none" stroke="var(--h2c,#B07D1A)" stroke-width="1.400" marker-end="url(#arrow-f5-gold)"></path><text x="378" y="226" font-size="11.7" text-anchor="middle" fill="var(--h2c,#B07D1A)">side door</text><text x="378" y="256" font-size="11.2" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">C, as K and V,</text><text x="378" y="271" font-size="11.2" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">every run</text></g><g opacity="1"><animate attributeName="opacity" values="0;0;1;0.4;0.4;1;1;0.4;0.4;1;1;0.4;0.4;1;1;0.4;1;1" keyTimes="0.0000;0.3000;0.3389;0.3778;0.5167;0.5278;0.5444;0.5556;0.7056;0.7167;0.7333;0.7444;0.8944;0.9056;0.9222;0.9333;0.9778;1.0000" dur="18.0s" begin="fig5clock.begin" fill="freeze"></animate><rect x="430" y="96" width="260" height="30" rx="4" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.500"></rect><text x="560" y="116" font-size="12.9" text-anchor="middle" fill="var(--fig-line,#16202B)">output head  ·  Part 6</text><path d="M560,152 L560,130" fill="none" stroke="var(--h1c,#2E6F8E)" stroke-width="1.400" marker-end="url(#arrow-f5-blue)"></path><rect x="760" y="96" width="180" height="30" rx="4" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-line,#16202B)" stroke-width="1.500"></rect><text x="850" y="116" font-size="12.9" text-anchor="middle" fill="var(--fig-line,#16202B)">the next word</text><path d="M690,111 L754,111" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.400" marker-end="url(#arrow-f5)"></path></g><g opacity="1"><animate attributeName="opacity" values="0;0;1;0.4;0.4;1;1;0.4;0.4;1;1;0.4;0.4;1;1;0.4;1;1" keyTimes="0.0000;0.3333;0.3722;0.3778;0.5556;0.5667;0.5833;0.5944;0.7444;0.7556;0.7722;0.7833;0.9333;0.9444;0.9611;0.9722;0.9778;1.0000" dur="18.0s" begin="fig5clock.begin" fill="freeze"></animate><path d="M850,126 L850,345 L696,345" fill="none" stroke="var(--accent,#7D4A72)" stroke-width="1.300" stroke-dasharray="5 4" marker-end="url(#arrow-f5-plum)"></path><text x="940" y="366" font-size="11.7" text-anchor="end" fill="var(--accent,#7D4A72)">written down, then fed back</text><text x="940" y="382" font-size="11.7" text-anchor="end" fill="var(--accent,#7D4A72)">in at the bottom next run</text></g><rect x="50.0" y="440" width="900" height="58" rx="4" fill="var(--panel,#F2F5F8)" stroke="var(--rule,#D6DEE5)" stroke-width="1.000"></rect><text x="70.0" y="464" font-size="12.3" text-anchor="start" fill="var(--fig-line,#16202B)">The encoder runs once and its three rows never change. The decoder runs again for every word,</text><text x="70.0" y="484" font-size="12.3" text-anchor="start" fill="var(--fig-line,#16202B)">one row longer each time, and reads those same three rows through the side door on every run.</text></g></svg></div>
+        <figcaption><b>Figure 5.</b> The whole transformer. The encoder runs once and then holds still, while the decoder and the side door fire again for every word it writes, including the run that produces &lt;end&gt;. Count the pulses: the side door delivers the same three rows on all of them.</figcaption>
+      </figure>
+
+      <p>Cross-attention is where the order is really lost. Inside the encoder, every output has
+        one row per English word, so the order at least survives as the row numbers. The output
+        of cross-attention has one row per word the decoder writes. The English rows have been
+        added into one vector, and there is nowhere left to keep an English row number. So the
+        decoder receives exactly the same thing for <code>dog bites man</code> and
+        <code>man bites dog</code>, and it cannot translate them differently.</p>
+
+      <p>A row number cannot survive a sum, but the contents of a row can. That is why the
+        position has to change the contents of the rows before any step adds rows
+        together.</p>
+
+      <h4>What is left: put the position inside the vector</h4>
+
+      <blockquote class="think"><b>Think for a moment</b>
+        Everything the model computes comes from two kinds of numbers: the weights, which are
+        the same for every position, and the contents of the rows. This section has ruled out
+        the weights. Where does that leave the position?</blockquote>
+
+      <p>In the rows. Suppose the model is to treat <code>I</code> at position 0 differently
+        from <code>I</code> at position 2. Then the contents of <code>I</code>'s row have to be
+        different in the two sentences. Right now they are not: <code>I</code>'s row starts
+        as its embedding, \((0, 0, 1, 1)\), in both.</p>
+
+      <p>So something that depends on the position has to be added to that row before
+        attention runs. <code>I</code> arrives as \((0, 0, 1, 1)\) <em>plus a vector that means
+        "position 0"</em> in the first sentence, and as \((0, 0, 1, 1)\) <em>plus a vector that
+        means "position 2"</em> in the second. That is positional encoding in one sentence: <b>add to each word's
+        embedding a vector that says where the word sits</b>. From then on the position is
+        part of what every dot product reads, so it reaches every attention step and survives
+        every sum. Section 3.5 builds exactly that. It is not the only way: Part 4 shows RoPE,
+        which leaves the embedding alone and changes the query and the key inside attention
+        instead.</p>
+
+      <blockquote class="mistake side"><b>&#10007; Common mistake</b>
+        The row numbers are right there, so it is tempting to imagine that <em>a component bolted
+        onto the end, one that reads position 0 directly, would be enough</em>. That is wrong.
+        Reading position 0 answers one question: which word is sitting there.
+        "Alice told Bob about Carol" and "Alice told Carol about Bob" both answer
+        <code>Alice</code>, and <code>Alice</code> leaves the stack as the same vector in
+        both, so anything the model says about her is the same in both.
+      </blockquote>
+
+      <blockquote class="takeaway"><b>Key takeaway</b></blockquote>
+      <ul>
+        <li>The order survives only as row numbers, and nothing in the model ever reads a row
+          number. Every step reads only what is inside a row.</li>
+        <li>A step could read row numbers only if it had different weights for different
+          positions. No step does, because that would fix the sentence length and make every
+          rule be learned once per position.</li>
+        <li>Cross-attention adds the encoder's rows into one vector. After that, even the row
+          numbers are gone.</li>
+        <li>So the position has to be inside the rows. Positional encoding puts it there by
+          adding a position vector to each word's embedding (Section 3.5).</li>
+      </ul>
+
+      <h2 id="s35"><span class="num">3.5</span>The fix: positional encoding</h2>
+
+      <p>If the model can't see the order of the tokens, you have to write the order into the tokens themselves.</p>
+
+      <p>A <b>positional encoding</b> is a vector of numbers added to a token to tell the network where that token sits
+        in the sequence.</p>
+
+      <p>Think of a ticket queue at a bakery. The counter staff process whoever comes up to the window. If you want them
+        to know who arrived first, you have to hand every customer a numbered ticket.</p>
+
+      <p>Before the embedded tokens \(\mathbf{X}\) reach the attention layer, add a second matrix to them. That second
+        matrix holds the position tickets: one row per position, the same width as a row of
+        \(\mathbf{X}\). Call it \(\mathbf{P}\).</p>
+
+      \[
+      \mathbf{X}_{\text{input}} = \mathbf{X} + \mathbf{P}
+      \]
+      <p>That sum gets a name, because from here on it's <em>not</em> the embedding any more.
+        The embedding says what a word means; the sum says what it means <em>and</em> where it
+        sits. It's called the <b>input vector</b>, since it's what actually enters the first
+        attention layer. Everything downstream &mdash; \(\mathbf{Q}\),
+        \(\mathbf{K}\), \(\mathbf{V}\), and all the arithmetic of Sections 3.2 to 3.4 &mdash;
+        is built from input vectors, not from embeddings.</p>
+
+      <p>If a token is at position 0, it gets the position 0 encoding added to it. If it moves to position 2, it gets
+        the position 2 encoding added to it instead. Now, if you swap the sequence to <code>LLMs love I</code>, the token
+        <code>I</code> gets a different positional encoding. Its input numbers change, so its output numbers change. The
+        model can finally see the order.
+      </p>
+
+      <blockquote class="takeaway"><b>Key takeaway</b></blockquote>
+      <ul>
+        <li>A <b>positional encoding</b> is a vector that says where a word sits. It is added to
+          the word's embedding before the first attention layer.</li>
+        <li>The sum is the <b>input vector</b>: what the word means plus where it sits. From here
+          on, \(\mathbf{Q}\), \(\mathbf{K}\), \(\mathbf{V}\) and all the attention arithmetic
+          are computed from input vectors, not from embeddings.</li>
+        <li>Move a word and it gets a different positional encoding, so its input vector changes
+          and its output changes. That is how the model finally sees the order.</li>
+      </ul>
+
+      <h2 id="s36"><span class="num">3.6</span>The same example with positions added: different vectors now</h2>
+
+      <p>Watch what happens to the word <code>I</code> once you add positional encodings to the sequence. To keep it
+        simple, say position 0 adds a vector \(\mathbf{p}_0\), position 1 adds \(\mathbf{p}_1\), and position 2 adds
+        \(\mathbf{p}_2\).</p>
+
+      <p>In the original sequence <code>I love LLMs</code>, the word <code>I</code> is at position 0. So its input
+        vector becomes \(\mathbf{x}_{\text{I}} + \mathbf{p}_0\). This combined vector is multiplied by the weight matrix
+        \(\mathbf{W}^Q\) to create its query vector:</p>
+
+      \[ \mathbf{q}_{\text{I, pos 0}} = (\mathbf{x}_{\text{I}} + \mathbf{p}_0) \mathbf{W}^Q \]
+
+      <p>Now take the swapped sequence, <code>LLMs love I</code>. The word <code>I</code> is now at position 2. Its
+        input vector becomes \(\mathbf{x}_{\text{I}} + \mathbf{p}_2\). Its query vector becomes:</p>
+
+      \[ \mathbf{q}_{\text{I, pos 2}} = (\mathbf{x}_{\text{I}} + \mathbf{p}_2) \mathbf{W}^Q \]
+
+      <p>\(\mathbf{p}_0\) and \(\mathbf{p}_2\) are completely different vectors, so <code>I</code> now generates a
+        completely different query vector. It asks different questions of the rest of the sentence, produces different
+        attention scores, and ends up with a completely different output vector \(\mathbf{z}\).</p>
+
+      <figure id="fig6">
+        <div class="plate">
+          <svg viewBox="0 0 960 380" xmlns="http://www.w3.org/2000/svg" role="img"
+            aria-label="Adding positional encodings causes the same word to produce different query vectors depending on its position">
+            <defs>
+              <marker id="arrow-f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7"
+                orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="var(--fig-line,#16202B)"></path>
+              </marker>
+            </defs>
+            <g font-family="IBM Plex Mono, monospace" fill="var(--fig-line,#16202B)">
+
+              <!-- Top Half: I at pos 1 -->
+              <text x="40" y="46" font-size="13" fill="var(--h1c,#2E6F8E)">"I" AT POSITION 0</text>
+
+              <text x="90" y="90" font-size="14" text-anchor="middle">Embedding vector</text>
+              <rect x="40" y="105" width="100" height="40" rx="3" fill="var(--fig-fill,#FFFFFF)"
+                stroke="var(--fig-line,#16202B)" stroke-width="1.5"></rect>
+              <text x="90" y="130" font-size="14" text-anchor="middle">"I"</text>
+
+              <text x="170" y="130" font-size="20" text-anchor="middle">+</text>
+
+              <text x="250" y="90" font-size="14" text-anchor="middle" fill="var(--h2c,#B07D1A)">Position 0</text>
+              <rect x="200" y="105" width="100" height="40" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.1"
+                stroke="var(--h2c,#B07D1A)" stroke-width="1.5" stroke-dasharray="4 2"></rect>
+              <text x="250" y="130" font-size="14" text-anchor="middle" fill="var(--h2c,#B07D1A)">p₀</text>
+
+              <path d="M310,125 L370,125" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4"
+                marker-end="url(#arrow-f6)"></path>
+
+              <text x="460" y="90" font-size="14" text-anchor="middle">Input vector</text>
+              <rect x="380" y="105" width="160" height="40" rx="3" fill="var(--fig-fill,#FFFFFF)"
+                stroke="var(--fig-line,#16202B)" stroke-width="1.5"></rect>
+              <text x="460" y="130" font-size="14" text-anchor="middle">x_I + p₀</text>
+
+              <path d="M550,125 L600,125" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4"
+                marker-end="url(#arrow-f6)"></path>
+              <rect x="610" y="105" width="90" height="40" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.18"
+                stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <text x="655" y="130" font-size="14" text-anchor="middle">× W^Q</text>
+
+              <path d="M710,125 L750,125" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4"
+                marker-end="url(#arrow-f6)"></path>
+
+              <text x="800" y="90" font-size="14" text-anchor="middle">Query Vector</text>
+              <rect x="760" y="105" width="80" height="40" rx="3" fill="var(--fig-fill,#FFFFFF)"
+                stroke="var(--fig-line,#16202B)" stroke-width="1.5"></rect>
+              <text x="800" y="130" font-size="14" text-anchor="middle">q₀</text>
+
+
+              <!-- Divider -->
+              <line x1="40" y1="180" x2="920" y2="180" stroke="var(--rule,#D6DEE5)" stroke-width="1"></line>
+
+              <!-- Bottom Half: I at pos 3 -->
+              <text x="40" y="226" font-size="13" fill="var(--h1c,#2E6F8E)">"I" AT POSITION 2</text>
+
+              <text x="90" y="270" font-size="14" text-anchor="middle">Embedding vector</text>
+              <rect x="40" y="285" width="100" height="40" rx="3" fill="var(--fig-fill,#FFFFFF)"
+                stroke="var(--fig-line,#16202B)" stroke-width="1.5"></rect>
+              <text x="90" y="310" font-size="14" text-anchor="middle">"I"</text>
+
+              <text x="170" y="310" font-size="20" text-anchor="middle">+</text>
+
+              <text x="250" y="270" font-size="14" text-anchor="middle" fill="var(--h2c,#B07D1A)">Position 2</text>
+              <rect x="200" y="285" width="100" height="40" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.1"
+                stroke="var(--h2c,#B07D1A)" stroke-width="1.5" stroke-dasharray="4 2"></rect>
+              <text x="250" y="310" font-size="14" text-anchor="middle" fill="var(--h2c,#B07D1A)">p₂</text>
+
+              <path d="M310,305 L370,305" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4"
+                marker-end="url(#arrow-f6)"></path>
+
+              <text x="460" y="270" font-size="14" text-anchor="middle">Input vector</text>
+              <rect x="380" y="285" width="160" height="40" rx="3" fill="var(--fig-fill,#FFFFFF)"
+                stroke="var(--fig-line,#16202B)" stroke-width="1.5"></rect>
+              <text x="460" y="310" font-size="14" text-anchor="middle">x_I + p₂</text>
+
+              <path d="M550,305 L600,305" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4"
+                marker-end="url(#arrow-f6)"></path>
+              <rect x="610" y="285" width="90" height="40" rx="3" fill="var(--h1c,#2E6F8E)" fill-opacity="0.18"
+                stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"></rect>
+              <text x="655" y="310" font-size="14" text-anchor="middle">× W^Q</text>
+
+              <path d="M710,305 L750,305" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4"
+                marker-end="url(#arrow-f6)"></path>
+
+              <text x="800" y="270" font-size="14" text-anchor="middle">Query Vector</text>
+              <rect x="760" y="285" width="80" height="40" rx="3" fill="var(--fig-fill,#FFFFFF)"
+                stroke="var(--fig-line,#16202B)" stroke-width="1.5"></rect>
+              <text x="800" y="310" font-size="14" text-anchor="middle">q₂</text>
+
+              <!-- Annotation connecting Q1 and Q3 -->
+              <path d="M850,125 L880,125 L880,305 L850,305" fill="none" stroke="var(--accent,#7D4A72)"
+                stroke-width="1.5" stroke-dasharray="4 3"></path>
+              <text x="890" y="210" font-size="12" text-anchor="start" fill="var(--accent,#7D4A72)">completely</text>
+              <text x="890" y="230" font-size="12" text-anchor="start" fill="var(--accent,#7D4A72)">different
+                output</text>
+
+              <text x="460" y="365" font-size="12.5" text-anchor="middle" fill="var(--h2c,#B07D1A)">even though the word
+                is the same, changing its position changes its query vector</text>
+
+            </g>
+          </svg>
+        </div>
+        <figcaption><b>Figure 6.</b> When positional encodings are added, the word <code>I</code> becomes a different
+          input vector depending on where it sits in the sentence. This causes it to generate a different Query vector,
+          produce different attention scores, and result in a different final output.</figcaption>
+      </figure>
+
+      <p>Figure 6 traces that through. The self-attention layer is still doing the same math, but the input numbers have changed, so the output
+        numbers change too, and the model can finally tell <code>I love LLMs</code> apart from
+        <code>LLMs love I</code>.
+      </p>
+
+      <h2 id="s37"><span class="num">3.7</span>Why not use a simple counter?</h2>
+
+      <p>You might be thinking: why do we need whole vectors for this? Why not just use a counter &mdash; add 1 to
+        everything at position 1, 2 to everything at position 2, and so on?</p>
+
+      <h4>What a position system has to make possible</h4>
+
+      <p>Before judging the counter, say what any position system has to make possible.</p>
+
+      <p>Words relate to each other by relative position: the adjective before the noun, the
+        verb two words back. So the model must be able to learn rules like "look at the word
+        three steps back". Say the query's word is at position \(m\) and the key's word is at
+        position \(n\). Such a rule cares about \(m - n\), how far apart the two words are.
+        It does not care about \(m\) and \(n\) themselves, where in the sentence they sit. The gap is
+        3 for positions 4 and 1 and also for positions 400 and 397, and the rule has to work
+        in both places.</p>
+
+      <p>Now turn that into a statement about scores. Position can only enter the model
+        through the dot product between a query and a key (Section 3.4). A high score means
+        "attend to this word". So "look three steps back" means two things. The score between
+        positions \(m\) and \(n\) has to be highest when \(m - n = 3\). And it has to be the
+        same score for every \(m\).</p>
+
+      <blockquote class="takeaway requirement" id="requirement"><b>The requirement</b>
+        The score between the query at position \(m\) and the key at position \(n\) must have
+        a part that <em>can</em> depend on \(m - n\) alone, and not on \(m\) or \(n\)
+        themselves. Then two pairs with the same gap can get the same position score,
+        wherever they sit in the sentence.</blockquote>
+
+      <h4>Two things wrong with a counter</h4>
+
+      <p>The first is easy to see. In a sentence with 500 words, the last token would have 499
+        added to its values. That number would drown out the embedding, and the model would
+        see the position instead of the word.</p>
+
+      <p>The second is the important one: a counter cannot meet <a href="#requirement">the requirement</a>. Showing why
+        takes the rest of this section.</p>
+
+      <h4>Where in the score does position actually live?</h4>
+
+      <p>One thing to settle before any numbers. The vector entering attention is the input
+        vector, embedding plus encoding. Write \(\mathbf{e}_m\) for the embedding vector of
+        whatever word sits at position \(m\) &mdash; it is the \(\mathbf{x}\) of
+        Section 3.6, now carrying a position label &mdash; so the query and key are
+        \(\mathbf{q}_m = (\mathbf{e}_m + \mathbf{p}_m)\mathbf{W}^Q\) and
+        \(\mathbf{k}_n = (\mathbf{e}_n + \mathbf{p}_n)\mathbf{W}^K\). The embedding certainly
+        isn't zero. Multiply those out and the score isn't one thing, it's four:</p>
+
+      \[
+      (\mathbf{e}_m + \mathbf{p}_m)\,\mathbf{M}\,(\mathbf{e}_n + \mathbf{p}_n)^\top
+      = \underbrace{\mathbf{e}_m \mathbf{M} \mathbf{e}_n^\top}_{\text{word, word}}
+      + \underbrace{\mathbf{e}_m \mathbf{M} \mathbf{p}_n^\top}_{\text{word, position}}
+      + \underbrace{\mathbf{p}_m \mathbf{M} \mathbf{e}_n^\top}_{\text{position, word}}
+      + \underbrace{\mathbf{p}_m \mathbf{M} \mathbf{p}_n^\top}_{\text{position, position}}
+      \]
+
+      <p>Here \(\mathbf{M} = \mathbf{W}^Q \mathbf{W}^{K\top}\) is whatever the two weight
+        matrices multiply out to &mdash; the model learns it. (You'll meet this expansion again
+        in Part 4, where it's the reason RoPE exists.)</p>
+
+      <p><a href="#requirement">The requirement</a> asks for a part of the score that depends on \(m - n\). Which of the
+        four terms could that be? The positions enter the score only through the two position
+        vectors, \(\mathbf{p}_m\) and \(\mathbf{p}_n\). A term can depend on \(m - n\) only
+        if it contains both, so look for the two position vectors in each term:</p>
+
+      <table>
+        <thead>
+          <tr><th>term</th><th>contains \(\mathbf{p}_m\), the query's position?</th><th>contains \(\mathbf{p}_n\), the key's position?</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>\(\mathbf{e}_m \mathbf{M} \mathbf{e}_n^\top\)</td><td>no</td><td>no</td></tr>
+          <tr><td>\(\mathbf{e}_m \mathbf{M} \mathbf{p}_n^\top\)</td><td>no</td><td>yes</td></tr>
+          <tr><td>\(\mathbf{p}_m \mathbf{M} \mathbf{e}_n^\top\)</td><td>yes</td><td>no</td></tr>
+          <tr><td>\(\mathbf{p}_m \mathbf{M} \mathbf{p}_n^\top\)</td><td>yes</td><td>yes</td></tr>
+        </tbody>
+      </table>
+
+      <p>The second and third terms each carry one position only: the second has
+        \(\mathbf{p}_n\) but not \(\mathbf{p}_m\), and the third has \(\mathbf{p}_m\) but not
+        \(\mathbf{p}_n\). Such a term is not useless, because it lets a word care about an
+        <b>absolute position</b>, such as the start of the sentence. But \(m - n\) needs both
+        positions, and only the fourth term contains both position vectors.</p>
+
+      <p><b>So the demonstration below looks only at
+        \(\mathbf{p}_m \mathbf{M} \mathbf{p}_n^\top\).</b> The other three terms are not
+        zero, but none of them can carry the rule.</p>
+
+      <h4>The counter, worked through</h4>
+
+      <p>The counter proposal was to add the position number to everything, so with the
+        4-number vectors of this example the encoding for position \(m\) is
+        \(\mathbf{p}_m = (m,\ m,\ m,\ m)\). Write
+        that as \(m\) times the all-ones vector, \(\mathbf{p}_m = m\mathbf{1}\), and the fourth
+        term collapses:</p>
+
+      \[
+      \mathbf{p}_m \mathbf{M} \mathbf{p}_n^\top
+      = (m\mathbf{1})\,\mathbf{M}\,(n\mathbf{1})^\top
+      = mn \cdot \underbrace{\mathbf{1}\mathbf{M}\mathbf{1}^\top}_{\text{some number } c}
+      = c\,mn
+      \]
+
+      <p>Read what that says. Whatever the model learns for \(\mathbf{W}^Q\) and
+        \(\mathbf{W}^K\), the position part of the score is some constant times \(mn\). The
+        weights get to pick \(c\), and that's all they get to pick. So you don't have to guess
+        at the weights &mdash; you can check every possible model at once by looking at
+        \(mn\).</p>
+
+      <p>Take three pairs of positions that are all exactly 3 apart:</p>
+
+      \[
+      \begin{array}{llr}
+      \text{positions 3 and 0:} &amp; c \times 3 \times 0 &amp; = 0 \\[4pt]
+      \text{positions 10 and 7:} &amp; c \times 10 \times 7 &amp; = 70c \\[4pt]
+      \text{positions 100 and 97:} &amp; c \times 100 \times 97 &amp; = 9700c
+      \end{array}
+      \]
+
+      <p>One gap, three completely different scores. <a href="#requirement">The requirement</a> asked for the same
+        position score for every pair that is 3 apart. A counter gives \(0\), \(70c\) and
+        \(9700c\), so it fails the requirement.</p>
+
+
+      <p>There is a second problem. <a href="#requirement">The requirement</a> asked for the word 3 back to get the
+        <em>highest</em> score. The counter does not give it that. The word at position 10 scores
+        \(70c\) against the word at position 7 &mdash; the one it's supposed to pick &mdash;
+        but \(100c\) against itself, because \(10 \times 10\) beats \(10 \times 7\). Softmax
+        would hand the attention to the wrong word.</p>
+
+      <p>These scores measure absolute position, how far into the sentence the pair sits, and
+        not relative position. "Three back" has no score of its own, so there is no rule the model could
+        learn from these scores that means "three back".</p>
+
+      <blockquote class="mistake side"><b>&#10007; Common mistake</b>
+        The numbers above are large, so it is tempting to read this as <em>reason one again,
+        fixable by scaling the counter down</em>, but that is wrong. Scaling only changes
+        \(c\), and \(c\) multiplies all four scores equally &mdash; \(0\), \(70c\),
+        \(9700c\) and \(100c\) keep exactly the same ranking however small you make it. The
+        trouble is the shape of \(mn\), not how big it gets.
+      </blockquote>
+
+      <p>Part 4 runs these same three pairs of positions through the sine and cosine
+        encoding.</p>
+
+      <blockquote class="takeaway"><b>Key takeaway</b></blockquote>
+      <ul>
+        <li>A position system has to let the model learn rules about relative position, such as
+          "look three words back". For that, some part of the score must be able to depend on
+          \(m - n\) alone.</li>
+        <li>A counter cannot do this. Its position score is \(c\,mn\), so pairs that are 3
+          apart score \(0\), \(70c\) and \(9700c\). There is no single value that means
+          "3 apart".</li>
+      </ul>
+
+      <p><b>Try it (3 minutes):</b> Find another pair of positions three apart whose counter
+        score is \(1600c\). Then find the pair three apart with the <em>smallest</em> possible
+        score. Having done both, say in one sentence why "three apart" cannot be read off a
+        counter score.</p>
+
+      <h2 id="sa"><span class="num">A</span>Appendix: the proof in full</h2>
+
+      <p>This was pulled out of the main text so that a first reading runs without stopping.
+        Nothing later depends on it. Read it when you want the general case rather than the
+        worked example, or when you do not believe the worked example.</p>
+
+      <h3 id="sa1"><span class="num">A.1</span>Self-attention is permutation-equivariant</h3>
+
+      <p>This one belongs to <a href="#s32">Section 3.2</a>. There we ran one sentence and
+        its reversal through attention by hand, and got the same three output vectors in a
+        different order. Here is the same claim for <em>any</em> embeddings, <em>any</em>
+        weight matrices and <em>any</em> sentence length.</p>
+
+      <p>Shuffling the rows of a matrix is itself a matrix multiplication. Let
+        \(\mathbf{P}\) be a <b>permutation matrix</b> — the identity with its rows put in a
+        different order. Multiplying on the left by \(\mathbf{P}\) reorders rows, so
+        \(\mathbf{P}\mathbf{X}\) is the shuffled sentence. The swap in Section 3.2 used</p>
+
+      \[
+      \mathbf{P}=\begin{pmatrix}0&amp;0&amp;1\\0&amp;1&amp;0\\1&amp;0&amp;0\end{pmatrix}
+      \]
+
+      <p>One property of \(\mathbf{P}\) does all the work: undoing a shuffle is the same as
+        shuffling back, so \(\mathbf{P}^\top\mathbf{P} = \mathbf{I}\).</p>
+
+      <p>Now feed the shuffled input through attention. Since \(\mathbf{Q}\), \(\mathbf{K}\)
+        and \(\mathbf{V}\) come from \(\mathbf{X}\) by multiplying on the right, shuffling
+        the rows of \(\mathbf{X}\) shuffles their rows too. The scores become</p>
+
+      \[
+      (\mathbf{P}\mathbf{Q})(\mathbf{P}\mathbf{K})^\top
+      =\mathbf{P}\mathbf{Q}\mathbf{K}^\top\mathbf{P}^\top
+      \]
+
+      <p>which is the original score matrix with its rows <em>and</em> columns shuffled the
+        same way. Softmax runs along each row and divides by that row's total; reordering the
+        entries of a row reorders the results but does not change their values, because the total is
+        the same however you add the entries up. So softmax passes straight through the shuffle:</p>
+
+      \[
+      \operatorname{softmax}\!\left(\frac{\mathbf{P}\mathbf{Q}\mathbf{K}^\top\mathbf{P}^\top}{\sqrt{d_k}}\right)
+      =\mathbf{P}\,\mathbf{A}\,\mathbf{P}^\top
+      \]
+
+      <p>Finally multiply by the shuffled values, and watch the two \(\mathbf{P}\) terms in
+        the middle cancel:</p>
+
+      \[
+      \mathbf{Z}_{\text{shuffled}}
+      =\mathbf{P}\mathbf{A}\underbrace{\mathbf{P}^\top\mathbf{P}}_{=\,\mathbf{I}}\mathbf{V}
+      =\mathbf{P}\mathbf{A}\mathbf{V}
+      =\mathbf{P}\mathbf{Z}
+      \]
+
+      <p>Read the ends of that chain: shuffle the input and you get the original output,
+        shuffled the same way. Not a similar output — the same numbers, in a different order.
+        This holds for every embedding, every weight matrix, every sentence length &mdash;
+        which is what Section 3.2 called permutation equivariance.</p>
+
+      <blockquote class="think"><b>Think for a moment</b>
+        The cancellation happened because \(\mathbf{P}^\top\mathbf{P} = \mathbf{I}\) sits
+        between \(\mathbf{A}\) and \(\mathbf{V}\). Where exactly did the position information
+        go — was it destroyed, or was it never there?</blockquote>
+
+      <p>It was never there. Nothing in \(\mathbf{Q}\mathbf{K}^\top\) refers to row numbers;
+        the entry in row \(i\), column \(j\) is a dot product of two vectors, and a dot
+        product does not know where its operands were sitting. Attention is not losing
+        order — it never had it. So the fix has to come from outside the mechanism,
+        by writing position into the vectors themselves.</p>
+
+      <h3 id="sa2"><span class="num">A.2</span>The row numbers do not reach the decoder</h3>
+
+      <p>This one belongs to <a href="#s34">Section 3.4</a>, and it is written for a second
+        reading. It uses cross-attention as Part 7 builds it, with Part 7's names for the
+        matrices. If you have not read Part 7 yet, read <b>Part 7, Sections 7.2 and 7.4</b>
+        first and then come back. Nothing in the rest of this part depends on this appendix.</p>
+
+      <p>Section 3.4 stated that without a positional encoding, an English sentence and its
+        reversal give the decoder exactly the same input. Here is why, for
+        <code>I love LLMs</code> and <code>LLMs love I</code>, one step at a time.</p>
+
+      <h4>The names</h4>
+
+      <p>\(\mathbf{C}\) is the encoder's output for <code>I love LLMs</code>: three rows,
+        one per English word, in sentence order. Call the rows
+        \(\mathbf{c}_{\texttt{I}}\), \(\mathbf{c}_{\texttt{love}}\) and
+        \(\mathbf{c}_{\texttt{LLMs}}\). \(\mathbf{P}\) is the permutation matrix of
+        Appendix A.1, the one that reverses three rows, so</p>
+
+      \[
+      \mathbf{P}\mathbf{C}=\begin{pmatrix}\mathbf{c}_{\texttt{LLMs}}\\ \mathbf{c}_{\texttt{love}}\\ \mathbf{c}_{\texttt{I}}\end{pmatrix},
+      \qquad \mathbf{P}^\top\mathbf{P}=\mathbf{I}.
+      \]
+
+      <p>\(\mathbf{q}\) is one row of \(\mathbf{Q}_{\text{cross}}\): the Query of one decoder
+        row. It is built from the decoder's own rows, so it is the same whichever English
+        sentence the encoder read. \(\mathbf{W}^{K}_{\text{cross}}\) and
+        \(\mathbf{W}^{V}_{\text{cross}}\) are the two cross-attention weight matrices that the
+        encoder's output is multiplied by.</p>
+
+      <h4>Step 0: the encoder's output is reordered, and nothing else</h4>
+
+      <p>Section 3.4 argued that every step inside an encoder block passes a shuffle straight
+        through. Attention does, by Appendix A.1. The feed-forward network does, because it
+        works on one row at a time, and so do the Add and Norm of Part 5. Six blocks in a row
+        still pass it through. So feeding the encoder the reversed sentence gives</p>
+
+      \[
+      \text{Encoder}(\mathbf{P}\mathbf{X})=\mathbf{P}\,\text{Encoder}(\mathbf{X})=\mathbf{P}\mathbf{C}.
+      \]
+
+      <p>The three rows of \(\mathbf{C}\) come out in the reverse order, and each row keeps
+        its numbers.</p>
+
+      <h4>Step 1: the Keys and the Values are reordered, and nothing else</h4>
+
+      <p>For the original sentence,
+        \(\mathbf{K}=\mathbf{C}\mathbf{W}^{K}_{\text{cross}}\) and
+        \(\mathbf{V}=\mathbf{C}\mathbf{W}^{V}_{\text{cross}}\). For the reversed sentence,</p>
+
+      \[
+      \mathbf{K}'=(\mathbf{P}\mathbf{C})\mathbf{W}^{K}_{\text{cross}}
+      =\mathbf{P}(\mathbf{C}\mathbf{W}^{K}_{\text{cross}})=\mathbf{P}\mathbf{K},
+      \qquad
+      \mathbf{V}'=\mathbf{P}\mathbf{V}.
+      \]
+
+      <p>Matrix multiplication can be grouped either way. Reordering the rows and then
+        multiplying by \(\mathbf{W}^{K}_{\text{cross}}\) gives the same result as multiplying
+        first and reordering after. Written as rows:</p>
+
+      \[
+      \mathbf{K}=\begin{pmatrix}\mathbf{k}_{\texttt{I}}\\ \mathbf{k}_{\texttt{love}}\\ \mathbf{k}_{\texttt{LLMs}}\end{pmatrix},
+      \qquad
+      \mathbf{K}'=\begin{pmatrix}\mathbf{k}_{\texttt{LLMs}}\\ \mathbf{k}_{\texttt{love}}\\ \mathbf{k}_{\texttt{I}}\end{pmatrix}.
+      \]
+
+      <p>Each word's Key is the same vector in both. Only its row has changed. The same holds
+        for the Values.</p>
+
+      <h4>Step 2: the scores are reordered, and nothing else</h4>
+
+      <p>The three scores for the original sentence are one dot product per Key:</p>
+
+      \[
+      \mathbf{s}=\frac{\mathbf{q}\mathbf{K}^\top}{\sqrt{d_k}}
+      =\frac{1}{\sqrt{d_k}}\bigl(\mathbf{q}\cdot\mathbf{k}_{\texttt{I}},\ \mathbf{q}\cdot\mathbf{k}_{\texttt{love}},\ \mathbf{q}\cdot\mathbf{k}_{\texttt{LLMs}}\bigr)
+      =(s_{\texttt{I}},\ s_{\texttt{love}},\ s_{\texttt{LLMs}}).
+      \]
+
+      <p>For the reversed sentence, use \((\mathbf{P}\mathbf{K})^\top=\mathbf{K}^\top\mathbf{P}^\top\):</p>
+
+      \[
+      \mathbf{s}'=\frac{\mathbf{q}(\mathbf{P}\mathbf{K})^\top}{\sqrt{d_k}}
+      =\frac{\mathbf{q}\mathbf{K}^\top}{\sqrt{d_k}}\,\mathbf{P}^\top
+      =\mathbf{s}\mathbf{P}^\top
+      =(s_{\texttt{LLMs}},\ s_{\texttt{love}},\ s_{\texttt{I}}).
+      \]
+
+      <p>Multiplying a row vector on the right by \(\mathbf{P}^\top\) reorders its entries the
+        same way \(\mathbf{P}\) reorders rows. Look at one entry. \(\mathbf{q}\cdot\mathbf{k}_{\texttt{I}}\)
+        is a dot product of the same two vectors in both sentences. So it has the same value
+        whether \(\mathbf{k}_{\texttt{I}}\) sits in the first row or the last.</p>
+
+      <h4>Step 3: the weights are reordered, and nothing else</h4>
+
+      <p>Softmax turns the three scores into three weights. The weight for <code>I</code> is</p>
+
+      \[
+      a_{\texttt{I}}=\frac{e^{s_{\texttt{I}}}}{e^{s_{\texttt{I}}}+e^{s_{\texttt{love}}}+e^{s_{\texttt{LLMs}}}}.
+      \]
+
+      <p>The top depends only on \(s_{\texttt{I}}\). The bottom is a sum of three numbers, and
+        a sum is the same in whatever order its terms are added. So <code>I</code> gets the same
+        weight in both sentences, and the same goes for the other two words:</p>
+
+      \[
+      \mathbf{a}=(a_{\texttt{I}},\ a_{\texttt{love}},\ a_{\texttt{LLMs}}),
+      \qquad
+      \mathbf{a}'=\operatorname{softmax}(\mathbf{s}\mathbf{P}^\top)=\operatorname{softmax}(\mathbf{s})\,\mathbf{P}^\top=\mathbf{a}\mathbf{P}^\top
+      =(a_{\texttt{LLMs}},\ a_{\texttt{love}},\ a_{\texttt{I}}).
+      \]
+
+      <h4>Step 4: the weighted sum does not change at all</h4>
+
+      <p>The output for this decoder row is the weights times the Values. For the original
+        sentence:</p>
+
+      \[
+      \text{output}=\mathbf{a}\mathbf{V}
+      =a_{\texttt{I}}\mathbf{v}_{\texttt{I}}+a_{\texttt{love}}\mathbf{v}_{\texttt{love}}+a_{\texttt{LLMs}}\mathbf{v}_{\texttt{LLMs}}.
+      \]
+
+      <p>For the reversed sentence, the weights are reordered and the Values are reordered the
+        same way, so the three products pair up exactly as before:</p>
+
+      \[
+      \text{output}'=\mathbf{a}'\mathbf{V}'
+      =a_{\texttt{LLMs}}\mathbf{v}_{\texttt{LLMs}}+a_{\texttt{love}}\mathbf{v}_{\texttt{love}}+a_{\texttt{I}}\mathbf{v}_{\texttt{I}}.
+      \]
+
+      <p>The same three terms, added in a different order, give the same vector. In matrix
+        form the whole argument is one line, and it is the cancellation of Appendix A.1 again:</p>
+
+      \[
+      \text{output}'=(\mathbf{a}\mathbf{P}^\top)(\mathbf{P}\mathbf{V})
+      =\mathbf{a}\underbrace{\mathbf{P}^\top\mathbf{P}}_{=\,\mathbf{I}}\mathbf{V}
+      =\mathbf{a}\mathbf{V}=\text{output}.
+      \]
+
+      <h4>Step 5: the same argument covers the real model</h4>
+
+      <p>Steps 1 to 4 followed one head, one decoder row and one decoder block. A real model
+        has several of each, and the output is still the same for both sentences.</p>
+
+      <p><em>Several heads.</em> Part 2 split attention into heads, and Part 7 says
+        cross-attention is split the same way. Each head has its own \(\mathbf{W}^{K}\) and
+        \(\mathbf{W}^{V}\). So each head runs Steps 1 to 4 on its own, and each head gets the
+        same output for both sentences. The heads' outputs are then placed side by side and multiplied by
+        \(\mathbf{W}^{O}\). Both of those steps take the heads' outputs as they are, and those
+        outputs are already the same for both sentences.</p>
+
+      <p><em>Several decoder rows.</em> From the second run on, the decoder has more than one
+        row, so there is more than one \(\mathbf{q}\). Each row's output is computed from its
+        own \(\mathbf{q}\) and the shared \(\mathbf{K}\) and \(\mathbf{V}\), so Steps 2 to 4
+        hold for each row separately.</p>
+
+      <p><em>Several decoder blocks.</em> The first block's cross-attention gives the same
+        output for both sentences. The other steps in that block, self-attention and the
+        feed-forward network, read only the decoder's own rows, never the encoder's. So the row
+        that leaves the first block is the same for both sentences. The second block receives
+        the same input, and the same reasoning repeats up to the top of the stack.</p>
+
+      <blockquote class="think"><b>Think for a moment</b>
+        Read Steps 0 to 4 again and look for the place where an English row number could have
+        entered the calculation. Is there one?</blockquote>
+
+      <p>There is not. Every step reads either one row's numbers or a sum over all the rows,
+        and neither depends on which row is which. So without a positional encoding, the
+        decoder receives the same vector for <code>I love LLMs</code> and
+        <code>LLMs love I</code> in every block. It can only write the same translation for
+        both.</p>
+
+      <p>Step 4 is the one Section 3.4 called the point where the order is really lost. Up to
+        the top of the encoder, every matrix has one row per English word, so the order at least
+        survives as the row numbers. Step 4 adds those rows into one vector, and from then on
+        there is no English row number to keep. The only thing that passes through a sum is the
+        contents of the vectors being added. Those vectors come from \(\mathbf{C}\), and
+        \(\mathbf{C}\) comes from \(\mathbf{X}\). So the position has to be inside
+        \(\mathbf{X}\) before the encoder runs, which is Section 3.5. The other choice is to
+        put it in where \(\mathbf{q}\cdot\mathbf{k}\) is computed, which is what RoPE does in
+        Part 4.</p>
+
+      </main>
+  </div>
+
+  <footer>
+    Part 3 of The Transformer, Number by Number. Continues from
+    <a href="./TTNN-Part2-Multihead-Attention.html">Multi-Head Attention</a>.
+  </footer>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"
+    integrity="sha384-XjKyOOlGwcjNTAIQHIpgOno0Hl1YQqzUOEleOLALmuqehneUG+vnGctmUb0ZY0l8"
+    crossorigin="anonymous"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+    integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05"
+    crossorigin="anonymous"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      if (window.renderMathInElement) {
+        renderMathInElement(document.body, {
+          delimiters: [
+            { left: "\\[", right: "\\]", display: true },
+            { left: "$$", right: "$$", display: true },
+            { left: "\\(", right: "\\)", display: false },
+            { left: "$", right: "$", display: false }
+          ],
+          ignoredTags: ["script", "noscript", "style", "textarea", "pre", "code", "option"],
+          throwOnError: false
+        });
+      }
+
+      var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+      var targets = links
+        .map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); })
+        .filter(Boolean);
+
+      var obs = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (!e.isIntersecting) return;
+          links.forEach(function (a) {
+            a.classList.toggle("on", a.getAttribute("href") === "#" + e.target.id);
+          });
+        });
+      }, { rootMargin: "0px 0px -70% 0px", threshold: 0 });
+
+      targets.forEach(function (t) { obs.observe(t); });
+    });
+  </script>
+  <script>
+    // Figures ship in a readable static state; motion is opt-in.
+    (function () {
+      if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      var anims = document.querySelectorAll(".plate animate, .plate animateTransform");
+      for (var i = 0; i < anims.length; i++) {
+        // A figure with a clock (Figure 5, from Part 7) is started by the script below.
+        if (anims[i].closest(".plate").querySelector("animate[id$='clock']")) continue;
+        if (anims[i].beginElement) { try { anims[i].beginElement(); } catch (e) {} }
+      }
+    })();
+  </script>
+  <script>
+    // Figure 5 is Part 7's Figure 13, brought over as it is. It plays once, so it is started
+    // when scrolled into view, with a button to run it again. This is Part 7's script, limited
+    // to figures that carry a clock.
+    (function () {
+      var reduced = window.matchMedia
+        && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      var plates = [];
+      var all = document.querySelectorAll(".plate");
+      for (var i = 0; i < all.length; i++) {
+        if (all[i].querySelector("animate[id$='clock']")) plates.push(all[i]);
+      }
+      if (!plates.length) return;
+
+      function start(plate) {
+        var clock = plate.querySelector("animate[id$='clock']");
+        if (clock && clock.beginElement) { try { clock.beginElement(); } catch (e) { } }
+      }
+
+      plates.forEach(function (plate) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "replay";
+        b.textContent = reduced ? "Play the animation" : "Play again";
+        b.addEventListener("click", function () { start(plate); });
+        plate.parentNode.insertBefore(b, plate.nextSibling);
+      });
+
+      if (reduced) return;
+
+      if (!window.IntersectionObserver) {
+        plates.forEach(start);
+        return;
+      }
+      var obs = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (!e.isIntersecting) return;
+          start(e.target);
+          obs.unobserve(e.target);
+        });
+      }, { threshold: 0.35 });
+      plates.forEach(function (p) { obs.observe(p); });
+    })();
+  </script>
+</body>
+
+</html>
