@@ -1436,7 +1436,9 @@
 
       <ul>
         <li><b>The length gets frozen.</b> Train with 500 positions and a 501st token has no
-          weights to be processed by. The model simply cannot read a longer sentence.</li>
+          weights to be processed by. The model simply cannot read a longer sentence. GPT-2 has
+          this limit for a related reason. GPT-2 uses a learned position vector for each of
+          1024 positions, so it cannot read a longer text.</li>
         <li><b>The later positions barely train.</b> \(\mathbf{W}^{(437)}\) only receives a gradient
           from sentences of 438 tokens or more. Sentences that long are rare, so that matrix stays close to whatever it was initialised
         as.</li>
@@ -1513,8 +1515,10 @@
 
       <blockquote class="takeaway"><b>Key takeaway</b></blockquote>
       <ul>
-        <li>The order survives only as row numbers, and nothing in the model ever reads a row
-          number. Every step reads only what is inside a row.</li>
+        <li>The order survives only as row numbers, and no step that computes a row's contents
+          ever reads a row number. The one step that does read row numbers is the decoder's
+          mask, which only decides which rows a row may see.
+          <a href="./TTNN-Part8-Masks.html">Part 8</a> builds it.</li>
         <li>A step could read row numbers only if it had different weights for different
           positions. No step does, because that would fix the sentence length and make every
           rule be learned once per position.</li>
