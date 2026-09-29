@@ -1365,20 +1365,12 @@
         a new order that follows the words. So is the word order lost, or is it still
         somewhere in the output?</blockquote>
 
-      <h4>Yes, the order is still there &mdash; and attention never read it</h4>
+      <h4>Yes, the order is still there</h4>
 
       <p>Yes, the order is still there. Row 1 of \(\mathbf{Z}\) is still the first word and
         row 3 is still the last. Anyone who looks at the row numbers of \(\mathbf{Z}\) can
-        see the order. But attention does not use the row numbers, and
-        you have already seen this three times:</p>
-      <ul>
-        <li>In Section 3.2, <code>I</code> moved from first to last, and its output vector
-          stayed exactly the same.</li>
-        <li>In the same example, <code>love</code> gave <code>I</code> a weight of 0.14
-          whether <code>I</code> came before <code>love</code> or after <code>love</code>.</li>
-        <li>In Section 3.3, <code>dog</code> and <code>man</code> changed places around
-          <code>bites</code>, and <code>bites</code> still came out as the same vector.</li>
-      </ul>
+        see the order. Attention did not use them: that is what Sections 3.2 and 3.3
+        showed.</p>
 
       <p>The row numbers really are still there for anyone to see, and this was attention's only chance to use them
         &mdash; the layer is finished, and the next thing these vectors meet is the
