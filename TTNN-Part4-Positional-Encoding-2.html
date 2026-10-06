@@ -3003,10 +3003,11 @@
 
       <blockquote class="takeaway"><b>Key takeaway</b></blockquote>
       <ul>
-        <li>The dot product of two sine-cosine encodings depends only on the gap
-          \(m - n\). A counter gives \(c\,mn\), which grows with where the two words sit; the fastest
-          pair of slots gives \(\cos(m - n)\), which does not. So the encoding meets the
-          requirement of Part 3, Section 3.7.</li>
+        <li>With \(\mathbf{M} = \mathbf{I}\), the position score is the dot product of the two
+          encodings, and it depends only on the gap \(m - n\): the fastest pair gives
+          \(\cos(m - n)\), and the sum over all the pairs still depends on the gap alone. A
+          counter gives \(c\,mn\), which grows with where the two words sit. So the encoding
+          meets the requirement of Part 3, Section 3.7.</li>
         <li>Moving a positional encoding forward by a fixed number of steps is one fixed
           rotation. So by learning one matrix, the model can move the highest position score to a gap of 3, at every position.</li>
         <li>The first point holds for \(\mathbf{M} = \mathbf{I}\); a different learned \(\mathbf{M}\)
@@ -3492,8 +3493,10 @@
 
       <blockquote class="takeaway"><b>Key takeaway</b></blockquote>
       <ul>
-        <li>RoPE does not add the position to the word's row. RoPE <em>rotates</em> the Query and
-          the Key by an angle that grows with the position, inside the attention step.</li>
+        <li>RoPE does not add the position to the word's row. The query \(\mathbf{q}\) and the
+          key \(\mathbf{k}\) are made from the embedding alone and carry no position; RoPE then
+          <em>rotates</em> each one by an angle that grows with its position, inside the
+          attention step.</li>
         <li>Rotating by \(m\) and by \(n\) and then taking the dot product leaves a single
           rotation by \(n-m\). The two absolute positions cancel, and only the gap is left.</li>
         <li>With an added encoding, the score depends on the gap only if the model learns an
@@ -3666,6 +3669,8 @@
         <li>Worked by hand, RoPE gives the same score whether both vectors are rotated or only the
           key is rotated by the gap. Moving both words further into the sentence does not change
           that score.</li>
+        <li>The word at position 0 is never rotated. Its position still shows, in how far every
+          other word is rotated relative to it.</li>
         <li>RoPE rotates only the Query and the Key, never the Value, and it does so inside every
           attention layer, not once at the bottom.</li>
       </ul>
