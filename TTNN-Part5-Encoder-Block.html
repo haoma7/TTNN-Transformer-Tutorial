@@ -624,7 +624,7 @@
         <a href="#s5next">Next&nbsp;&nbsp;What this block still cannot do</a>
         <a href="#s5a" class="lvl2">Appendix A&nbsp;&nbsp;A three-point example: what ReLU adds</a>
         <a href="#s5b" class="lvl2">Appendix B&nbsp;&nbsp;What the residual addition changes</a>
-        <a href="#s5c" class="lvl2">Appendix C&nbsp;&nbsp;Why zero is an easier target than the identity matrix</a>
+        <a href="#s5c" class="lvl2">Appendix C&nbsp;&nbsp;Why learning a residual may be easier</a>
         <a href="#s5d" class="lvl2">Appendix D&nbsp;&nbsp;What the addition does to the gradient</a>
         <a href="#s5e" class="lvl2">Appendix E&nbsp;&nbsp;Stacking in a simplified attention-only calculation</a>
         <a href="#s5f" class="lvl2">Appendix F&nbsp;&nbsp;The toy feed-forward weights</a>
@@ -633,7 +633,7 @@
     </nav>
 
     <main class="main">
-      <div class="homebar"><a href="./index.html" aria-label="Back to the home page">&#8592;&nbsp;&nbsp;Home</a></div>
+      <div class="homebar"><a href="https://haoma7.github.io/TTNN-Transformer-Tutorial/" aria-label="Back to the home page">&#8592;&nbsp;&nbsp;Home</a></div>
       <div class="eyebrow">The Transformer, Number by Number &nbsp;&#183;&nbsp; Part 5</div>
       <h1>What Attention Needs Around It</h1>
       <p class="byline">By <b>Hao Ma</b> &nbsp;&#183;&nbsp; <a href="https://haoma7.github.io" rel="author">haoma7.github.io</a></p>
@@ -652,7 +652,7 @@
         the dot product, softmax, and how attention produces one output row for each token.
         It also helps to recall how multi-head attention splits the width and how positional
         encodings are added to the input. If needed, revisit
-        <a href="./TTNN-Part1-Self-Attention.html#s132">Part 1, Section 1.3.2</a> for the
+        <a href="https://haoma7.github.io/TTNN-Transformer-Tutorial/TTNN-Part1-Self-Attention.html#s132">Part 1, Section 1.3.2</a> for the
         \(\sqrt{d_k}\) scaling. Residual connections, layer normalisation, and activation
         functions are introduced here from scratch.</p>
 
@@ -661,6 +661,8 @@
         <a href="./TTNN-Part7-Cross-Attention.html">Part 7</a>, and the masks are
         <a href="./TTNN-Part8-Masks.html">Part 8</a>. Training is
         <a href="./TTNN-Part9-Training.html">Part 9</a>.</p>
+
+
 
       <p>To keep the arithmetic manageable, we reuse Part 1's simplified attention example
         for <code>I love LLMs</code>, with four numbers in each row. Section 5.2 explains how
@@ -718,7 +720,7 @@
       </figure>
 
       <p>The <b>feed-forward network</b>, or <b>FFN</b>, gives the model a way to transform
-        the features within each row. It receives the row after the first Add and Norm step.
+        the values, or features, within each token's row. It receives the row after the first Add and Norm step.
         It processes each token position separately, using the same learned weights at every
         position. The row for <code>I</code> already contains information gathered by attention;
         the FFN transforms that row without reading the rows for the other tokens again.</p>
@@ -728,44 +730,34 @@
         multiplication plus a bias is an <b>affine map</b>, but machine-learning texts commonly
         call the whole operation a linear layer.</p>
 
-      <p>Now put two linear layers in sequence. With no other operation between them,
-        they can be combined into a single linear layer. Ignoring biases for a moment,
-        the reason is just matrix multiplication:</p>
+      <p>Two consecutive linear layers combine into one. Ignoring biases:</p>
 
       \[
       (\mathbf{x}\mathbf{W}_1)\mathbf{W}_2
       \;=\; \mathbf{x}(\mathbf{W}_1\mathbf{W}_2).
       \]
 
-      <p>The product \(\mathbf{W}_1\mathbf{W}_2\) is one matrix. Including the two biases
-        still gives one matrix multiplication plus one bias. So adding a second linear layer
-        alone does not give this network a new kind of transformation.</p>
-
-      <p>The original Transformer's FFN puts an <b>activation function</b> between the two
-        linear layers. Its activation is <b>ReLU</b>, short for rectified linear unit. ReLU
-        acts on each number separately: it sets negative values to zero and leaves zero and
-        positive values unchanged.</p>
+      <p>Including biases still gives one affine map. To go beyond this, the original
+        Transformer's FFN puts a nonlinear <b>activation function</b> between the layers:</p>
 
       \[
       \mathrm{ReLU}(a) \;=\; \max(0,\ a)
       \]
 
-      <p>For example, ReLU changes \((-2,\ 0,\ 3)\) into \((0,\ 0,\ 3)\).
-        Its rule changes at zero, so it is <b>nonlinear</b>: one fixed matrix and bias cannot
-        describe its behavior over all inputs. With ReLU between them, the two learned layers
-        can therefore produce transformations that a single linear layer cannot. Section 5.4
-        follows all three steps on our four-number row.</p>
+      <p><b>ReLU</b>, short for rectified linear unit, sets negative values to zero and
+        leaves other values unchanged: \((-2,\ 0,\ 3)\) becomes \((0,\ 0,\ 3)\).
+        It is <b>nonlinear</b>: one fixed matrix and bias cannot describe it over all inputs.
+        Section 5.4 works through the resulting linear–ReLU–linear transformation.</p>
 
-      <p>Attention already contains a nonlinear operation, softmax. ReLU adds a different
-        operation: it acts on the intermediate features of each row inside the FFN. The useful
-        distinction is that attention gathers information across token positions, while the
-        FFN applies a learned nonlinear transformation separately at each position.</p>
+      <p>Attention also uses a nonlinear operation, softmax. The distinction is where
+        they act: attention gathers information across token positions; the FFN transforms
+        the features within each row.</p>
 
       <p>That leaves the two <b>Add and Norm</b> boxes in Figure 1. Each wraps one sublayer:
         <b>Add</b> adds the sublayer's input to its output through a residual connection;
         <b>Norm</b> then applies layer normalisation to the sum. The residual connection lets
         a sublayer learn a change to its input. LayerNorm uses the feature values within each
-        row to centre and rescale it, then applies a learned gain and shift.</p>
+        row to centre and rescale it, then applies a learned scale and offset.</p>
 
       <p>We now have a map of the block. The next sections follow its actual calculation
         order: the first residual addition in <a href="#s52">Section 5.2</a>, LayerNorm in
@@ -786,9 +778,7 @@
 
       <p>For an optional example of what nonlinearity adds, <a href="#s5a">Appendix A</a>
         constructs a small ReLU network that fits three target values which one linear layer
-        cannot fit. Matching those three points is different from producing an exact step
-        function across a continuous range. You can continue to Section 5.2 without reading
-        the appendix.</p>
+        cannot fit. You can continue to Section 5.2 without reading the appendix.</p>
 
       <h2 id="s52"><span class="num">5.2</span>Add: the input comes back</h2>
 
@@ -923,7 +913,7 @@
       <p>Add the corresponding entries, one slot at a time. For <code>I</code>, the third
         entry is \(1+0.21=1.21\); the full result is \((1.21,\ 0.58,\ 1.21,\ 1.21)\).
         A <b>slot</b> is a location within one row, whereas a <b>position</b> identifies a token
-        in the sentence, as in <a href="./TTNN-Part3-Positional-Encoding-1.html#s32">Part 3,
+        in the sentence, as in <a href="https://haoma7.github.io/TTNN-Transformer-Tutorial/TTNN-Part3-Positional-Encoding-1.html#s32">Part 3,
         Section 3.2</a>. The addition pairs matching slots at matching positions.</p>
 
       <h3>The input takes two paths</h3>
@@ -1083,7 +1073,7 @@
       <p>Subtract the same mean from every entry, then divide every entry by the same
         denominator. The small positive constant \(\varepsilon\) keeps that denominator
         nonzero. Finally, \(\odot\) means multiply corresponding entries by the learned
-        <b>gain</b> vector \(\boldsymbol{\gamma}\), then add the learned <b>shift</b> vector
+        <b>scale</b> vector \(\boldsymbol{\gamma}\), then add the learned <b>offset</b> vector
         \(\boldsymbol{\beta}\). We will work through the numbers first, then explain these
         three extra ingredients.</p>
 
@@ -1097,7 +1087,7 @@
       \boldsymbol{\beta}=(0,0,0,0).
       \]
 
-      <p>These gains and shifts leave the normalised values unchanged. We use the displayed
+      <p>These scales and offsets leave the normalised values unchanged. We use the displayed
         input \((1.21,\ 0.58,\ 1.21,\ 1.21)\) and keep full precision during the calculation.
         Intermediate values below show extra digits; final row vectors and the summary table
         are rounded to two decimal places.</p>
@@ -1128,8 +1118,8 @@
       =\sqrt{0.07441875+0.00001}\approx0.27281633.
       \]
 
-      <p><b>4. Rescale, then apply the gain and shift.</b> Divide each deviation by this
-        denominator. With our gains of 1 and shifts of 0, these are also the final outputs:</p>
+      <p><b>4. Rescale, then apply the scale and offset.</b> Divide each deviation by this
+        denominator. With our scales of 1 and offsets of 0, these are also the final outputs:</p>
 
       \[
       \text{LayerNorm}(\mathbf{x})
@@ -1140,7 +1130,7 @@
       <p>The unrounded output has mean zero. The printed entries sum to 0.01 because of
         rounding. Its standard deviation is slightly below 1 because the denominator includes
         \(\varepsilon\). The three equal input entries remain equal in this example because
-        we use the same gain and shift for them.</p>
+        we use the same scale and offset for them.</p>
 
       <p>The other rows follow the same steps, each using its own statistics and the same
         example parameters. The standard-deviation column shows \(\sigma\); the actual
@@ -1199,7 +1189,7 @@
         row: the constant row above still has standard deviation zero.</p>
 
       <blockquote class="think"><b>Think for a moment</b>
-        A row already has mean 0 and standard deviation 1. Before the gain and shift, does
+        A row already has mean 0 and standard deviation 1. Before the scale and offset, does
         Equation 5-2 leave it exactly unchanged?</blockquote>
 
       <p>Almost, but not exactly. Subtracting zero leaves it unchanged, but the division is
@@ -1220,17 +1210,17 @@
       <p>These parameters do not store each row's original mean or standard deviation and
         do not generally restore them. For example, adding the same constant to every input
         entry leaves the centred row unchanged, so the normalised values cannot tell the
-        gain and shift which original mean to recover.</p>
+        scale and offset which original mean to recover.</p>
 
-      <p>A common initialisation sets all gains to 1 and shifts to 0, as in our example.
+      <p>A common initialisation sets all scales to 1 and offsets to 0, as in our example.
         Training can change them independently for each feature. After that learned step,
         the output need not have mean 0 or standard deviation near 1, and entries that were
-        equal before the gain and shift can become different.</p>
+        equal before the scale and offset can become different.</p>
 
       <figure>
         <div class="plate">
           <svg viewBox="0 0 960 336" xmlns="http://www.w3.org/2000/svg" role="img"
-            aria-label="One row of four numbers before normalising, after centring and rescaling, and after the learned gain and shift are applied">
+            aria-label="One row of four numbers before normalising, after centring and rescaling, and after the learned scale and offset are applied">
             <defs>
               <marker id="arrow-f4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7"
                 orient="auto-start-reverse">
@@ -1296,14 +1286,14 @@
             </g>
           </svg>
         </div>
-        <figcaption>Figure 4. Left: the input row for <code>I</code>. Middle: after subtracting its mean and dividing by √(σ² + ε). Right: a schematic illustration of how different per-feature gains and shifts could change the row, not a result calculated from the parameters in our example. With our γ = 1 and β = 0, the final row is the middle panel.</figcaption>
+        <figcaption>Figure 4. Left: the input row for <code>I</code>. Middle: after subtracting its mean and dividing by √(σ² + ε). Right: a schematic illustration of how different per-feature scales and offsets could change the row, not a result calculated from the parameters in our example. With our γ = 1 and β = 0, the final row is the middle panel.</figcaption>
       </figure>
 
       <h3>Why normalise here?</h3>
 
       <p>The residual addition can change a row's centre and scale. LayerNorm gives the
         next sublayer a representation whose centre and scale have been controlled before
-        the learned gains and shifts are applied. This can help stabilise computation and
+        the learned scales and offsets are applied. This can help stabilise computation and
         training as blocks are stacked. Each row is processed separately; putting rows on
         a comparable scale does not make their feature patterns identical.</p>
 
@@ -1323,15 +1313,15 @@
         <li>Compute the mean and variance across the features of one token row.</li>
         <li>Subtract that mean and divide by \(\sqrt{\sigma^2+\varepsilon}\).
           The positive \(\varepsilon\) handles zero or very small variance.</li>
-        <li>Apply a learned gain and shift to each feature. These parameters are shared
+        <li>Apply a learned scale and offset to each feature. These parameters are shared
           across positions within this LayerNorm, not across all LayerNorms.</li>
         <li>Mean 0 and standard deviation near 1 describe the normalised intermediate
           values when variance is large relative to \(\varepsilon\); they are not guaranteed
-          properties of the final output after the learned gain and shift.</li>
+          properties of the final output after the learned scale and offset.</li>
       </ul>
 
       <p><b>Try it (2 minutes):</b> Apply Equation 5-2 to \((2,2,2,2)\), using
-        \(\varepsilon=10^{-5}\), all gains equal to 1, and all shifts equal to 0.
+        \(\varepsilon=10^{-5}\), all scales equal to 1, and all offsets equal to 0.
         What changes if you set \(\boldsymbol{\beta}=(1,0,-1,2)\) instead?</p>
 
       <h2 id="s54"><span class="num">5.4</span>The feed-forward network</h2>
@@ -2140,8 +2130,8 @@
               <circle cx="420" cy="914" r="4" fill="var(--fig-line,#16202B)"></circle>
               <text x="432" y="918" font-size="10.5" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">the rows split here</text>
               <rect x="330" y="864" width="180" height="30" rx="4" fill="var(--h1c,#2E6F8E)" fill-opacity="0.10" stroke="var(--fig-line,#16202B)" stroke-width="1.4"></rect>
-              <text x="420" y="883" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">Multi-Head Self-Attention</text>
-              <text x="522" y="883" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">Parts 1 and 2</text>
+              <text x="420" y="883" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">Self-Attention (single head)</text>
+              <text x="522" y="883" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">simplified example</text>
               <rect x="332" y="773" width="176" height="75" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
               <text x="354" y="790" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1.21</text>
               <text x="398" y="790" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0.58</text>
@@ -2326,7 +2316,7 @@
         “correct” or “incorrect.”</p>
 
       <p>The paper normalises <em>after</em> the addition. That's the formula
-        <a href="./TTNN-Part2-Multihead-Attention.html#s251">Part 2, Section
+        <a href="https://haoma7.github.io/TTNN-Transformer-Tutorial/TTNN-Part2-Multihead-Attention.html#s251">Part 2, Section
         2.5.1</a> wrote down:</p>
 
       \[
@@ -2487,8 +2477,8 @@
               <text x="324" y="840" font-size="10.5" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">LLMs</text>
               <text x="520" y="814" font-size="11.5" text-anchor="start" fill="var(--h1c,#2E6F8E)">after the Norm</text>
               <rect x="330" y="727" width="180" height="30" rx="4" fill="var(--h1c,#2E6F8E)" fill-opacity="0.10" stroke="var(--fig-line,#16202B)" stroke-width="1.4"></rect>
-              <text x="420" y="746" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">Multi-Head Self-Attention</text>
-              <text x="522" y="746" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">Parts 1 and 2</text>
+              <text x="420" y="746" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">Self-Attention (single head)</text>
+              <text x="522" y="746" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">simplified example</text>
               <rect x="332" y="636" width="176" height="75" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"></rect>
               <text x="354" y="653" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0.42</text>
               <text x="398" y="653" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0.16</text>
@@ -2653,12 +2643,6 @@
           implementation you are reading, including any final normalisation after the stack.</li>
       </ul>
 
-      <p><b>Try it (3 minutes):</b> Open any Transformer implementation you can find and look
-        at one encoder block. Find the LayerNorm call and check whether it happens before the
-        attention call or after the addition. Then check the same block's feed-forward
-        sublayer. In the two standard arrangements shown here, both use the same pattern.
-        Finally, look for a LayerNorm after the whole encoder stack.</p>
-
             <h2 id="s57"><span class="num">5.7</span>The encoder block, and why you can stack it</h2>
 
       <p>You now have every piece of the <b>Post-LN encoder block</b> used in this tutorial:
@@ -2803,10 +2787,21 @@
           evaluation and inference.</li>
       </ul>
 
-      <p><b>Try it (3 minutes):</b> Recalculate the parameter count for our toy dimensions,
-        \(d_{\text{model}}=4\) and \(d_{ff}=16\), using the assumptions above.
+      <p><b>Try it (3 minutes):</b> Count the parameters in a full encoder block with
+        \(d_{\text{model}}=4\) and \(d_{ff}=16\), including all four attention projection
+        matrices. Use the assumptions above: no attention biases, two FFN bias vectors,
+        and two LayerNorms with learned scales and offsets.
         Count the attention matrices, FFN matrices, FFN biases, and LayerNorm parameters
         separately, then add them. How many parameters would six such blocks contain?</p>
+
+      <details>
+        <summary>Check your answer</summary>
+        <p>Attention matrices: \(4\times4\times4=64\). FFN matrices:
+          \(2\times4\times16=128\). FFN biases: \(16+4=20\).
+          LayerNorm parameters: \(2\times2\times4=16\).</p>
+        <p>One block contains \(64+128+20+16=228\) parameters;
+          six contain \(6\times228=1{,}368\).</p>
+      </details>
 
             <h2 id="s5next"><span class="num">Next</span>What this block still cannot do</h2>
 
@@ -2840,6 +2835,13 @@
       <p>Next, <a href="./TTNN-Part6-Decoder-Inference.html">Part 6</a> introduces the decoder
         and generation: predict a token, append it to the prefix, and repeat.</p>
 
+<aside class="side">
+        <p><b>Choose an appendix.</b> A illustrates what ReLU adds; B and C explore
+          residual learning. D uses the chain rule to explain gradients, while E examines
+          the matrix structure of attention. F lists the weights for checking the hand
+          calculations. These appendices are optional.</p>
+      </aside>
+
 <h2 id="s5a"><span class="num">Appendix A</span>A three-point example: what ReLU adds</h2>
 
       <p>Section 5.1 showed why consecutive linear layers combine into one. This optional
@@ -2850,7 +2852,7 @@
 
 <h3>One number, and where it came from</h3>
 
-      <p><a href="./TTNN-Part1-Self-Attention.html#s122">Part 1, Section 1.2.2</a>
+      <p><a href="https://haoma7.github.io/TTNN-Transformer-Tutorial/TTNN-Part1-Self-Attention.html#s122">Part 1, Section 1.2.2</a>
         ended with a new row of four numbers for the word <code>I</code>:</p>
 
       \[
@@ -3144,7 +3146,7 @@
         and leaves nonnegative numbers unchanged.</p>
 
       <p>In these rows, the last value equals the weight given to <code>love</code>:
-        0, 0.5, or 1. Call it \(w\); it is slot 3 when counting from 0.
+        0, 0.5, or 1. Call it \(w\); it is the fourth and last component.
         Compute:</p>
 
       \[
@@ -3155,7 +3157,7 @@
         <thead>
           <tr>
             <th>Row</th>
-            <th>\(w\) (slot 3)</th>
+            <th>\(w\) (fourth component)</th>
             <th>\(\mathrm{ReLU}(8w-1)\)</th>
             <th>\(\mathrm{ReLU}(8w-2)\)</th>
             <th>Output \(g(w)\)</th>
@@ -3208,20 +3210,13 @@
         express an identity mapping, and how a skip connection changes repeated mixing
         in a small numerical example.</p>
 
-      <p>The first idea comes from experiments on residual networks. The second is a
-        deliberately simplified model with fixed mixing weights. Neither is a proof that
-        every deep network needs residual connections. <a href="#s5c">Appendix C</a>
-        continues the optimisation discussion; <a href="#s5d">Appendix D</a> examines gradients.</p>
+      <p>The mixing example uses fixed weights to isolate the effect of addition.
+        <a href="#s5c">Appendix C</a> discusses the optimisation hypothesis and experimental
+        evidence; <a href="#s5d">Appendix D</a> examines gradients.</p>
 
       <h3>B1. More capacity does not guarantee easier training</h3>
 
-      <p>In <a href="https://www.cv-foundation.org/openaccess/content_cvpr_2016/papers/He_Deep_Residual_Learning_CVPR_2016_paper.pdf">He and colleagues' residual-network experiments</a>,
-        a 56-layer plain network had higher training error than a 20-layer one.
-        Higher error on the training set cannot be explained simply by overfitting:
-        overfitting concerns fitting the training examples without generalising well
-        to unseen examples.</p>
-
-      <p>Why was the result surprising? If a deeper architecture can reproduce the
+      <p>If a deeper architecture can reproduce the
         shallower network and make its extra layers act as identities, it can represent
         an equally good solution. An identity mapping returns its input unchanged.
         Having such a solution available, however, does not guarantee that training
@@ -3309,12 +3304,6 @@
           training or the exact layout of the experimental networks.</figcaption>
       </figure>
 
-      <p>The paper motivates residual learning as a way to make optimisation easier.
-        It reports that the tested plain networks had healthy gradient norms, so
-        vanishing gradients alone did not explain their higher training error.
-        That observation does not rule out the importance of gradient propagation
-        in understanding residual networks.</p>
-
       <h3>B2. Expressing an identity mapping</h3>
 
       <p>First consider a single bias-free linear layer, \(\mathbf{x}\mathbf{W}\).
@@ -3337,9 +3326,6 @@
         is needed, it can output zero. This does not require every parameter to be zero.
         For example, a branch with a zero final projection and zero final bias can output
         zero even when its earlier weights are nonzero.</p>
-
-      <p>This changes the learning target. Whether training becomes easier depends
-        on the model, its initialisation and the training setup.</p>
 
       <p><b>For our Post-LN block, keep the addition and LayerNorm separate.</b>
         If \(F(\mathbf{x})=0\), the residual sum equals \(\mathbf{x}\), but the output
@@ -3558,163 +3544,177 @@ The next example divides each residual sum by 2 when comparing repeated mixing.<
           <a href="#s5d">Appendix D</a>.</li>
       </ul>
 
-<h2 id="s5c"><span class="num">Appendix C</span>Why zero is an easier target than the
-        identity matrix</h2>
+<h2 id="s5c"><span class="num">Appendix C</span>Why learning a residual may be easier</h2>
 
-      <p>Something in <a href="#s5b">Appendix B</a> looks too easy, and this appendix is why.
-        Nothing later depends on reading it. A plain layer needs an exact identity matrix to return
-        its input unchanged, and that was called hard. A residual sublayer needs all-zero weights,
-        and that was called free. Both are one exact setting out of the same 262,144 numbers. So
-        why would one be easier to reach than the other?</p>
+      <p><a href="#s5b">Appendix B</a> showed that a residual sum returns its input
+        unchanged when the branch outputs zero. Why might learning an update help
+        training? This optional appendix explains the hypothesis in
+        <a href="https://www.cv-foundation.org/openaccess/content_cvpr_2016/papers/He_Deep_Residual_Learning_CVPR_2016_paper.pdf">He and colleagues' residual-network paper</a>
+        and the evidence they give for it.</p>
 
-      <blockquote class="mistake"><b>&#10003;&nbsp;&nbsp;The claim</b> A solver finds it easier to push a layer's
-        weights toward zero than to build an identity mapping out of a stack of nonlinear layers.
-        The residual paper puts this forward as a hypothesis, not as something it proves.</blockquote>
+      <h3>Rewrite the learning target</h3>
 
-      <p>Every claim below about the addition rests on that one sentence. Here is how the paper
-        arrives at it, and what it offers in support. Six steps.</p>
-
-      <p><b>Step 1. Name what the layers are supposed to compute.</b> Take a few layers in a row.
-        Let \(x\) be what goes into them, and let \(H(x)\) be whatever they ought to produce.
-        Nobody knows \(H\) in advance. Training looks for it.</p>
-
-      <p><b>Step 2. Write the same thing a different way.</b> Instead of asking those layers to
-        produce \(H(x)\), ask them to produce</p>
+      <p>Let \(H(x)\) denote a desired mapping from an input to an output of the same
+        shape. Ordinary layers try to learn \(H(x)\) directly. A residual branch
+        instead tries to learn the update:</p>
 
       \[
-      F(x) \;=\; H(x) - x
+      F(x)=H(x)-x.
       \]
 
-      <p>and add \(x\) back at the end. The whole thing is still \(F(x) + x = H(x)\). Nothing
-        about the answer has changed. What changed is only what the layers are asked to produce.</p>
+      <p>If the branch can represent this update, adding \(x\) gives the desired
+        output: \(x+F(x)=H(x)\). This is the mathematical identity behind the rewrite.</p>
 
-      <p>You can see the two writings line up on a matrix. Suppose a layer should turn
-        \((0,\ 0,\ 1,\ 1)\) into \((0.1,\ 0,\ 1,\ 1)\) — a small change in the first slot. Written
-        as \(\mathbf{x}\mathbf{W}\), the matrix has to be</p>
+      <p>The optimisation hypothesis is that, when a useful mapping is close to
+        the identity, learning its small changes may be easier than learning the
+        whole mapping directly. <a href="#s5b">Appendix B</a> illustrated the special
+        case where the desired mapping is the identity.</p>
+
+      <h3>A small matrix example</h3>
+
+      <p>Suppose we want to turn \((0,0,1,1)\) into \((0.1,0,1,1)\).
+        One possible matrix for the direct form \(\mathbf{x}\mathbf{W}\) is:</p>
 
       \[
-      \mathbf{W} = \begin{pmatrix}1 &amp; 0 &amp; 0 &amp; 0\\ 0 &amp; 1 &amp; 0 &amp; 0\\ 0.1 &amp; 0 &amp; 1 &amp; 0\\
-      0 &amp; 0 &amp; 0 &amp; 1\end{pmatrix}
+      \mathbf{W}=
+      \begin{pmatrix}
+      1 &amp; 0 &amp; 0 &amp; 0\\
+      0 &amp; 1 &amp; 0 &amp; 0\\
+      0.1 &amp; 0 &amp; 1 &amp; 0\\
+      0 &amp; 0 &amp; 0 &amp; 1
+      \end{pmatrix}.
       \]
 
-      <p>Written as \(\mathbf{x} + \mathbf{x}\mathbf{W}'\), the matrix has to be the same thing
-        with the diagonal taken out: \(\mathbf{W}' = \mathbf{W} - \mathbf{I}\), which is fifteen
-        zeros and a single 0.1. The two layers compute the same function. One needs 4 ones, 11
-        zeros and a 0.1; the other needs 15 zeros and a 0.1.</p>
-
-      <p><b>Step 3. The claim is about difficulty, not about power.</b> Both writings can express
-        the same functions — the paper says so directly. Nothing has been gained in what the
-        network can compute. The claim in the box above is only that one writing may be easier to
-        <em>optimise</em> than the other.</p>
-
-      <p><b>Step 4. Look at the extreme case.</b> Suppose the right answer really is "change
-        nothing", so \(H(x) = x\). The plain layers have to learn to output \(x\). That means
-        building an identity mapping out of a stack of nonlinear layers. The residual sublayer
-        has \(F(x) = H(x) - x = 0\), so it only has to push its weights toward zero. Same target,
-        two very different things to ask of a solver.</p>
-
-      <p><b>Step 5. The real case points the same way.</b> The paper grants that the right answer
-        is rarely exactly "change nothing". Its argument is about what happens near that case. Suppose \(H\) is closer to leaving \(x\) alone
-        than to wiping it out. Then looking for a small change to \(x\) is easier than
-        learning the whole of \(H\) from scratch. The paper's
-        word for this is <em>preconditioning</em>: the rewrite does not change the answer, it
-        changes how hard the question is to attack.</p>
-
-      <p><b>Step 6. Check the premise in Step 5.</b> That step assumes those changes really are small. The paper measured it. It recorded how much each layer's output varies. Residual
-        networks turned out to have smaller layer responses than plain ones. The deeper the
-        residual network, the less an individual layer changed the signal. So \(F\) does come out small in practice, which is
-        what Step 5 assumed.</p>
-
-      <blockquote class="mistake"><b>&#8709;&nbsp;&nbsp;What the paper does not claim</b> It does not explain why a
-        solver struggles to build an identity mapping. The paper says plainly that this is left
-        for future work. You will often see the gap filled in with an argument about
-        where training starts. Weights begin as small random numbers near zero, so zero is
-        close to that starting point and the identity matrix is far from it. That is a reasonable intuition and it is not
-        the paper's, so treat it as one.</blockquote>
-
-
-      <h2 id="s5d"><span class="num">Appendix D</span>What the addition does to the gradient</h2>
-
-      <p>Here is the conclusion first. <b>The addition leaves the gradient a path down to the
-        bottom of the model that no sublayer can shrink.</b> That is a fact about the arithmetic,
-        and one line of algebra shows it.</p>
-
-      <p>Be careful what that path explains, though, because it is easy to over-read. <b>The
-        path is not why deep plain networks were hard to train.</b> Those networks were trained with batch
-        normalisation, and the residual paper measured the gradients of those networks and found the gradients
-        healthy.
-        The gradient arrived; the solver still could not find the setting that returns a row
-        unchanged. Rank collapse, which
-        <a href="#s5b">Appendix B</a> works out, is a second and separate reason, and it was
-        analysed years later.</p>
-
-      <p>Where this path does matter is a question this part has not reached yet. Does anything
-        sit on top of the addition and break the path? That is Section 5.6. The rest of this
-        appendix derives the fact, and it needs one thing from training that Part 9 covers
-        properly.</p>
-
-      <p>Training measures how wrong the model's output was, and that number is the <b>loss</b>.
-        <b>Backpropagation</b> works out the <b>gradient</b> of the loss at the top of the model,
-        then passes it down layer by layer to the bottom. The chain rule says what happens on the
-        way down. At each layer the gradient gets multiplied by that layer's derivative.</p>
-
-      <h3>What that derivative is</h3>
-
-      <p>The derivative here is not a single number, because a layer takes a row of numbers in
-        and gives a row of numbers out. A whole grid of derivatives is needed: one for each input
-        slot paired with each output slot. That grid is called a <b>Jacobian</b>.</p>
-
-      <p>An example makes it concrete, and it is one you have already seen. Suppose a sublayer is
-        just a matrix multiply, \(F(\mathbf{x}) = \mathbf{x}\mathbf{W}\), with</p>
+      <p>For the residual form, choose \(\mathbf{W}'=\mathbf{W}-\mathbf{I}\):</p>
 
       \[
-      \mathbf{W} = \begin{pmatrix}0.2 &amp; 0.1\\ 0 &amp; 0.3\end{pmatrix}
+      \mathbf{W}'=
+      \begin{pmatrix}
+      0 &amp; 0 &amp; 0 &amp; 0\\
+      0 &amp; 0 &amp; 0 &amp; 0\\
+      0.1 &amp; 0 &amp; 0 &amp; 0\\
+      0 &amp; 0 &amp; 0 &amp; 0
+      \end{pmatrix}.
       \]
 
-      <p>Change the first number of \(\mathbf{x}\) by a little. The first output changes by 0.2
-        times as much and the second by 0.1 times as much, which is the first row of
-        \(\mathbf{W}\). Change the second number of \(\mathbf{x}\) instead and you get the second
-        row. So the Jacobian of this sublayer <em>is</em> \(\mathbf{W}\). For a sublayer that
-        multiplies by a matrix, the Jacobian is that matrix.</p>
-
-      <h3>What the addition does to it</h3>
-
-      <p>Differentiate Equation 5-1 with respect to \(x\). Write \(J\) for the sublayer's
-        Jacobian:</p>
+      <p>The branch now produces just the update:</p>
 
       \[
-      \frac{\partial}{\partial x}\bigl(x + F(x)\bigr) \;=\; I + J
+      \mathbf{x}\mathbf{W}'=(0.1,0,0,0),\qquad
+      \mathbf{x}+\mathbf{x}\mathbf{W}'=(0.1,0,1,1).
       \]
 
-      <p>On our example that is</p>
+      <p>Because \(\mathbf{W}=\mathbf{I}+\mathbf{W}'\), these two forms compute
+        the same function for every input, not only the displayed row.
+        The example makes the change in learning target visible. For this single
+        linear layer, however, subtracting \(\mathbf{I}\) is only a translation
+        of the parameters; it does not by itself show that optimisation is easier.</p>
+
+      <h3>What the experiments support</h3>
+
+      <p>In the paper's CIFAR-10 experiments, a 56-layer plain network had higher
+        training error than a 20-layer one. This is an optimisation problem: overfitting
+        concerns poor generalisation despite fitting the training data. The authors
+        reported healthy gradient norms in the tested plain networks, so vanishing
+        gradients alone did not explain the result. Residual networks trained more
+        successfully than comparable plain networks in the tested settings.</p>
+
+      <p>The paper also examined layer responses in CIFAR-10 models.
+        Its Figure 7 reports their standard deviations,
+        measured after batch normalisation and before the following nonlinearity.
+        These responses were generally smaller in residual networks than in their
+        plain counterparts; deeper residual networks also tended to have smaller responses.</p>
+
+      <p>The authors interpret these observations as support for learning updates
+        around an identity mapping. They do not prove that every useful mapping
+        is close to identity, or fully explain why the residual form is easier to optimise.</p>
+
+      <p>This argument concerns the residual sum. For the effect of the following
+        LayerNorm in our Post-LN block, see <a href="#s5b">Appendix B, B2</a>
+        and <a href="#s56">Section 5.6</a>.</p>
+
+
+<h2 id="s5d"><span class="num">Appendix D</span>What the addition does to the gradient</h2>
+
+      <p>A residual addition gives the loss gradient a direct contribution through the
+        skip path. The branch contributes another term, and the two are added.
+        This can help gradient propagation, but it does not guarantee that the total
+        gradient stays large. This optional appendix shows why.</p>
+
+      <p>The <b>loss</b> measures the model's error. <b>Backpropagation</b> uses the chain
+        rule to calculate how the loss changes with each intermediate value and parameter.
+        Here we follow the gradient with respect to a unit's input.</p>
+
+      <h3>One residual unit</h3>
+
+      <p>Consider \(y=x+F(x)\), where \(x\) and \(y\) have the same number of components.
+        We call this one <b>residual unit</b>: one branch and one addition.
+        An encoder block contains two such additions, plus its normalisation operations.</p>
+
+      <p>For a vector-valued function, the derivatives form a matrix called the
+        <b>Jacobian</b>. We use output components for its rows and input components
+        for its columns:</p>
 
       \[
-      I + J = \begin{pmatrix}1 &amp; 0\\ 0 &amp; 1\end{pmatrix} +
-      \begin{pmatrix}0.2 &amp; 0.1\\ 0 &amp; 0.3\end{pmatrix} =
-      \begin{pmatrix}1.2 &amp; 0.1\\ 0 &amp; 1.3\end{pmatrix}
+      (J_F)_{ij}=\frac{\partial F_i}{\partial x_j}.
       \]
 
-      <p>Without the addition a gradient passing this sublayer gets multiplied by \(J\). With it,
-        by \(I + J\). Now stack two blocks and call their Jacobians \(J_1\) for the lower one and
-        \(J_2\) for the upper one. A gradient passing both gets multiplied by the two factors in
-        turn, and multiplying them out gives</p>
+      <p>For the row-vector calculation \(F(\mathbf{x})=\mathbf{x}\mathbf{W}\), with</p>
 
       \[
-      (I + J_2)(I + J_1) \;=\; I \;+\; J_1 \;+\; J_2 \;+\; J_2\,J_1
+      \mathbf{W}=\begin{pmatrix}0.2 &amp; 0.1\\0 &amp; 0.3\end{pmatrix},
       \]
 
-      <p>Four terms, and each one is a path the gradient can take down through the two blocks
-        (Figure 19). It can go through both sublayers, or through only the lower one, or through
-        only the upper one, or — the \(I\) — through neither. That last path is the conclusion at
-        the top of this appendix. No Jacobian has been multiplied into it, so nothing either
-        sublayer does can shrink it.</p>
+      <p>the outputs are \(F_1=0.2x_1\) and \(F_2=0.1x_1+0.3x_2\).
+        With our Jacobian convention, this gives:</p>
 
-      <figure>
+      \[
+      J_F=\mathbf{W}^{\mathsf T}
+      =\begin{pmatrix}0.2 &amp; 0\\0.1 &amp; 0.3\end{pmatrix}.
+      \]
+
+      <p>The skip path \(x\) has derivative \(I\), so the residual unit has Jacobian
+        \(I+J_F\). Writing loss gradients as column vectors, the chain rule gives:</p>
+
+      \[
+      \nabla_x L=(I+J_F)^{\mathsf T}\nabla_y L
+      =\nabla_y L+J_F^{\mathsf T}\nabla_y L.
+      \]
+
+      <p>The first term passes the incoming gradient through the skip path unchanged.
+        The second comes through the branch. Backpropagation adds both contributions.</p>
+
+      <h3>Two units: four contributions</h3>
+
+      <p>Now take \(x_1=x_0+F_1(x_0)\), followed by \(x_2=x_1+F_2(x_1)\).
+        Let \(J_1\) and \(J_2\) be the branch Jacobians evaluated at their respective
+        inputs. The Jacobian of the full forward mapping is:</p>
+
+      \[
+      \frac{\partial x_2}{\partial x_0}=(I+J_2)(I+J_1).
+      \]
+
+      <p>For backpropagation, transpose this product. If \(g_2=\nabla_{x_2}L\)
+        and \(g_0=\nabla_{x_0}L\), then:</p>
+
+      \[
+      \begin{aligned}
+      g_0 &amp;=(I+J_1^{\mathsf T})(I+J_2^{\mathsf T})g_2\\
+          &amp;=g_2+J_1^{\mathsf T}g_2+J_2^{\mathsf T}g_2
+             +J_1^{\mathsf T}J_2^{\mathsf T}g_2.
+      \end{aligned}
+      \]
+
+      <p>These four terms correspond to the routes in Figure 19: through neither
+        branch, through the first only, through the second only, or through both.
+        All four contribute to the same gradient.</p>
+
+<figure>
         <div class="plate">
           <svg viewBox="0 0 960 304" xmlns="http://www.w3.org/2000/svg" role="img"
-            aria-label="Two blocks stacked, and the four paths a gradient can take down through them: through neither sublayer, through the first only, through the second only, or through both">
+            aria-label="Four additive contributions to the input gradient through two residual units: both skip paths, the first branch only, the second branch only, or both branches. All contributions are summed.">
             <defs>
-              <marker id="" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7"
+              <marker id="arrow-f19" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7"
                 orient="auto-start-reverse">
                 <path d="M0,0 L10,5 L0,10" fill="var(--h2c,#B07D1A)"></path>
               </marker>
@@ -3722,12 +3722,10 @@ The next example divides each residual sum by 2 when comparing repeated mixing.<
             <g font-family="IBM Plex Mono, monospace" fill="var(--fig-line,#16202B)">
 
               <rect x="36" y="23" width="445" height="15" fill="var(--fig-fill,#FFFFFF)" fill-opacity="0.94" stroke="none"></rect>
-              <text x="40" y="34" font-size="12" fill="var(--h1c,#2E6F8E)">FOUR PATHS THE GRADIENT CAN TAKE DOWN
-                THROUGH TWO BLOCKS</text>
-              <text x="40" y="52" font-size="11.5" fill="var(--fig-soft,#5A6B7A)">the gradient enters at the top and
-                leaves at the bottom; at each block it either goes through the sublayer or past it</text>
+              <text x="40" y="34" font-size="12" fill="var(--h1c,#2E6F8E)">FOUR CONTRIBUTIONS THROUGH TWO RESIDUAL UNITS</text>
+              <text x="40" y="52" font-size="11.5" fill="var(--fig-soft,#5A6B7A)">Each highlighted route contributes to the input gradient; all four contributions are added.</text>
 
-              <g id="">
+              <g>
 
                 <g transform="translate(60,74)">
                   <rect x="32" y="3" width="116" height="16" fill="var(--fig-fill,#FFFFFF)" fill-opacity="0.94" stroke="none"></rect>
@@ -3736,258 +3734,243 @@ The next example divides each residual sum by 2 when comparing repeated mixing.<
                   <text x="90" y="186" font-size="12.5" text-anchor="middle" fill="var(--h2c,#B07D1A)">I</text>
                   <rect x="36" y="34" width="44" height="26" rx="3" fill="none"
                     stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.1" stroke-dasharray="4 3"></rect>
-                  <text x="58" y="51" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">J&#8322;</text>
+                  <text x="58" y="51" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">J&#8322;&#7488;</text>
                   <rect x="36" y="104" width="44" height="26" rx="3" fill="none"
                     stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.1" stroke-dasharray="4 3"></rect>
-                  <text x="58" y="121" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">J&#8321;</text>
+                  <text x="58" y="121" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">J&#8321;&#7488;</text>
                   <path d="M108,24 L108,164" fill="none" stroke="var(--h2c,#B07D1A)" stroke-width="2.2"
-                    marker-end=""></path>
+                    marker-end="url(#arrow-f19)"></path>
                 </g>
 
                 <g transform="translate(280,74)">
-                  <text x="90" y="14" font-size="12" text-anchor="middle" fill="var(--h2c,#B07D1A)">first block
-                    only</text>
-                  <text x="90" y="186" font-size="12.5" text-anchor="middle" fill="var(--h2c,#B07D1A)">J&#8321;</text>
+                  <text x="90" y="14" font-size="12" text-anchor="middle" fill="var(--h2c,#B07D1A)">first branch only</text>
+                  <text x="90" y="186" font-size="12.5" text-anchor="middle" fill="var(--h2c,#B07D1A)">J&#8321;&#7488;</text>
                   <rect x="36" y="34" width="44" height="26" rx="3" fill="none"
                     stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.1" stroke-dasharray="4 3"></rect>
-                  <text x="58" y="51" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">J&#8322;</text>
+                  <text x="58" y="51" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">J&#8322;&#7488;</text>
                   <rect x="36" y="104" width="44" height="26" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.16"
                     stroke="var(--h2c,#B07D1A)" stroke-width="1.6"></rect>
-                  <text x="58" y="121" font-size="11" text-anchor="middle">J&#8321;</text>
+                  <text x="58" y="121" font-size="11" text-anchor="middle">J&#8321;&#7488;</text>
                   <path d="M108,24 L108,88 L58,88 L58,130 L58,140 L108,140 L108,164" fill="none"
-                    stroke="var(--h2c,#B07D1A)" stroke-width="2.2" marker-end=""></path>
+                    stroke="var(--h2c,#B07D1A)" stroke-width="2.2" marker-end="url(#arrow-f19)"></path>
                 </g>
 
                 <g transform="translate(500,74)">
-                  <text x="90" y="14" font-size="12" text-anchor="middle" fill="var(--h2c,#B07D1A)">second block
-                    only</text>
-                  <text x="90" y="186" font-size="12.5" text-anchor="middle" fill="var(--h2c,#B07D1A)">J&#8322;</text>
+                  <text x="90" y="14" font-size="12" text-anchor="middle" fill="var(--h2c,#B07D1A)">second branch only</text>
+                  <text x="90" y="186" font-size="12.5" text-anchor="middle" fill="var(--h2c,#B07D1A)">J&#8322;&#7488;</text>
                   <rect x="36" y="34" width="44" height="26" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.16"
                     stroke="var(--h2c,#B07D1A)" stroke-width="1.6"></rect>
-                  <text x="58" y="51" font-size="11" text-anchor="middle">J&#8322;</text>
+                  <text x="58" y="51" font-size="11" text-anchor="middle">J&#8322;&#7488;</text>
                   <rect x="36" y="104" width="44" height="26" rx="3" fill="none"
                     stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.1" stroke-dasharray="4 3"></rect>
-                  <text x="58" y="121" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">J&#8321;</text>
+                  <text x="58" y="121" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">J&#8321;&#7488;</text>
                   <path d="M108,24 L108,24 L58,24 L58,60 L58,70 L108,70 L108,164" fill="none"
-                    stroke="var(--h2c,#B07D1A)" stroke-width="2.2" marker-end=""></path>
+                    stroke="var(--h2c,#B07D1A)" stroke-width="2.2" marker-end="url(#arrow-f19)"></path>
                 </g>
 
                 <g transform="translate(720,74)">
-                  <text x="90" y="14" font-size="12" text-anchor="middle" fill="var(--h2c,#B07D1A)">both
-                    blocks</text>
-                  <text x="90" y="186" font-size="12.5" text-anchor="middle" fill="var(--h2c,#B07D1A)">J&#8322; J&#8321;</text>
+                  <text x="90" y="14" font-size="12" text-anchor="middle" fill="var(--h2c,#B07D1A)">both branches</text>
+                  <text x="90" y="186" font-size="12.5" text-anchor="middle" fill="var(--h2c,#B07D1A)">J&#8321;&#7488; J&#8322;&#7488;</text>
                   <rect x="36" y="34" width="44" height="26" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.16"
                     stroke="var(--h2c,#B07D1A)" stroke-width="1.6"></rect>
-                  <text x="58" y="51" font-size="11" text-anchor="middle">J&#8322;</text>
+                  <text x="58" y="51" font-size="11" text-anchor="middle">J&#8322;&#7488;</text>
                   <rect x="36" y="104" width="44" height="26" rx="3" fill="var(--h2c,#B07D1A)" fill-opacity="0.16"
                     stroke="var(--h2c,#B07D1A)" stroke-width="1.6"></rect>
-                  <text x="58" y="121" font-size="11" text-anchor="middle">J&#8321;</text>
+                  <text x="58" y="121" font-size="11" text-anchor="middle">J&#8321;&#7488;</text>
                   <path d="M108,24 L58,24 L58,60 L58,88 L58,104 L58,130 L58,140 L108,140 L108,164" fill="none"
-                    stroke="var(--h2c,#B07D1A)" stroke-width="2.2" marker-end=""></path>
+                    stroke="var(--h2c,#B07D1A)" stroke-width="2.2" marker-end="url(#arrow-f19)"></path>
                 </g>
 
               </g>
 
-              <text x="40" y="286" font-size="12" fill="var(--fig-soft,#5A6B7A)">Add the four together and you get
-                I + J&#8321; + J&#8322; + J&#8322;J&#8321;, which is what (I + J&#8322;)(I + J&#8321;) multiplies out to.</text>
+              <text x="40" y="286" font-size="11.5" fill="var(--fig-soft,#5A6B7A)">Each term multiplies the incoming gradient. Contributions can reinforce or cancel one another.</text>
             </g>
           </svg>
         </div>
-        <figcaption>Figure 19. The four paths a gradient can take down through two blocks, one
-          for each term of the expansion. Only the leftmost has no Jacobian on it, which is why
-          it survives whatever the two sublayers do.</figcaption>
+        <figcaption>Figure 19. Four terms in the backpropagation expansion for two residual units.
+          The first uses only identity skip paths. The other terms involve branch Jacobians.
+          Their sum determines the input gradient; the identity term alone does not set its magnitude.</figcaption>
       </figure>
 
-      <p>Six blocks give \(2^6 = 64\) such paths, and twenty give more than a million. Exactly
-        one of them is the bare \(I\), and it reaches the bottom whatever the sublayers are
-        doing.</p>
+      <h3>Why an identity term is not a guarantee</h3>
 
-      <p>Now the caveat from the top, made concrete. The path is only unbroken if nothing sits
-        on top of the addition. In the Pre-LN arrangement nothing does, so it runs the full
-        height, from the bottom block to the top one. In the paper's Post-LN arrangement a LayerNorm sits on every
-        addition, so the path is broken at every block. That is the whole of Section 5.6's
-        subject, and it is the one place where this fact makes a difference.</p>
+      <p>The branch contribution can oppose the skip contribution. For example,
+        if \(F(x)=-x\), then \(J_F=-I\), so:</p>
+
+      \[
+      y=x+F(x)=0,\qquad
+      \nabla_x L=(I-I)^{\mathsf T}\nabla_y L=0.
+      \]
+
+      <p>The identity term is present, but the branch term cancels it.
+        More generally, the sum can shrink or amplify gradients. The useful structural
+        feature is the direct contribution; there is no universal lower bound on the
+        total gradient's magnitude.</p>
+
+      <h3>Connecting this to Pre-LN and Post-LN</h3>
+
+      <p>In Pre-LN, a unit has the form \(x+F(\mathrm{LN}(x))\).
+        Its skip path bypasses both LayerNorm and the sublayer, so the derivative still
+        contains an identity term. This applies within the stack; a final LayerNorm
+        or output layer still affects the gradient entering it.</p>
+
+      <p>In Post-LN, \(y=\mathrm{LN}(u)\) with \(u=x+F(x)\). If
+        \(J_{\mathrm{LN}}\) is the LayerNorm Jacobian at \(u\), then:</p>
+
+      \[
+      \nabla_x L=(I+J_F)^{\mathsf T}J_{\mathrm{LN}}^{\mathsf T}\nabla_y L.
+      \]
+
+      <p>Gradients still propagate, but even the skip contribution passes through
+        LayerNorm's derivative. This is the distinction illustrated in
+        <a href="#s56">Section 5.6</a>.</p>
+
+      <p><a href="https://arxiv.org/abs/1603.05027">He and colleagues' follow-up paper,
+        <em>Identity Mappings in Deep Residual Networks</em></a> studies direct signal
+        propagation through identity paths. It helps explain why the operations on those
+        paths matter, while the training behaviour of a complete model depends on more
+        than the identity term alone.</p>
 
 <h2 id="s5e"><span class="num">Appendix E</span>What stacking changes in a simplified
         attention-only calculation</h2>
 
-      <p>Section 5.1 showed that consecutive linear layers combine into one, and Appendix A
-        illustrated the resulting limitation with three input rows. Attention layers are a
-        different case because their weights depend nonlinearly on the input. This appendix
-        explores a simplified stack of attention layers, with nothing else in the block.
-        Nothing later in the series depends on reading it.</p>
+      <p>Consecutive linear layers combine into one, as Section 5.1 explained.
+        Attention is different: its probabilities depend nonlinearly on the input.
+        This optional appendix shows how we can regroup the matrix products in an
+        attention stack, and why that does not make the stack equivalent to one layer.</p>
 
-            <h3>What is removed, and what is kept</h3>
+      <h3>The simplified setup</h3>
 
-      <p>Three things are switched off, and they are exactly the three parts this appendix is
-        arguing for:</p>
+      <p>We keep multi-head self-attention, including its Q, K, V and output projections
+        and softmax. We omit the FFN, residual connections and LayerNorm.
+        All projection biases are zero and dropout is disabled.
+        Softmax still makes this model nonlinear; the omitted FFN would provide
+        an additional nonlinear transformation at each token position.</p>
 
-      <ul>
-        <li>no activation function, so nothing of the kind
-          \(\mathrm{ReLU}\) supplies</li>
-        <li>no residual connection</li>
-        <li>no layer normalisation</li>
-      </ul>
+      <h3>One layer: mixing rows and mixing components</h3>
 
-      <p>Everything else stays. Several heads stay. The value projection \(\mathbf{W}^V\) stays,
-        at every layer. The output projection \(\mathbf{W}^O\) stays. Softmax stays, so the
-        attention weights still depend on the input.</p>
-
-      <h3>One layer, written as two mixes</h3>
-
-      <p>Take one head. Write \(\mathbf{X}\) for the input, \(\mathbf{A}\) for its attention
-        weight matrix, and let \(\mathbf{M} = \mathbf{W}^V\mathbf{W}^O\). The head computes
-        \(\mathbf{A}(\mathbf{X}\mathbf{W}^V)\), and the output projection multiplies on the
-        right, so the layer is</p>
+      <p>Start with a single head. Let \(X\) contain the input token rows,
+        \(A(X)\) be the attention probability matrix computed from Q and K,
+        and \(M=W^V W^O\). Then:</p>
 
       \[
-      \mathbf{Z} \;=\; \mathbf{A}\,\mathbf{X}\,\mathbf{M}
+      Z=A(X)(XW^V)W^O=A(X)XM.
       \]
 
-      <p>Two different jobs sit on the two sides of \(\mathbf{X}\). Both jobs are worth naming,
-        because the rest of the appendix is about keeping the two apart. \(\mathbf{A}\) multiplies
-        from the left, so it combines <em>rows</em> — that's mixing across words.
-        \(\mathbf{M}\) multiplies from the right, so it combines <em>columns</em> — that's mixing
-        across slots, and it does the same thing to every row.</p>
+      <p>Left multiplication by \(A(X)\) combines rows, mixing information across
+        token positions. Right multiplication by \(M\) combines components within
+        each row, using the same learned matrix at every position.</p>
 
-      <p>With \(h\) heads, each head has its own \(\mathbf{A}_i\) and its own block of
-        \(\mathbf{W}^O\), so the layer is a sum of terms of that same shape:</p>
+      <p>The averaging property applies specifically to the left multiplication.
+        Each component of a row of \(A(X)X\) lies between the smallest and largest
+        values of that component in \(X\). Similarly, \(A(X)V\) averages Value rows.
+        A subsequent learned projection can move the results outside those ranges.</p>
+
+      <p>For multiple heads, split the output projection into row blocks \(W_i^O\),
+        one for each head's part of the concatenated input. Define
+        \(M_i=W_i^V W_i^O\). Concatenation followed by the output projection is then
+        equivalent to summing the head contributions:</p>
 
       \[
-      \mathbf{Z} \;=\; \sum_{i=1}^{h} \mathbf{A}_i\,\mathbf{X}\,\mathbf{M}_i
+      Z=\sum_{i=1}^{h}A_i(X)XM_i.
       \]
 
-      <h3>Two layers</h3>
+      <p>This sum of projected contributions need not itself be a weighted average
+        of the original input rows.</p>
 
-      <p>Feed \(\mathbf{Z}\) into a second layer with weights \(\mathbf{A}'\) and projections
-        \(\mathbf{M}'\). Take one head in each layer to keep the notation short:</p>
+      <h3>Two layers: regrouping the products</h3>
+
+      <p>For clarity, use one head per layer. The second layer receives \(Z\)
+        and computes its own attention matrix \(A'(Z)\). Associativity gives:</p>
 
       \[
-      \mathbf{Z}' \;=\; \mathbf{A}'\bigl(\mathbf{A}\,\mathbf{X}\,\mathbf{M}\bigr)\mathbf{M}'
-      \;=\; \bigl(\mathbf{A}'\mathbf{A}\bigr)\,\mathbf{X}\,\bigl(\mathbf{M}\mathbf{M}'\bigr)
-     
+      \begin{aligned}
+      Z' &amp;=A'(Z)\bigl(A(X)XM\bigr)M'\\
+         &amp;=\bigl(A'(Z)A(X)\bigr)X(MM').
+      \end{aligned}
       \]
 
-      <p>Only the brackets moved, which is allowed because matrix multiplication is associative.
-        The two row-mixes have become one row-mix \(\mathbf{A}'\mathbf{A}\), and the two
-        slot-mixes have become one slot-mix \(\mathbf{M}\mathbf{M}'\). This is an algebraic
-        regrouping for the simplified setup, not a claim that one standard attention layer can
-        reproduce every two-layer Transformer.</p>
+      <p>Only the grouping of the multiplications has changed. The dependence
+        \(A'(Z)\) remains: the second attention matrix is computed from the
+        first layer's output.</p>
 
-      <p>\(\mathbf{A}'\mathbf{A}\) is still a row-stochastic matrix: every entry is
-        \((\mathbf{A}'\mathbf{A})_{ij} = \sum_k A'_{ik}A_{kj}\), a sum of products of
-        non-negative numbers, so it is non-negative. And each row adds to 1:</p>
+      <p>The combined matrix \(B=A'(Z)A(X)\) is a valid averaging matrix.
+        Its entries are nonnegative, and each row sums to 1:</p>
 
       \[
-      \sum_{j}\sum_{k} A'_{ik}A_{kj}
-      \;=\; \sum_{k} A'_{ik} \underbrace{\sum_{j} A_{kj}}_{=\,1}
-      \;=\; \sum_{k} A'_{ik} \;=\; 1 .
+      \sum_j B_{ij}
+      =\sum_k A'_{ik}\underbrace{\sum_j A_{kj}}_{=1}
+      =\sum_k A'_{ik}=1.
       \]
 
-      <p>With \(h\) heads in each layer the same rearrangement gives
-        \(\sum_{i}\sum_{j} (\mathbf{A}'_i\mathbf{A}_j)\,\mathbf{X}\,(\mathbf{M}_j\mathbf{M}'_i)\)
-        — more terms, same shape. Twenty layers give a great many terms, each one still a row-mix
-        on the left and a slot-mix on the right.</p>
+      <p>These properties alone do not show that a single attention layer with
+        specified Q/K dimensions can generate \(B\) for every input.
+        Regrouping the product therefore does not remove the need to compute
+        the two layers' attention probabilities.</p>
 
-      <h3>The same thing in numbers</h3>
-
-      <p>Run it on the toy, with real matrices you can check. Layer one uses Part 1's
-        \(\mathbf{X}\), Part 1's attention matrix \(\mathbf{A}\), and \(\mathbf{M} =
-        \mathbf{W}^V\) from Part 1. Layer two uses another legal weight matrix
-        \(\mathbf{A}'\) — every entry non-negative, every row adding to 1 — and another
-        projection \(\mathbf{M}'\):</p>
+      <p>With several heads, the expansion contains one term for each pair of heads:</p>
 
       \[
-      \mathbf{A}'=\begin{pmatrix}0.30 &amp; 0.50 &amp; 0.20\\ 0.10 &amp; 0.10 &amp; 0.80\\ 0.45 &amp; 0.45
-      &amp; 0.10\end{pmatrix}
+      Z'=\sum_i\sum_j
+      \bigl(A'_i(Z)A_j(X)\bigr)X(M_jM'_i).
+      \]
+
+      <p>Each term describes a path through a head in the first layer and a head
+        in the second. The matrices on these paths still depend on the intermediate
+        representations.</p>
+
+      <h3>A numerical check</h3>
+
+      <p>Use Part 1's \(X\), attention matrix \(A\), and Value projection.
+        For this single-head calculation, set \(W^O=I\), so \(M=W^V\).
+        Choose the following second mixing matrix and projection by hand:</p>
+
+      \[
+      A'=\begin{pmatrix}
+      0.30 &amp; 0.50 &amp; 0.20\\
+      0.10 &amp; 0.10 &amp; 0.80\\
+      0.45 &amp; 0.45 &amp; 0.10
+      \end{pmatrix},
       \qquad
-      \mathbf{M}'=\begin{pmatrix}1 &amp; 0 &amp; 0 &amp; 2\\ 0 &amp; 1 &amp; 0 &amp; 0\\ 0 &amp; 0 &amp; 1 &amp; 0\\
-      1 &amp; 3 &amp; 0 &amp; 1\end{pmatrix}
+      M'=\begin{pmatrix}
+      1 &amp; 0 &amp; 0 &amp; 2\\
+      0 &amp; 1 &amp; 0 &amp; 0\\
+      0 &amp; 0 &amp; 1 &amp; 0\\
+      1 &amp; 3 &amp; 0 &amp; 1
+      \end{pmatrix}.
       \]
 
-      <p>Going layer by layer, \(\mathbf{A}'(\mathbf{A}\mathbf{X}\mathbf{M})\mathbf{M}'\)
-        gives</p>
+      <p>We are checking the matrix identity with fixed numbers here, not deriving
+        \(A'\) from a second set of Q/K projections. Calculating layer by layer,
+        \(A'(AXM)M'\), gives:</p>
 
       \[
-      \begin{pmatrix}1.812 &amp; 1.508 &amp; 0.304 &amp; 3.218\\ 1.392 &amp; 0.844 &amp; 0.548 &amp; 2.588\\
-      1.784 &amp; 1.523 &amp; 0.261 &amp; 3.176\end{pmatrix}
+      \begin{pmatrix}
+      1.812 &amp; 1.508 &amp; 0.304 &amp; 3.218\\
+      1.392 &amp; 0.844 &amp; 0.548 &amp; 2.588\\
+      1.784 &amp; 1.523 &amp; 0.261 &amp; 3.176
+      \end{pmatrix}.
       \]
 
-      <p>Going in one step, \((\mathbf{A}'\mathbf{A})\,\mathbf{X}\,(\mathbf{M}\mathbf{M}')\)
-        gives the same twelve numbers, digit for digit. The combined weight matrix is</p>
+      <p>Regrouping as \((A'A)X(MM')\) gives the same result, with:</p>
 
       \[
-      \mathbf{A}'\mathbf{A}=\begin{pmatrix}0.290 &amp; 0.406 &amp; 0.304\\ 0.256 &amp; 0.196 &amp;
-      0.548\\ 0.347 &amp; 0.392 &amp; 0.261\end{pmatrix}
+      A'A=\begin{pmatrix}
+      0.290 &amp; 0.406 &amp; 0.304\\
+      0.256 &amp; 0.196 &amp; 0.548\\
+      0.347 &amp; 0.392 &amp; 0.261
+      \end{pmatrix}.
       \]
 
-      <p>Every entry is non-negative and all three rows add to 1.000, exactly as the algebra
-        promised. Two layers of attention did the work of one.</p>
+      <p>All three rows sum to 1. Figure 20 shows the regrouped calculation.</p>
 
-      <h3>What this does and does not show</h3>
-
-      <p>The result does not show that attention-only models are useless, and it is not a claim
-        about the real architecture, which has all three of the switched-off parts. Softmax also keeps the
-        model nonlinear as a whole: \(\mathbf{A}\) depends on \(\mathbf{X}\), so
-        \(\mathbf{Z}\) is not a linear function of \(\mathbf{X}\).</p>
-
-      <p>What it shows is narrower. In every layer only two things happen. The rows of
-        different words are averaged, using the weights in \(\mathbf{A}\). Then the numbers inside
-        each row are mixed by one fixed matrix, \(\mathbf{M}\). Stacking layers only gives more of
-        these two. Look at an output row before \(\mathbf{M}\) is applied. Each of its numbers is a
-        weighted average of the numbers in the same slot of the Value rows. So each one lies
-        between the smallest and the largest of them.</p>
-
-      <p>A one-word sentence shows the limit most plainly. With only one row, softmax has one
-        score to share out, so the one weight is 1, and the layer's output is</p>
-
-      \[
-      \mathbf{z} \;=\; 1 \times \mathbf{x}\,\mathbf{W}^V\mathbf{W}^O \;=\; \mathbf{x}\,\mathbf{M}
-      \]
-
-      <p>That is a matrix and nothing else. Take three one-word sentences whose input rows are
-        \(\mathbf{a}\), \(\mathbf{b}\), and the row halfway between them. The layer uses the same
-        matrix \(\mathbf{M}\) on all three. So its output for the halfway row is halfway between
-        the other two outputs, and the halfway rule from <a href="#s5a">Appendix A</a> holds
-        again.</p>
-
-      <p>So could a second attention layer do ReLU's job? Sometimes it can. Softmax can move <code>I</code>'s attention to another
-        word's row once one of <code>I</code>'s numbers gets large enough. That move works like
-        a yes or a no. But the move needs other words' rows to move to. In a one-word
-        sentence there is nothing to move to, and the layer is a matrix again. ReLU needs no
-        other word. ReLU works on each number of one row by itself, so ReLU works in every row
-        of every sentence. That step is what <a href="#s54">Section 5.4</a> puts in.</p>
-
-      <h3>The whole argument in one place</h3>
-
-      <p>Four steps, in the order they happened:</p>
-
-      <ul>
-        <li>We switched off the activation, the residual path and layer normalisation, and kept
-          everything else — several heads, both projections, softmax.</li>
-        <li>We wrote one layer as \(\mathbf{A}\mathbf{X}\mathbf{M}\): a row-mix on the left of
-          \(\mathbf{X}\), a slot-mix on the right.</li>
-        <li>We stacked two layers and moved the brackets, which turned
-          \(\mathbf{A}'(\mathbf{A}\mathbf{X}\mathbf{M})\mathbf{M}'\) into
-          \((\mathbf{A}'\mathbf{A})\mathbf{X}(\mathbf{M}\mathbf{M}')\) — one row-mix and one
-          slot-mix again.</li>
-        <li>We checked that \(\mathbf{A}'\mathbf{A}\) is still a legal weight matrix, and ran the
-          whole thing on the toy numbers to see both ways give the same row (Figure 20).</li>
-      </ul>
-
-      <p>The move worth remembering is step 2, splitting this simplified layer into a left
-        multiply and a right multiply. Once the two mixes are on opposite sides of \(\mathbf{X}\),
-        associativity lets us regroup the products. This explains a limitation of the stripped-down
-        calculation; it is not a general equivalence between a deep Transformer and one attention
-        layer.</p>
-
-      <figure>
+<figure>
         <div class="plate">
           <svg viewBox="0 0 960 336" xmlns="http://www.w3.org/2000/svg" role="img"
-            aria-label="Two attention layers collapse into one row-mix on the left of X and one slot-mix on the right, giving the same three by four answer as computing the layers one at a time">
+            aria-label="The numerical two-layer calculation regrouped as (A prime A) X (M M prime), with the same output. The regrouping does not show that a single attention layer can generate the combined mixing matrix.">
             <defs><marker id="arrow-f20" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--fig-line,#16202B)"></path></marker></defs>
             <g font-family="IBM Plex Mono, monospace" fill="var(--fig-line,#16202B)">
-              <text x="480" y="36" font-size="12" text-anchor="middle" fill="var(--h1c,#2E6F8E)">TWO LAYERS, WRITTEN AS ONE</text>
+              <text x="480" y="36" font-size="12" text-anchor="middle" fill="var(--h1c,#2E6F8E)">THE SAME TWO-LAYER CALCULATION, REGROUPED</text>
               <text x="226.0" y="74" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">A&#8242;A  ·  one row-mix</text>
               <rect x="160" y="90" width="44" height="25" rx="3" fill="var(--fig-soft,#5A6B7A)" fill-opacity="0.1" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.2"></rect>
               <text x="182" y="106" font-size="12" text-anchor="middle" fill="var(--fig-line,#16202B)">0.290</text>
@@ -4106,22 +4089,63 @@ The next example divides each residual sum by 2 when comparing repeated mixing.<
             </g>
           </svg>
         </div>
-        <figcaption>Figure 20. Two attention layers with the brackets moved: one row-mix on the
-          left of \(\mathbf{X}\), one slot-mix on the right, and the same twelve numbers out.
-          The left matrix is still a legal set of attention weights, which is why two layers have
-          the shape of one.</figcaption>
+        <figcaption>Figure 20. Regrouping the numerical products gives the same twelve output
+          values. The combined mixing matrix has nonnegative entries and rows summing to 1.
+          This does not establish an equivalent single attention layer.</figcaption>
       </figure>
+
+      <h3>A special case: one token</h3>
+
+      <p>If the entire sequence contains only one token, every head has just one
+        attention probability, equal to 1. In our bias-free setup, a multi-head
+        layer therefore reduces to:</p>
+
+      \[
+      z=\sum_i xM_i=x\left(\sum_i M_i\right).
+      \]
+
+      <p>This is a linear map. Stacking such layers still gives a linear map, so
+        the midpoint rule from <a href="#s5a">Appendix A</a> applies:
+        the output for the average of two input rows is the average of their outputs.
+        Here “one token” means exactly one row, with no additional special tokens.</p>
+
+      <p>With multiple tokens, input-dependent attention probabilities can produce
+        nonlinear behaviour. With only one token, that source of nonlinearity disappears.
+        The FFN's activation works within each row and provides nonlinearity even
+        in this single-token case.</p>
+
+      <blockquote class="takeaway"><b>Key takeaway</b></blockquote>
+      <ul>
+        <li>Associativity lets us regroup an attention stack's matrix products,
+          but its attention probabilities still depend on intermediate outputs.</li>
+        <li>The numerical regrouping is not a construction of an equivalent
+          single attention layer.</li>
+        <li>In this simplified model, a one-token sequence makes attention
+          linear; the FFN adds a separate source of nonlinearity within each row.</li>
+      </ul>
 
 
 
 <h2 id="s5f"><span class="num">Appendix F</span>The toy feed-forward weights</h2>
 
-      <p>These are the two matrices behind the numbers in Section 5.4. They're made up for this
-        page — every entry is \(-1\), \(0\) or \(1\) so you can check the arithmetic by hand. A
-        trained model's weights look nothing like this.</p>
+      <p>These are the two matrices used in <a href="#s54">Section 5.4</a>.
+        Their entries are \(-1\), \(0\) or \(1\), chosen for hand calculation
+        rather than learned through training. Use them in:</p>
 
-      <p>\(\mathbf{W}_1\), shape <span class="shape">4 × 16</span>. The four rows match the four
-        slots of the input row; the sixteen columns are the wide vector.</p>
+      \[
+      \mathrm{FFN}(\mathbf{x})
+      =\mathrm{ReLU}(\mathbf{x}\mathbf{W}_1+\mathbf{b}_1)\mathbf{W}_2+\mathbf{b}_2,
+      \qquad
+      \mathbf{b}_1=\mathbf{0}_{16},\quad \mathbf{b}_2=\mathbf{0}_4.
+      \]
+
+      <p>To reproduce the tutorial's numbers, use the displayed two-decimal input
+        values directly, rather than recomputing them from an unrounded LayerNorm output.</p>
+
+      <p>\(\mathbf{W}_1\) has shape <span class="shape">4 × 16</span>.
+        Each column contains the input weights for one hidden unit. Taking the dot
+        product of the four-value input row with that column gives one intermediate
+        value. Apply ReLU to each of the sixteen results.</p>
 
       \[
       \mathbf{W}_1 = \begin{pmatrix}
@@ -4136,8 +4160,11 @@ The next example divides each residual sum by 2 when comparing repeated mixing.<
       \end{pmatrix}
       \]
 
-      <p>\(\mathbf{W}_2\), shape <span class="shape">16 × 4</span>, written transposed so it fits
-        the page. Each column below is one row of \(\mathbf{W}_2\).</p>
+      <p>\(\mathbf{W}_2\) has shape <span class="shape">16 × 4</span>.
+        Below we display its transpose, \(\mathbf{W}_2^\top\), with shape
+        <span class="shape">4 × 16</span>, so it fits the page.
+        Each displayed row corresponds to one final output component:
+        take its dot product with the sixteen values after ReLU to obtain that output.</p>
 
       \[
       \mathbf{W}_2^{\top} = \begin{pmatrix}
@@ -4152,8 +4179,15 @@ The next example divides each residual sum by 2 when comparing repeated mixing.<
       \end{pmatrix}
       \]
 
-      <p>Both bias vectors \(\mathbf{b}_1\) and \(\mathbf{b}_2\) are set to zero in this
-        toy calculation, so adding them does not change the values in Section 5.4.</p>
+      <p><b>Check your calculation.</b> With both bias vectors set to zero,
+        the input row for <code>I</code> gives:</p>
+
+      \[
+      \mathrm{FFN}\bigl((0.58,\ -1.73,\ 0.58,\ 0.58)\bigr)
+      =(3.47,\ -0.58,\ -0.01,\ 2.32).
+      \]
+
+      <p>The intermediate values are listed in <a href="#s54">Section 5.4</a>.</p>
 
       
             <footer>
