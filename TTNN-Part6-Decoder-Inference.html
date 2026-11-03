@@ -722,7 +722,6 @@
 <a href="#s63">6.3&nbsp;&nbsp;How does one vector become a token choice?</a>
 <a class="lvl2" href="#s631">6.3.1 Score each vocabulary token</a>
 <a class="lvl2" href="#s632">6.3.2 Turn logits into probabilities</a>
-<a class="lvl2" href="#s634">6.3.3 Why reuse the embedding table?</a>
 <a href="#s64">6.4&nbsp;&nbsp;How does the model generate a complete translation?</a>
 <a class="lvl2" href="#s641">6.4.1 Start, select, append, and repeat</a>
 <a class="lvl2" href="#s642">6.4.2 Stop at &lt;end&gt;</a>
@@ -895,18 +894,14 @@ S &amp;=e^{-2}+e^{-1}+e^{0.5}+e^3+e^1+e^{-0.5}\\
 <p>The decoder supplies a new hidden-state vector on each run, while the learned output weights stay fixed during generation.</p>
 </details></details>
 
-<h3 id="s634"><span class="num">6.3.3</span>Why reuse the embedding table?</h3>
-<p>We used \((1,1,0,0)\) as the output weights for <code>grands</code>. The decoder also needs an <b>embedding vector</b> to represent <code>grands</code> when that token appears in its input.</p>
-<p>With <b>weight tying</b>, one learned vector serves both roles. If we tie the weights in this example, \((1,1,0,0)\) is both the input embedding for <code>grands</code> and the output-weight vector used to score <code>grands</code>.</p>
-<p>This sharing connects the <b>input embedding weights</b> and the <b>output weights</b>. The hidden-state vector \(\mathbf{h}\) is computed by the decoder from the current input tokens and source memory. It changes with the context, while the shared weights stay fixed during generation.</p>
-<p>Let \(\mathbf{E}\) be the decoder’s input embedding table. Each token’s embedding occupies one row. At input, its token ID selects that row. With weight tying, the output head uses that same row as the candidate’s output weights.</p>
-<p>Our scoring matrix \(\mathbf{W}_{\text{out}}\) stores candidate weights in columns. Transposing \(\mathbf{E}\) puts its rows into those columns, so weight tying gives:</p>
-\[\mathbf{W}_{\text{out}}=\mathbf{E}^{\top},\qquad \mathbf{z}=\mathbf{h}\mathbf{E}^{\top}.\]
-<p>If we use weight tying in this example, the six vectors in the scoring table are also the rows of \(\mathbf{E}\). Thus \(\mathbf{E}\) has shape <span class="shape">6 × 4</span>, and \(\mathbf{E}^{\top}\) has shape <span class="shape">4 × 6</span>. The dot products and logits remain exactly the ones calculated above.</p>
-<p>Sharing the weights saves parameters compared with learning a separate output matrix. With \(d_{\text{model}}\) numbers per vector and \(V\) vocabulary entries, it saves \(d_{\text{model}}V\) matrix parameters. For example, \(512\times37{,}000=18{,}944{,}000\).</p>
-<details><summary>Optional: separate output weights and an output bias</summary><p>A model without weight tying learns \(\mathbf{W}_{\text{out}}\) separately from the input embedding table. Either design may also add an output bias \(\mathbf{b}\), giving \(\mathbf{z}=\mathbf{h}\mathbf{W}_{\text{out}}+\mathbf{b}\). Our worked calculation omits the bias.</p></details>
+<details id="s634"><summary>Optional: weight tying saves parameters</summary>
+<p><b>Weight tying</b> uses the same learned parameters for the decoder’s input embeddings and output weights. In our six-token example, separate matrices need 24 + 24 = 48 parameters; sharing needs only 24. These counts cover those two matrices, not the whole model.</p>
+<p>For example, with weight tying, the output-weight vector \((1,1,0,0)\) for <code>grands</code> also serves as its input embedding. At input, the token ID selects this vector; at output, its dot product with \(\mathbf{h}\) scores <code>grands</code>. The decoder still computes \(\mathbf{h}\) from the current context.</p>
+<p>If the embedding table is \(\mathbf{E}\), with one token per row, sharing gives \(\mathbf{W}_{\text{out}}=\mathbf{E}^{\top}\), because the output matrix stores candidate weights in columns. Weight tying is optional; the scoring and token-selection steps work with separately learned weights too.</p>
+</details>
+<details><summary>Optional: an output bias</summary><p>The output head may also add a learned bias \(\mathbf{b}\), giving \(\mathbf{z}=\mathbf{h}\mathbf{W}_{\text{out}}+\mathbf{b}\). Our worked calculation omits this bias.</p></details>
 
-<blockquote class="takeaway"><b>Key takeaway</b>The vector for <code>les</code> is the output head’s input. The output head produces one logit per vocabulary token. Softmax turns the logits into probabilities, and greedy selection chooses <code>grands</code> in this example. Weight tying reuses the decoder’s input embeddings as output weights.</blockquote>
+<blockquote class="takeaway"><b>Key takeaway</b>The vector for <code>les</code> is the output head’s input. The output head produces one logit per vocabulary token. Softmax turns the logits into probabilities, and greedy selection chooses <code>grands</code> in this example.</blockquote>
 <p><b>Try it (3 minutes):</b></p>
 <ol>
 <li>What do the four numbers in \(\mathbf{h}\) represent? What do the six numbers in \(\mathbf{z}\) represent?</li>
