@@ -777,7 +777,7 @@
 <h3 id="s621"><span class="num">6.2.1</span>Why use the vector for the last input token?</h3>
 <p>We already have <code>&lt;start&gt; J’aime les</code>. Our next task is to choose the token that comes after <code>les</code>.</p>
 <p>During training, the model learns to use the output vector at each position to predict the token immediately after that position. For this run, we therefore use the output vector for <code>les</code>.</p>
-<p>We send this vector to the <b>output head</b>, which computes a score for each possible next token. Although the vector belongs to the position of <code>les</code>, it can use information from the earlier French tokens through self-attention and the English source sentence through cross-attention.</p>
+<p>We send this vector to the <b>output head</b>, which computes a score for each possible next token. This vector corresponds to the position of <code>les</code>, but it already incorporates information from earlier French tokens through self-attention and from the English sentence through cross-attention.</p>
 <p>Arrange the output vectors as a matrix in the same order as the input tokens, with one vector per row. The vector for <code>les</code> is in the <b>last row</b>, highlighted in Figure 3.</p>
 <figure id="decoder-last-row"><div class="plate"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 205" role="img" aria-labelledby="last-row-title last-row-desc">
 <title id="last-row-title">Figure 3. The last row of the decoder output matrix</title>
@@ -965,11 +965,8 @@ S &amp;=e^{-2}+e^{-1}+e^{0.5}+e^3+e^1+e^{-0.5}\\
         </div>
         </div>
         <figcaption><b>Figure 5.</b> Each run is shown in four steps. Follow one run at a time with the step buttons, or jump to a run or stage. Blue arrows show how target-prefix information reaches the last token’s self-attention calculation; the gold arrow supplies cross-attention with source memory. Each view waits for your next action. The token choices illustrate the loop; Section 6.3 works through the choice of <code>grands</code> on run 3.</figcaption>
-        <div class="f2-mechanism"><p><b>What to notice in Figure 5</b></p>
-          <p>On run 4, the decoder uses <code>&lt;start&gt; J’aime les grands</code> together with the English source information to help choose <code>modèles</code>. The vector for <code>grands</code> can use the earlier French tokens too. Follow how the input grows from one run to the next; Parts 7 and 8 explain the attention calculations inside the decoder.</p>
-        </div>
         <div class="f2-summary"><h4>All five runs</h4>
-          <p>Read each row from left to right: the decoder processes the input tokens, produces one final hidden-state row per input token, and uses the last row to select the next token. That new token joins the input for the <em>next</em> run; selecting it does not add a row to the hidden states already computed. The source memory stays fixed at three rows throughout.</p>
+          <p>Read each row from left to right: the decoder processes the input tokens, produces one final hidden-state row per input token, and uses the last row to select the next token. If the selected token is <code>&lt;end&gt;</code>, generation stops. Otherwise, it is appended to form the <em>next</em> run’s input. Selecting a token does not add a row to the hidden states already computed. The source memory stays fixed at three rows throughout.</p>
           <div class="table-scroll"><table>
             <thead><tr><th>Run</th><th>Input tokens at the start of this run</th><th>Hidden-state rows produced in this run</th><th>Token selected after this computation</th><th>What happens next</th></tr></thead>
             <tbody>
@@ -1010,7 +1007,7 @@ S &amp;=e^{-2}+e^{-1}+e^{0.5}+e^3+e^1+e^{-0.5}\\
           <tr><td>Decoder-only</td><td>The source is part of the prompt shown above. The prompt and the French tokens generated so far enter together as one sequence, processed through self-attention.</td></tr>
         </tbody>
       </table></div>
-      <p>The decoder-only model has no separate encoder and no cross-attention to encoder outputs. Its <b>causal self-attention</b> lets each position use information from that position and earlier positions. When computing the vector for the last input token, it can therefore use the preceding prompt and any French tokens already generated. A suitably trained model can use that information to translate.</p>
+      <p>The decoder-only model has no separate encoder and no cross-attention to encoder outputs. Like the decoder in our encoder–decoder model, it uses <b>causal self-attention</b>: each position can use information from that position and earlier positions. Here, those earlier positions include the prompt as well as any French tokens already generated. A suitably trained model can use that information to translate.</p>
       <p>As in the earlier walkthrough, we describe generation by processing the complete input sequence on each run, without a KV cache. The model produces one final hidden-state row per input token. On run 1, that means one row for each prompt token; the <b>last row</b> belongs to the prompt’s last token and is used to choose the first French token.</p>
       <p>Now follow the first two runs. We keep the simplified French token units used earlier and suppose this model selects <code>J’aime</code>, then <code>les</code>:</p>
       <div class="table-scroll"><table>
@@ -1025,7 +1022,7 @@ S &amp;=e^{-2}+e^{-1}+e^{0.5}+e^3+e^1+e^{-0.5}\\
       <blockquote class="takeaway"><b>Key takeaway</b>An encoder–decoder model receives source information through separate source memory. A decoder-only model receives it within the prompt. In both, the final vector for the last input token goes to the output head. Select the next token; if generation continues, append it for the next run.</blockquote>
 
       <h2 id="s6next"><span class="num">Next</span>How cross-attention uses source memory</h2>
-      <p>The generation loop now has three clear steps: compute hidden-state vectors for the existing input positions; use the last vector to score the possible next tokens; and, unless generation stops, append the selected token for the next run. The new token becomes an input position on that next run.</p>
+      <p>The generation loop now has four clear steps: compute hidden-state vectors for the existing input positions; use the last vector to score the possible next tokens; select a token from those scores; then stop if a stopping condition is met, or append the token and begin the next run. An appended token becomes an input position on that next run.</p>
       <p><b>How does source memory contribute to the decoder’s hidden-state vectors?</b> Part 7 returns to our encoder–decoder translation example and works through cross-attention numerically, following the source-memory connections shown in this part.</p>
       <p><b>Part 8</b> explains how masks control which positions attention can use. <b>Part 9</b> shows how training teaches the model to predict the next token. <b>Part 10</b> explores other token-selection rules and how a KV cache avoids repeating earlier computation.</p>
 
