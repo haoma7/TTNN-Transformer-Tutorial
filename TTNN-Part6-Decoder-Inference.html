@@ -994,7 +994,7 @@ S &amp;=e^{-2}+e^{-1}+e^{0.5}+e^3+e^1+e^{-0.5}\\
       <p>For the same translation task, the initial input could be:</p>
       <pre class="pseudocode"><code>Translate into French: I love LLMs. French:</code></pre>
       <p>This initial text is the <b>prompt</b>. It contains the translation instruction and the English source sentence; <code>French:</code> cues the model to continue with the translation. As French tokens are generated, they are appended after the prompt.</p>
-      <p>The prompt is tokenized before it enters the model. The displayed text therefore represents a sequence of input tokens; its exact token boundaries depend on the tokenizer. Run 1 already has all of these prompt tokens as input, before any French token has been generated.</p>
+      <p>Before the first run, the prompt is converted into tokens. The model processes these tokens to choose the first French token—in our example, <code>J’aime</code>. On the next run, the input contains the prompt followed by <code>J’aime</code>.</p>
       <p>Compare how the two models receive the English source information:</p>
       <div class="table-scroll"><table>
         <thead><tr><th>Model</th><th>Where the source sentence enters</th></tr></thead>
