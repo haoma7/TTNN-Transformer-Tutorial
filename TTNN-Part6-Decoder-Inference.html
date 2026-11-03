@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="author" content="Hao Ma">
+  <title>How the Decoder Writes &#8212; part 6 &#8212; Inference: the Output Head, the
+    Generation Loop, and the Two Markers</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"
+    integrity="sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV" crossorigin="anonymous">
+
+  <style>
+    :root {
+      --paper: #FBFCFD;
+      --panel: #F2F5F8;
+      --ink: #16202B;
+      --ink-soft: #5A6B7A;
+      --rule: #D6DEE5;
+      --chip-bg: #EAF0F4;
+      --h1c: #2E6F8E;
+      --h2c: #B07D1A;
+      --accent: #7D4A72;
+      --fig-fill: #FFFFFF;
+      --fig-line: #16202B;
+      --fig-soft: #5A6B7A;
+      --fig-grid: #E4EAEF;
+    }
+
+    @media (prefers-color-scheme:dark) {
+      :root {
+        --paper: #101720;
+        --panel: #18212C;
+        --ink: #E3E9EE;
+        --ink-soft: #93A3B1;
+        --rule: #2A3644;
+        --chip-bg: #1E2833;
+        --h1c: #6FB6D4;
+        --h2c: #D9AC4E;
+        --accent: #C08FB6;
+        --fig-fill: #18212C;
+        --fig-line: #E3E9EE;
+        --fig-soft: #93A3B1;
+        --fig-grid: #243040;
+      }
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 2rem
+    }
+
+    @media (prefers-reduced-motion:reduce) {
+      html {
+        scroll-behavior: auto
+      }
+    }
+
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: "Source Serif 4", Georgia, serif;
+      font-size: 18px;
+      line-height: 1.72;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ---------- layout ---------- */
+    .wrap {
+      display: grid;
+      grid-template-columns: 246px minmax(0, 1fr);
+      gap: 3rem;
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 0 1.5rem
+    }
+
+    .main {
+      max-width: 720px;
+      padding: 3.5rem 0 6rem
+    }
+
+    /* ---------- table of contents ---------- */
+    .toc {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      height: 100vh;
+      overflow-y: auto;
+      padding: 3.5rem 0 2rem;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12.5px
+    }
+
+    .toc-label {
+      text-transform: uppercase;
+      letter-spacing: .13em;
+      font-size: 10.5px;
+      color: var(--ink-soft);
+      margin-bottom: 1rem
+    }
+
+    .toc a {
+      display: block;
+      padding: .34rem 0 .34rem .8rem;
+      color: var(--ink-soft);
+      text-decoration: none;
+      border-left: 2px solid var(--rule);
+      line-height: 1.45
+    }
+
+    .toc a:hover {
+      color: var(--ink)
+    }
+
+    .toc a.lvl2 {
+      padding-left: 1.7rem
+    }
+
+    .toc a.on {
+      color: var(--h1c);
+      border-left-color: var(--h1c)
+    }
+
+    .toc a:focus-visible {
+      outline: 2px solid var(--h1c);
+      outline-offset: 2px
+    }
+
+    /* ---------- type ---------- */
+    .eyebrow {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11.5px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+      margin-bottom: 1.1rem
+    }
+
+    h1 {
+      font-family: Fraunces, serif;
+      font-weight: 600;
+      font-size: 2.55rem;
+      line-height: 1.14;
+      letter-spacing: -.015em;
+      margin: 0 0 .9rem
+    }
+
+    .standfirst {
+      color: var(--ink-soft);
+      font-size: 1.06rem;
+      margin: 0 0 2.4rem;
+      padding-bottom: 2.4rem;
+      border-bottom: 1px solid var(--rule)
+    }
+
+    h2 {
+      font-family: Fraunces, serif;
+      font-weight: 600;
+      font-size: 1.62rem;
+      letter-spacing: -.01em;
+      margin: 3.4rem 0 1rem
+    }
+
+    h3 {
+      font-family: Fraunces, serif;
+      font-weight: 400;
+      font-size: 1.2rem;
+      margin: 2.4rem 0 .7rem
+    }
+
+    h2 .num,
+    h3 .num {
+      font-family: "IBM Plex Mono", monospace;
+      font-weight: 400;
+      color: var(--h1c);
+      font-size: .72em;
+      margin-right: .6em
+    }
+
+    p {
+      margin: 0 0 1.15rem
+    }
+
+    a {
+      color: var(--h1c)
+    }
+
+    /* ---------- signature: tensor shape chips ---------- */
+    .shape {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: .78em;
+      white-space: nowrap;
+      background: var(--chip-bg);
+      color: var(--ink-soft);
+      border: 1px solid var(--rule);
+      border-radius: 3px;
+      padding: .1em .45em;
+      letter-spacing: .02em
+    }
+
+    /* ---------- paper quotes ---------- */
+    blockquote {
+      margin: 1.8rem 0;
+      padding: .15rem 0 .15rem 1.3rem;
+      border-left: 3px solid var(--accent);
+      color: var(--ink-soft);
+      font-style: italic
+    }
+
+    blockquote cite {
+      display: block;
+      margin-top: .5rem;
+      font-style: normal;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11.5px;
+      letter-spacing: .04em
+    }
+
+    /* ---------- figures ---------- */
+    figure {
+      margin: 2.6rem 0;
+      width: 100%
+    }
+
+
+    .replay {
+      display: block;
+      margin: .55rem auto 0;
+      font: inherit;
+      font-size: .82rem;
+      color: var(--ink-soft);
+      background: none;
+      border: 1px solid var(--rule);
+      border-radius: 4px;
+      padding: .22rem .75rem;
+      cursor: pointer
+    }
+
+    .replay:hover,
+    .replay:focus {
+      color: var(--ink);
+      border-color: var(--ink-soft)
+    }
+
+    .plate {
+      background: var(--fig-fill);
+      border: 1px solid var(--rule);
+      border-radius: 5px;
+      padding: 1.4rem 1.2rem;
+      background-image: linear-gradient(var(--fig-grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--fig-grid) 1px, transparent 1px);
+      background-size: 22px 22px
+    }
+
+    .plate svg {
+      display: block;
+      width: 100%;
+      height: auto
+    }
+
+    figcaption {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--ink-soft);
+      margin-top: .85rem
+    }
+
+    figcaption b {
+      color: var(--ink);
+      font-weight: 500
+    }
+
+    /* ---------- image slot for third-party figures ---------- */
+    .imgslot {
+      border: 1.5px dashed var(--rule);
+      border-radius: 5px;
+      background: var(--panel);
+      min-height: 210px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: .55rem;
+      padding: 2.2rem 1.5rem;
+      text-align: center
+    }
+
+    .imgslot .tag {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--accent)
+    }
+
+    .imgslot .what {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 13.5px;
+      color: var(--ink)
+    }
+
+    .imgslot .hint {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11.5px;
+      line-height: 1.7;
+      color: var(--ink-soft);
+      max-width: 46ch
+    }
+
+    /* ---------- placeholder ---------- */
+    .todo {
+      border-left: 3px solid var(--h2c);
+      border-radius: 0 4px 4px 0;
+      padding: 1rem 1.2rem;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12.5px;
+      line-height: 1.75;
+      color: var(--ink-soft);
+      background: var(--panel);
+      margin: 1.8rem 0
+    }
+
+    .todo b {
+      color: var(--h2c);
+      font-weight: 500;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      font-size: 11px;
+      display: block;
+      margin-bottom: .35rem
+    }
+
+    /* ---------- footer ---------- */
+    footer {
+      margin-top: 5rem;
+      padding-top: 1.6rem;
+      border-top: 1px solid var(--rule);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11.5px;
+      line-height: 1.9;
+      color: var(--ink-soft)
+    }
+
+    /* ---------- responsive ---------- */
+    @media (max-width:900px) {
+      .wrap {
+        grid-template-columns: 1fr;
+        gap: 0
+      }
+
+      .toc {
+        position: static;
+        height: auto;
+        padding: 2rem 0 0;
+        border-bottom: 1px solid var(--rule)
+      }
+
+      .toc-inner {
+        columns: 2;
+        column-gap: 1.2rem
+      }
+
+      .main {
+        padding-top: 2rem
+      }
+
+      h1 {
+        font-size: 2rem
+      }
+
+      body {
+        font-size: 17px
+      }
+    }
+
+    /* ---------- sub-headings and inline code ---------- */
+
+    h4 {
+      font-family: Fraunces, serif;
+      font-weight: 600;
+      font-size: 1.02rem;
+      letter-spacing: -.005em;
+      color: var(--ink);
+      margin: 2rem 0 .6rem;
+    }
+
+    code {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: .84em;
+      background: var(--chip-bg);
+      color: var(--ink);
+      border: 1px solid var(--rule);
+      border-radius: 3px;
+      padding: .1em .38em;
+      white-space: nowrap;
+    }
+
+    /* ---------- callout boxes: think / mistake / takeaway ---------- */
+
+    blockquote.think {
+      border-left-color: var(--h1c);
+      font-style: normal;
+    }
+
+    blockquote.mistake {
+      border-left-color: var(--h2c);
+      font-style: normal;
+    }
+
+    blockquote.takeaway {
+      border-left-color: var(--accent);
+      font-style: normal;
+      margin-bottom: .4rem;
+    }
+
+    blockquote.think b,
+    blockquote.mistake b,
+    blockquote.takeaway b {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+      display: block;
+      margin-bottom: .3rem;
+    }
+
+    blockquote.think b {
+      color: var(--h1c);
+    }
+
+    blockquote.mistake b {
+      color: var(--h2c);
+    }
+
+    blockquote.takeaway b {
+      color: var(--accent);
+    }
+
+
+    /* ---------- added: math and tables ---------- */
+    .katex-display {
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: .35rem 0
+    }
+
+    .katex {
+      font-size: 1.02em
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1.8rem 0;
+      font-size: .92em
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid var(--rule);
+      padding: .55rem .7rem;
+      text-align: left
+    }
+
+    th {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--ink-soft)
+    }
+    /* Reserve a real right-hand column for notes, including on laptop screens.
+       Move the contents above the article when three columns would crowd it. */
+    @media screen and (min-width: 1024px) {
+      .wrap {
+        grid-template-columns: 190px minmax(0, 1fr) 192px;
+        gap: 0 24px;
+        max-width: 1645px;
+      }
+      .main { position: relative; grid-column: 2; max-width: none; }
+    }
+    @media screen and (min-width: 901px) and (max-width: 1279px) {
+      .wrap { grid-template-columns: 1fr; gap: 0; }
+      .toc { position: static; height: auto; padding: 2rem 0 0; border-bottom: 1px solid var(--rule); }
+      .toc-inner { columns: 2; column-gap: 1.2rem; }
+      .main { padding-top: 2rem; }
+    }
+    @media screen and (min-width: 1024px) and (max-width: 1279px) {
+      .wrap { grid-template-columns: minmax(0, 1fr) 192px; column-gap: 24px; max-width: 1114px; }
+      .toc { grid-column: 1 / -1; }
+      .main { grid-column: 1; }
+    }
+    figure { width: 100% }
+
+    /* A margin note: it defines a word without stopping the sentence that uses it.
+       Below the width where a margin exists it is an inset block in the flow instead. */
+    .gloss {
+      font-size: 13.5px;
+      line-height: 1.55;
+      color: var(--ink-soft);
+      border-left: 2px solid var(--h2c);
+      background: var(--panel);
+      padding: 0.55rem 0.9rem;
+      margin: 0 0 1.5rem 2.5rem;
+      max-width: 38ch;
+    }
+    .gloss b { color: var(--ink); font-weight: 600 }
+
+    /* Match the reserved 192px note column and 24px gutter. */
+    @media screen and (min-width: 1024px) {
+      .gloss {
+        position: absolute;
+        left: 100%;
+        margin: -0.4rem 0 0 24px;
+        width: 192px;
+        max-width: none;
+        padding: 0.5rem 0 0;
+        border-left: 0;
+        border-top: 2px solid var(--h2c);
+        background: transparent;
+      }
+    }
+
+
+    /* A Common mistake box in the margin. It carries the same mark and label as the
+       in-flow version, at the size of a margin note. float + clear:right is what keeps
+       two of them from landing on top of each other: floats are not allowed to overlap
+       other floats, so a second note is pushed below the first instead of over it.
+       The negative right margin puts the whole box outside the text column, so no line
+       of prose is shortened by it. Below the width where a margin exists, the box stays
+       in the flow and looks as it always did. */
+    @media screen and (min-width: 1024px) {
+      blockquote.mistake.side {
+        float: right;
+        clear: right;
+        width: 192px;
+        margin: -0.4rem -216px 1.5rem 0;
+        padding: 0.5rem 0 0;
+        border-left: 0;
+        border-top: 2px solid var(--h2c);
+        background: transparent;
+        font-size: 13.5px;
+        line-height: 1.55;
+        color: var(--ink-soft);
+      }
+      blockquote.mistake.side b { display: block; margin-bottom: .3rem }
+      /* A figure must not sit beside a note; it needs the whole column. */
+      figure { clear: right }
+    }
+
+    /* ---------- home button and byline ---------- */
+    .homebar {
+      margin-bottom: 1.5rem
+    }
+
+    .homebar a {
+      display: inline-block;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11.5px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+      text-decoration: none;
+      background: var(--chip-bg);
+      border: 1px solid var(--rule);
+      border-radius: 999px;
+      padding: .36rem .9rem
+    }
+
+    .homebar a:hover {
+      color: var(--h1c);
+      border-color: var(--h1c)
+    }
+
+    .homebar a:focus-visible {
+      outline: 2px solid var(--h1c);
+      outline-offset: 2px
+    }
+
+    .byline {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12.5px;
+      line-height: 1.6;
+      color: var(--ink-soft);
+      margin: 0 0 1.4rem
+    }
+
+    .byline b {
+      color: var(--ink);
+      font-weight: 500
+    }
+
+    .byline a {
+      color: var(--h1c);
+      text-decoration: none;
+      border-bottom: 1px solid var(--rule)
+    }
+
+    .byline a:hover {
+      border-bottom-color: var(--h1c)
+    }
+  
+    /* Keep the shared chapter layout above; allow wide content to scroll within it. */
+    .main { min-width: 0; }
+    .gloss { color: var(--ink-soft); }
+    blockquote p:last-child, details p:last-child { margin-bottom: 0; }
+    details { margin: 1rem 0 1.6rem; padding: .75rem 1rem; background: var(--panel); border-left: 2px solid var(--h1c); }
+    summary { cursor: pointer; color: var(--h1c); font-weight: 600; }
+    details[open] summary { margin-bottom: .7rem; }
+    .table-scroll { overflow-x: auto; margin: 1.4rem 0; }
+    .table-scroll table { margin: 0; }
+    .plate { overflow-x: auto; }
+    .plate svg { min-width: 680px; }
+    @media print { details > * { display: block; } .plate svg { min-width: 0; } }
+
+  
+    .pseudocode { overflow-x: auto; padding: 1rem; background: var(--chip-bg); line-height: 1.65; }
+    .pseudocode code { display: block; border: 0; padding: 0; white-space: pre; background: transparent; font-size: .82rem; }
+  </style>
+
+  <style id="figure2-walkthrough-style">
+    #figure2-walkthrough { --f2-blue: var(--h1c); }
+    #figure2-walkthrough [hidden] { display: none !important; }
+    #figure2-walkthrough button { font-family: "IBM Plex Mono", monospace; font-size: 12px; line-height: 1.5; padding: .45rem .75rem; border: 1px solid var(--rule); border-radius: 5px; background: var(--fig-fill); color: var(--ink); cursor: pointer; }
+    #figure2-walkthrough button:hover:not(:disabled), #figure2-walkthrough button[aria-pressed="true"] { border-color: var(--h1c); color: var(--h1c); background: var(--chip-bg); }
+    #figure2-walkthrough button:focus-visible { outline: 2px solid var(--h1c); outline-offset: 3px; }
+    #figure2-walkthrough button:disabled { opacity: .4; cursor: default; }
+    #figure2-walkthrough .f2-toolbar, #figure2-walkthrough .f2-runs { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; margin-bottom: .7rem; }
+    #figure2-walkthrough .f2-runs { font: 12px "IBM Plex Mono", monospace; color: var(--ink-soft); }
+    #figure2-walkthrough .f2-stages { display: flex; flex-wrap: wrap; gap: .6rem 1.5rem; list-style-position: inside; padding: .6rem 0; margin: 0; font: 12px/1.7 "IBM Plex Mono", monospace; color: var(--ink-soft); }
+    #figure2-walkthrough .f2-stages [aria-current="step"] { color: var(--h1c); font-weight: 500; text-decoration: underline; text-underline-offset: 4px; }
+    #figure2-walkthrough .f2-status { font: 12px/1.6 "IBM Plex Mono", monospace; color: var(--h1c); margin-bottom: .45rem; }
+    #figure2-walkthrough .f2-transcript { background: var(--panel); border: 1px solid var(--rule); border-radius: 5px; padding: .85rem 1rem; margin-top: .8rem; }
+    #figure2-walkthrough .f2-transcript-label { font: 12px/1.6 "IBM Plex Mono", monospace; color: var(--ink-soft); margin-bottom: .5rem; }
+    #figure2-walkthrough [data-f2="translation"] { min-height: 2.4rem; display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; }
+    #figure2-walkthrough .f2-token { display: inline-block; font: 14px/1.6 "IBM Plex Mono", monospace; padding: .25rem .55rem; border: 1px solid var(--rule); border-radius: 4px; background: var(--fig-fill); }
+    #figure2-walkthrough .f2-new { border-color: var(--h1c); color: var(--h1c); }
+    #figure2-walkthrough .f2-empty, #figure2-walkthrough .f2-result { color: var(--ink-soft); font-size: 13px; }
+    #figure2-walkthrough .f2-result { margin: .5rem 0 0; }
+    #figure2-walkthrough .f2-cache-note { font-size: .86em; line-height: 1.6; margin: .6rem 0; color: var(--ink-soft); }
+    #figure2-walkthrough .f2-cache-note b { color: var(--ink); }
+    #figure2-walkthrough .f2-legend { font-size: .82em; line-height: 1.6; color: var(--ink-soft); margin: .7rem 0; }
+    #figure2-walkthrough .f2-legend b { color: var(--ink); }
+    #figure2-walkthrough .f2-bottom-controls { margin-top: .8rem; }
+    #figure2-walkthrough .f2-stages button { font-size: 11px; padding: .25rem .4rem; }
+    @media print { #figure2-walkthrough .f2-bottom-controls { display: none; } }
+
+    #figure2-walkthrough .f2-context-flow { stroke-dasharray: 6 4; }
+    @media print { #figure2-walkthrough .f2-controls { display: none; } #figure2-walkthrough .f2-summary > * { display: block; } }
+  
+    #figure2-walkthrough .f2-workspace { border: 1px solid var(--rule); border-radius: 6px; background: var(--fig-fill); padding: .65rem .8rem; }
+    #figure2-walkthrough .f2-controls { display: grid; grid-template-columns: auto 1fr; column-gap: 1rem; align-items: start; }
+    #figure2-walkthrough .f2-toolbar, #figure2-walkthrough .f2-runs { gap: .35rem; margin-bottom: .35rem; }
+    #figure2-walkthrough .f2-runs { justify-content: flex-end; }
+    #figure2-walkthrough button { padding: .25rem .5rem; font-size: 11px; }
+    #figure2-walkthrough .f2-stages { grid-column: 1 / -1; gap: .3rem 1rem; padding: .2rem 0 .4rem; }
+    #figure2-walkthrough .plate { padding: 0; border: 0; border-radius: 0; background: none; }
+    #figure2-walkthrough .f2-inset { box-sizing: border-box; height: 100%; padding: 14px; background: var(--panel); border-left: 3px solid var(--h1c); border-radius: 4px; font: 18px/1.4 "Source Serif 4", Georgia, serif; color: var(--ink); overflow: auto; }
+    #figure2-walkthrough .f2-inset .f2-status { font: 15px/1.4 "IBM Plex Mono", monospace; color: var(--h1c); margin: 0 0 10px; }
+    #figure2-walkthrough .f2-inset p:last-child { margin: 0; }
+    #figure2-walkthrough .f2-transcript { display: flex; flex-wrap: wrap; gap: .35rem .7rem; align-items: center; border: 0; border-top: 1px solid var(--rule); border-radius: 0; padding: .45rem 0 0; margin: .3rem 0 0; background: none; }
+    #figure2-walkthrough .f2-transcript-label { margin: 0; font-size: 11px; }
+    #figure2-walkthrough [data-f2="translation"] { min-height: 1.7rem; }
+    #figure2-walkthrough .f2-token { padding: .1rem .35rem; font-size: 12px; }
+    #figure2-walkthrough .f2-result { flex-basis: 100%; margin: 0; font-size: 11px; }
+    #figure2-walkthrough .f2-bottom-controls { margin: .35rem 0 0; }
+    @media (min-width: 721px) { #figure2-walkthrough .plate svg { min-width: 0; max-width: 1100px; max-height: none; margin: 0 auto; } }
+    @media (max-width: 720px) { #figure2-walkthrough .f2-controls { grid-template-columns: 1fr; } #figure2-walkthrough .f2-runs { justify-content: flex-start; } }
+    @media print { #figure2-walkthrough .plate svg { max-height: none; } }
+  </style>
+
+  <style id="diagram-reading-style">
+    .diagram-reading-controls { display: flex; justify-content: flex-end; margin: 0 0 .45rem; }
+    .diagram-size-toggle { font: 12px/1.4 "IBM Plex Mono", monospace; color: var(--ink); background: var(--fig-fill); border: 1px solid var(--ink-soft); border-radius: 4px; padding: .3rem .6rem; cursor: pointer; }
+    .diagram-size-toggle:focus-visible { outline: 2px solid var(--h1c); outline-offset: 3px; }
+    .plate.diagram-enlarged { overflow: auto; }
+    .plate.diagram-enlarged svg,
+    #figure2-walkthrough .plate.diagram-enlarged svg { width: var(--diagram-reading-width); min-width: var(--diagram-reading-width); max-width: none; max-height: none; }
+    @media print { .diagram-reading-controls { display: none; } .plate.diagram-enlarged svg, #figure2-walkthrough .plate.diagram-enlarged svg { width: 100%; min-width: 0; max-width: 100%; } }
+  
+    /* Compact matrix illustration: keep its scale independent of page width. */
+    #decoder-last-row { max-width: 660px; margin: 1.5rem auto 1.8rem; }
+    #decoder-last-row .plate { background: none; border: 0; border-radius: 0; padding: .5rem 0; }
+    #decoder-last-row .plate:not(.diagram-enlarged) svg { width: 100%; max-width: 600px; min-width: 520px; margin: 0 auto; }
+    #decoder-last-row figcaption { max-width: 600px; margin: .55rem auto 0; }
+    @media print { #decoder-last-row .plate:not(.diagram-enlarged) svg { min-width: 0; } }
+  
+    /* Keep the six-candidate output-head diagram at a consistent reading scale. */
+    #figure4-output-head { max-width: 820px; margin-left: auto; margin-right: auto; }
+    #figure4-output-head .plate { background: none; border: 0; padding: .5rem 0; }
+    #figure4-output-head .plate:not(.diagram-enlarged) svg { width: 100%; max-width: 780px; min-width: 720px; margin: 0 auto; }
+    #figure4-output-head figcaption { max-width: 780px; margin-left: auto; margin-right: auto; }
+    @media print { #figure4-output-head .plate:not(.diagram-enlarged) svg { min-width: 0; } }
+</style>
+</head>
+
+<body>
+  <div class="wrap">
+    <nav class="toc" aria-label="Table of contents">
+      <div class="toc-inner">
+        <div class="toc-label">Contents</div>
+        <a href="#s61">6.1&nbsp;&nbsp;What information does the decoder use?</a>
+<a class="lvl2" href="#s611">6.1.1 The target prefix</a>
+<a class="lvl2" href="#s612">6.1.2 Source memory</a>
+<a class="lvl2" href="#s613">6.1.3 How the source changes the result</a>
+<a href="#s62">6.2&nbsp;&nbsp;What does one decoder run produce?</a>
+<a class="lvl2" href="#s621">6.2.1 Why use the last token’s vector?</a>
+<a href="#s63">6.3&nbsp;&nbsp;How does one vector become a token choice?</a>
+<a class="lvl2" href="#s631">6.3.1 Score each vocabulary token</a>
+<a class="lvl2" href="#s632">6.3.2 Turn logits into probabilities</a>
+<a class="lvl2" href="#s634">6.3.3 Why reuse the embedding table?</a>
+<a href="#s64">6.4&nbsp;&nbsp;How does the model generate a complete translation?</a>
+<a class="lvl2" href="#s641">6.4.1 Start, select, append, and repeat</a>
+<a class="lvl2" href="#s642">6.4.2 Stop at &lt;end&gt;</a>
+<a href="#s65">6.5&nbsp;&nbsp;What changes in a decoder-only model?</a>
+<a href="#s6next">Next&nbsp;&nbsp;How cross-attention uses source memory</a>
+        <a href="./TTNN-Part7-Cross-Attention.html">Part 7&nbsp;&nbsp;Cross-Attention &#8594;</a>
+      </div>
+    </nav>
+
+    <main class="main">
+      <div class="homebar"><a href="./index.html" aria-label="Back to the home page">&#8592;&nbsp;&nbsp;Home</a></div>
+      <div class="eyebrow">The Transformer, Number by Number &nbsp;&#183;&nbsp; Part 6</div>
+      <h1>How the Decoder Writes</h1>
+      <p class="byline">By <b>Hao Ma</b> &nbsp;&#183;&nbsp; <a href="https://haoma7.github.io" rel="author">haoma7.github.io</a></p>
+      <p class="standfirst">Part 5 showed how the encoder turns an input sentence into vectors. Those vectors carry information about the sentence, but they are not yet a translation. How does the decoder use that information to generate a translation, one token at a time?</p>
+<p><b>Our example.</b> We start with the English sentence <code>I love LLMs</code> and use <code>J’aime les grands modèles</code> (“I love large models”) as a simplified French translation. We will follow how an encoder–decoder model chooses each French token and decides when to stop.</p>
+<p>For this illustration, treat each displayed word—including <code>J’aime</code>—as one token: three in the English sentence and four in the French translation. Real tokenizers may split these words differently. The French choices are illustrative, so we can concentrate on the generation process.</p>
+<p><b>This is inference:</b> we use a model that has already been trained, keeping its weights fixed. Here, we use it to generate a translation one token at a time. We call this repeated process the <b>generation loop</b>.</p>
+<p>We will first identify the decoder’s inputs, then examine its output vectors and how one vector becomes a token choice. Finally, we will connect the runs to generate the complete translation.</p>
+<p><b>What you need.</b> Vectors, dot products, softmax, embedding lookup, and the encoder block from Part 5.</p>
+
+<h2 id="s61"><span class="num">6.1</span>What information does the decoder use?</h2>
+<p>Imagine that the model has already generated <code>J’aime les</code> and is now choosing what comes next. Each decoder <b>run</b> is used to choose one next token, so this is run 3.</p>
+<p>The decoder receives two inputs:</p>
+<ul>
+<li><b>The target prefix:</b> <code>&lt;start&gt; J’aime les</code>. This is the French translation generated so far, preceded by <code>&lt;start&gt;</code>, a special token that marks the beginning of generation.</li>
+<li><b>Source memory:</b> the three vectors the encoder has computed for <code>I love LLMs</code>. They carry information about the English sentence.</li>
+</ul>
+<p>Figure 1 shows the target prefix entering from the bottom and source memory entering from the side. These are the two “doors” into the decoder.</p>
+<figure id="figure1-two-inputs"><div class="plate"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 490" role="img" aria-labelledby="f1-title f1-desc"><title id="f1-title">Two inputs to the decoder on run 3</title><desc id="f1-desc">The target prefix start, J’aime, les enters from below. The three source-memory vectors for I love LLMs enter from the side. The muted upper path previews the three output vectors and the choice grands, explained in Sections 6.2 and 6.3.</desc><defs><marker id="f1-ink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="var(--fig-line,#16202B)"/></marker><marker id="f1-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="var(--h1c,#2E6F8E)"/></marker><marker id="f1-gold" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="var(--h2c,#B07D1A)"/></marker><marker id="f1-soft" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="var(--fig-soft,#5A6B7A)"/></marker></defs><g font-family="IBM Plex Mono, monospace"><text x="500" y="26" font-size="17" text-anchor="middle" fill="var(--fig-line,#16202B)">Run 3 · identify the two inputs</text><text x="25" y="74" font-size="15" text-anchor="start" fill="var(--h2c,#B07D1A)">SOURCE MEMORY · side input</text><text x="25" y="100" font-size="12" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">Three vectors from the English sentence</text><rect x="30" y="365" width="80" height="32" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-line,#16202B)" stroke-width="1.5"/><text x="70" y="386" font-size="14" text-anchor="middle" fill="var(--fig-line,#16202B)">I</text><path d="M70,359 V328" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.6" marker-end="url(#f1-ink)"/><path d="M70,280 V248" fill="none" stroke="var(--h2c,#B07D1A)" stroke-width="1.6" marker-end="url(#f1-gold)"/><rect x="48" y="220" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="60" y="220" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="72" y="220" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="84" y="220" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="130" y="365" width="80" height="32" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-line,#16202B)" stroke-width="1.5"/><text x="170" y="386" font-size="14" text-anchor="middle" fill="var(--fig-line,#16202B)">love</text><path d="M170,359 V328" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.6" marker-end="url(#f1-ink)"/><path d="M170,280 V248" fill="none" stroke="var(--h2c,#B07D1A)" stroke-width="1.6" marker-end="url(#f1-gold)"/><rect x="148" y="220" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="160" y="220" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="172" y="220" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="184" y="220" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="230" y="365" width="80" height="32" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-line,#16202B)" stroke-width="1.5"/><text x="270" y="386" font-size="14" text-anchor="middle" fill="var(--fig-line,#16202B)">LLMs</text><path d="M270,359 V328" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.6" marker-end="url(#f1-ink)"/><path d="M270,280 V248" fill="none" stroke="var(--h2c,#B07D1A)" stroke-width="1.6" marker-end="url(#f1-gold)"/><rect x="248" y="220" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="260" y="220" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="272" y="220" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="284" y="220" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="25" y="286" width="290" height="36" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><text x="170" y="310" font-size="14" text-anchor="middle" fill="var(--fig-line,#16202B)">encoder · already run</text><text x="25" y="188" font-size="12" text-anchor="start" fill="var(--h2c,#B07D1A)">Fixed throughout this translation</text><path d="M48,215 V208 H292 V215 M292,208 H352 V290 H424" fill="none" stroke="var(--h2c,#B07D1A)" stroke-width="1.6" marker-end="url(#f1-gold)"/><rect x="430" y="260" width="490" height="65" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"/><text x="675" y="290" font-size="19" text-anchor="middle" fill="var(--h1c,#2E6F8E)">decoder</text><text x="675" y="312" font-size="13" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">uses both inputs</text><text x="430" y="440" font-size="15" text-anchor="start" fill="var(--h1c,#2E6F8E)">TARGET PREFIX · bottom input</text><text x="430" y="466" font-size="13" text-anchor="start" fill="var(--h1c,#2E6F8E)">Grows as French tokens are generated</text><rect x="454" y="375" width="92" height="32" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"/><text x="500" y="397" font-size="14" text-anchor="middle" fill="var(--fig-line,#16202B)">&lt;start&gt;</text><path d="M500,369 V331" fill="none" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6" marker-end="url(#f1-blue)"/><rect x="614" y="375" width="92" height="32" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"/><text x="660" y="397" font-size="14" text-anchor="middle" fill="var(--fig-line,#16202B)">J’aime</text><path d="M660,369 V331" fill="none" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6" marker-end="url(#f1-blue)"/><rect x="774" y="375" width="92" height="32" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"/><text x="820" y="397" font-size="14" text-anchor="middle" fill="var(--fig-line,#16202B)">les</text><path d="M820,369 V331" fill="none" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6" marker-end="url(#f1-blue)"/><g data-reading-role="later-output-path"><text x="430" y="70" font-size="13" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">Output path</text><text x="430" y="91" font-size="12" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">Explained in Sections 6.2–6.3</text><text x="430" y="192" font-size="12" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">Three output vectors</text><path d="M500,254 V236" fill="none" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.6" marker-end="url(#f1-soft)"/><rect x="478" y="210" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.5"/><rect x="490" y="210" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.5"/><rect x="502" y="210" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.5"/><rect x="514" y="210" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.5"/><path d="M660,254 V236" fill="none" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.6" marker-end="url(#f1-soft)"/><rect x="638" y="210" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.5"/><rect x="650" y="210" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.5"/><rect x="662" y="210" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.5"/><rect x="674" y="210" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.5"/><path d="M820,254 V236" fill="none" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.6" marker-end="url(#f1-soft)"/><rect x="798" y="210" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.5"/><rect x="810" y="210" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.5"/><rect x="822" y="210" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.5"/><rect x="834" y="210" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.5"/><path d="M820,204 V172" fill="none" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.6" marker-end="url(#f1-soft)"/><text x="850" y="190" font-size="12" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">last row</text><rect x="730" y="124" width="180" height="42" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.5"/><text x="820" y="141" font-size="13" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">output head</text><text x="820" y="158" font-size="12" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">+ token selection</text><path d="M820,118 V104" fill="none" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.6" marker-end="url(#f1-soft)"/><rect x="770" y="67" width="100" height="31" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.5"/><text x="820" y="88" font-size="14" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">grands</text></g></g></svg></div><figcaption><b>Figure 1.</b> The target prefix enters from below; source memory enters from the side. One group of bars represents one vector. Focus on these two inputs here; Section 6.2 explains the output vectors above the decoder.</figcaption></figure>
+<h3 id="s611"><span class="num">6.1.1</span>The bottom input: the target prefix</h3>
+<p>Each token in <code>&lt;start&gt; J’aime les</code> is represented by an embedding vector, with positional information to indicate its place in the sequence. These three tokens therefore give three input rows. <b>Self-attention</b> lets the decoder use information from this prefix when choosing the next French token.</p>
+<p>As more French tokens are generated, they join the target prefix. Section 6.4 will trace that process across all the runs.</p>
+
+<h3 id="s612"><span class="num">6.1.2</span>The side input: source memory</h3>
+<p>The encoder processes <code>I love LLMs</code> once, before generation begins. The resulting source memory stays fixed throughout this translation. <b>Cross-attention</b> lets the decoder use information from these vectors when choosing each French token.</p>
+<p>Both inputs happen to have three rows in Figure 1. Their lengths do not have to match: the target prefix grows, while source memory still contains the same three vectors.</p>
+
+<h3 id="s613"><span class="num">6.1.3</span>How the source sentence changes the result</h3>
+<p>To see why source memory matters, go back to the beginning, before any French token has been generated.</p>
+<p>Consider translating <code>I love LLMs</code> and <code>LLMs love me</code>. Both tasks begin with the same target prefix, <code>&lt;start&gt;</code>, and use the same model. Why can their first French tokens be different?</p>
+<p>The English sentences produce different source memory. The decoder therefore has different source information to use when choosing the first French token, even though the starting target prefix is the same.</p>
+<figure id="figure3-source-comparison"><div class="plate"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 450" role="img" aria-labelledby="f3-title f3-desc"><title id="f3-title">Same start token, different source memory</title><desc id="f3-desc">Two tasks use the same model and the same start token. The source sentences I love LLMs and LLMs love me produce different source memory. The decoder uses that memory when choosing the first French token. J’aime and Les are illustrative choices.</desc><defs><marker id="f3-ink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="var(--fig-line,#16202B)"/></marker><marker id="f3-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="var(--h1c,#2E6F8E)"/></marker><marker id="f3-gold" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="var(--h2c,#B07D1A)"/></marker><marker id="f3-soft" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="var(--fig-soft,#5A6B7A)"/></marker></defs><g font-family="IBM Plex Mono, monospace"><text x="500" y="27" font-size="16" text-anchor="middle" fill="var(--fig-line,#16202B)">Same model and &lt;start&gt; token · different source sentences</text><path d="M500,50 V425" stroke="var(--rule,#D6DEE5)"/><text x="25" y="67" font-size="13" text-anchor="start" fill="var(--h1c,#2E6F8E)">CASE A</text><text x="130" y="105" font-size="15" text-anchor="middle" fill="var(--fig-line,#16202B)">I love LLMs</text><path d="M130,114 V139" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.6" marker-end="url(#f3-ink)"/><rect x="30" y="145" width="200" height="36" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><text x="130" y="169" font-size="14" text-anchor="middle" fill="var(--fig-line,#16202B)">encoder</text><path d="M130,187 V222" fill="none" stroke="var(--h2c,#B07D1A)" stroke-width="1.6" marker-end="url(#f3-gold)"/><rect x="25" y="228" width="210" height="88" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><text x="130" y="251" font-size="14" text-anchor="middle" fill="var(--h2c,#B07D1A)">Source memory A</text><rect x="43" y="270" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="55" y="270" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="67" y="270" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="79" y="270" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="108" y="270" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="120" y="270" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="132" y="270" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="144" y="270" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="173" y="270" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="185" y="270" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="197" y="270" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="209" y="270" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><path d="M241,272 H269" fill="none" stroke="var(--h2c,#B07D1A)" stroke-width="1.6" marker-end="url(#f3-gold)"/><rect x="275" y="228" width="200" height="88" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"/><text x="375" y="260" font-size="16" text-anchor="middle" fill="var(--h1c,#2E6F8E)">decoder</text><text x="375" y="286" font-size="13" text-anchor="middle" fill="var(--h1c,#2E6F8E)">+ token selection</text><rect x="320" y="370" width="110" height="32" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"/><text x="375" y="391" font-size="14" text-anchor="middle" fill="var(--fig-line,#16202B)">&lt;start&gt;</text><path d="M375,364 V322" fill="none" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6" marker-end="url(#f3-blue)"/><text x="375" y="424" font-size="12" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">same starting input</text><path d="M375,222 V165" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.6" marker-end="url(#f3-ink)"/><text x="375" y="111" font-size="12" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">Example first token</text><rect x="320" y="128" width="110" height="31" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-line,#16202B)" stroke-width="1.5"/><text x="375" y="150" font-size="15" text-anchor="middle" fill="var(--fig-line,#16202B)">J’aime</text><text x="525" y="67" font-size="13" text-anchor="start" fill="var(--h1c,#2E6F8E)">CASE B</text><text x="630" y="105" font-size="15" text-anchor="middle" fill="var(--fig-line,#16202B)">LLMs love me</text><path d="M630,114 V139" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.6" marker-end="url(#f3-ink)"/><rect x="530" y="145" width="200" height="36" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><text x="630" y="169" font-size="14" text-anchor="middle" fill="var(--fig-line,#16202B)">encoder</text><path d="M630,187 V222" fill="none" stroke="var(--h2c,#B07D1A)" stroke-width="1.6" marker-end="url(#f3-gold)"/><rect x="525" y="228" width="210" height="88" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><text x="630" y="251" font-size="14" text-anchor="middle" fill="var(--h2c,#B07D1A)">Source memory B</text><rect x="543" y="270" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="555" y="270" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="567" y="270" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="579" y="270" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="608" y="270" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="620" y="270" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="632" y="270" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="644" y="270" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="673" y="270" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="685" y="270" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="697" y="270" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><rect x="709" y="270" width="8" height="24" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.5"/><path d="M741,272 H769" fill="none" stroke="var(--h2c,#B07D1A)" stroke-width="1.6" marker-end="url(#f3-gold)"/><rect x="775" y="228" width="200" height="88" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"/><text x="875" y="260" font-size="16" text-anchor="middle" fill="var(--h1c,#2E6F8E)">decoder</text><text x="875" y="286" font-size="13" text-anchor="middle" fill="var(--h1c,#2E6F8E)">+ token selection</text><rect x="820" y="370" width="110" height="32" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5"/><text x="875" y="391" font-size="14" text-anchor="middle" fill="var(--fig-line,#16202B)">&lt;start&gt;</text><path d="M875,364 V322" fill="none" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6" marker-end="url(#f3-blue)"/><text x="875" y="424" font-size="12" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">same starting input</text><path d="M875,222 V165" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.6" marker-end="url(#f3-ink)"/><text x="875" y="111" font-size="12" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">Example first token</text><rect x="820" y="128" width="110" height="31" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-line,#16202B)" stroke-width="1.5"/><text x="875" y="150" font-size="15" text-anchor="middle" fill="var(--fig-line,#16202B)">Les</text></g></svg></div><figcaption><b>Figure 2.</b> The starting target prefix is <code>&lt;start&gt;</code> in both cases. Different source memory gives the decoder different information for choosing the first French token. <code>J’aime</code> and <code>Les</code> are illustrative choices.</figcaption></figure>
+<blockquote class="takeaway"><b>Key takeaway</b>The decoder uses two inputs together: the target prefix, which grows as French tokens are generated, and source memory, which carries information about the English sentence and stays fixed throughout its translation.</blockquote>
+<p><b>Try it (1 minute):</b> Begin a new translation with <code>LLMs love me</code> instead of <code>I love LLMs</code>. Before generating the first French token, which of the decoder’s two inputs changes, and which stays the same?</p>
+<details><summary>Check your answer</summary><p>Source memory changes because the encoder processes a different English sentence. The starting target prefix is still the single token <code>&lt;start&gt;</code>.</p></details>
+<p>We now know what goes into the decoder. What vectors come out, and which one is used to choose the next token?</p>
+<h2 id="s62"><span class="num">6.2</span>What does one decoder run produce?</h2>
+<p>On run 3 in Figure 1, we feed <code>&lt;start&gt; J’aime les</code> into the decoder: the start token followed by the French tokens generated so far. The decoder updates the vectors for these three tokens using information from the target prefix and source memory. When its calculations finish, we have three output vectors: one for <code>&lt;start&gt;</code>, one for <code>J’aime</code>, and one for <code>les</code>.</p>
+<p>These output vectors are called the decoder’s <b>final hidden states</b>. Here, “final” means that the decoder has finished its calculations for the current run. There is one such vector for each input token.</p>
+<p>The next step is to use one of these vectors to choose the next French token. Which vector should we use?</p>
+<h3 id="s621"><span class="num">6.2.1</span>Why use the vector for the last input token?</h3>
+<p>We already have <code>&lt;start&gt; J’aime les</code>. Our next task is to choose the token that comes after <code>les</code>.</p>
+<p>During training, the model learns to use the output vector at each position to predict the token immediately after that position. For this run, we therefore use the output vector for <code>les</code>.</p>
+<p>We send this vector to the <b>output head</b>, which computes a score for each possible next token. Although the vector belongs to the position of <code>les</code>, it can use information from the earlier French tokens through self-attention and the English source sentence through cross-attention.</p>
+<p>Arrange the output vectors as a matrix in the same order as the input tokens, with one vector per row. The vector for <code>les</code> is in the <b>last row</b>, highlighted in Figure 3.</p>
+<figure id="decoder-last-row"><div class="plate"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 205" role="img" aria-labelledby="last-row-title last-row-desc">
+<title id="last-row-title">Figure 3. The last row of the decoder output matrix</title>
+<desc id="last-row-desc">Three rows correspond to start, J’aime, and les in input order. Each row contains four schematic vector components. Only the last row, corresponding to les, is highlighted and connected to the output head.</desc>
+<defs><marker id="last-row-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="var(--h1c,#2E6F8E)"/></marker></defs>
+<g font-family="IBM Plex Mono, monospace">
+<text x="30" y="26" font-size="11" fill="var(--fig-soft,#5A6B7A)" text-anchor="start">Input token</text><text x="230" y="26" font-size="12" fill="var(--fig-line,#16202B)" text-anchor="middle">Final hidden states</text><g data-matrix-row="1"><text x="30" y="69" font-size="13" fill="var(--fig-soft,#5A6B7A)" text-anchor="start" font-family="IBM Plex Mono, monospace">&lt;start&gt;</text><path d="M108,65 H136" stroke="var(--fig-soft,#5A6B7A)" stroke-opacity="0.4" stroke-width="0.8"/><rect x="167" y="56" width="25" height="18" rx="2" fill="var(--fig-soft,#5A6B7A)" fill-opacity="0.09"/><rect x="202" y="56" width="25" height="18" rx="2" fill="var(--fig-soft,#5A6B7A)" fill-opacity="0.09"/><rect x="237" y="56" width="25" height="18" rx="2" fill="var(--fig-soft,#5A6B7A)" fill-opacity="0.09"/><rect x="272" y="56" width="25" height="18" rx="2" fill="var(--fig-soft,#5A6B7A)" fill-opacity="0.09"/></g><g data-matrix-row="2"><text x="30" y="109" font-size="13" fill="var(--fig-soft,#5A6B7A)" text-anchor="start" font-family="IBM Plex Mono, monospace">J’aime</text><path d="M108,105 H136" stroke="var(--fig-soft,#5A6B7A)" stroke-opacity="0.4" stroke-width="0.8"/><rect x="167" y="96" width="25" height="18" rx="2" fill="var(--fig-soft,#5A6B7A)" fill-opacity="0.09"/><rect x="202" y="96" width="25" height="18" rx="2" fill="var(--fig-soft,#5A6B7A)" fill-opacity="0.09"/><rect x="237" y="96" width="25" height="18" rx="2" fill="var(--fig-soft,#5A6B7A)" fill-opacity="0.09"/><rect x="272" y="96" width="25" height="18" rx="2" fill="var(--fig-soft,#5A6B7A)" fill-opacity="0.09"/></g><g data-matrix-row="3"><rect x="158" y="131" width="148" height="28" rx="4" fill="var(--h1c,#2E6F8E)" fill-opacity="0.07" stroke="var(--h1c,#2E6F8E)" stroke-width="0.7"/><text x="30" y="149" font-size="13" fill="var(--h1c,#2E6F8E)" text-anchor="start" font-family="IBM Plex Mono, monospace">les</text><path d="M108,145 H136" stroke="var(--h1c,#2E6F8E)" stroke-opacity="0.4" stroke-width="0.8"/><rect x="167" y="136" width="25" height="18" rx="2" fill="var(--h1c,#2E6F8E)" fill-opacity="0.2"/><rect x="202" y="136" width="25" height="18" rx="2" fill="var(--h1c,#2E6F8E)" fill-opacity="0.2"/><rect x="237" y="136" width="25" height="18" rx="2" fill="var(--h1c,#2E6F8E)" fill-opacity="0.2"/><rect x="272" y="136" width="25" height="18" rx="2" fill="var(--h1c,#2E6F8E)" fill-opacity="0.2"/></g><path d="M157,46 H149 V164 H157 M308,46 H316 V164 H308" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.1"/><text x="378" y="132" font-size="11" fill="var(--h1c,#2E6F8E)" text-anchor="middle">last row</text><path d="M329,145 H431" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2" fill="none" marker-end="url(#last-row-arrow)"/><rect x="444" y="129" width="126" height="32" rx="4" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1"/><text x="507" y="149" font-size="13" fill="var(--h1c,#2E6F8E)" text-anchor="middle">output head</text><text x="507" y="181" font-size="11" fill="var(--fig-soft,#5A6B7A)" text-anchor="middle">next-token scores</text><text x="230" y="190" font-size="11" fill="var(--fig-soft,#5A6B7A)" text-anchor="middle">one vector per row</text></g></svg></div><figcaption><b>Figure 3.</b> Output vectors in input order. The last row, for <code>les</code>, goes to the output head. Small cells represent vector components; numerical values are omitted.</figcaption></figure>
+<blockquote class="takeaway"><b>Key takeaway</b>Processing the full prefix produces one final hidden-state vector per input token. We use the vector for the last input token to choose the next token. This vector already incorporates information from the preceding tokens and the English source sentence.</blockquote>
+<p><b>Try it (1 minute):</b> The input is <code>&lt;start&gt; J’aime les grands</code>.</p>
+<ol>
+<li>How many final hidden-state vectors does the decoder produce?</li>
+<li>Which token’s vector goes to the output head?</li>
+<li>Does using that vector mean ignoring <code>J’aime</code>? Why or why not?</li>
+</ol>
+<details><summary>Check your answers</summary><ol>
+<li>Four—one for each input token.</li>
+<li>The vector for <code>grands</code>, the last input token.</li>
+<li>No. Through self-attention, the vector for <code>grands</code> can use information from the earlier tokens, including <code>J’aime</code>. Cross-attention also supplies source information.</li>
+</ol></details>
+<p>We now know which vector to use. But a vector contains numbers, not a token choice. How does the output head turn those numbers into scores for the possible next tokens?</p>
+<h2 id="s63"><span class="num">6.3</span>How does one vector become a token choice?</h2>
+<p>We already have <code>&lt;start&gt; J’aime les</code> and want to choose the token after <code>les</code>. Section 6.2 showed which vector to use: the decoder’s final hidden-state vector for <code>les</code>. We will call this vector \(\mathbf{h}\).</p>
+<p>For this worked example, suppose the decoder has produced:</p>
+\[\mathbf{h}=(1,\ 2,\ -1,\ 0.5).\]
+<p><b>The decoder’s output vector is the output head’s input.</b> The four numbers in \(\mathbf{h}\) are the starting point for our calculation. The vector and output weights below are illustrative values chosen for hand calculation.</p>
+<p>To choose the next token, the model first assigns a score to each token in its vocabulary. The <b>output head</b> computes these scores from \(\mathbf{h}\). We will calculate the scores, turn them into probabilities, and then select a token.</p>
+
+<h3 id="s631"><span class="num">6.3.1</span>Score each vocabulary token</h3>
+<p>The <b>vocabulary</b> is the set of tokens the model can choose from. Our small example uses six entries: <code>&lt;start&gt;</code>, <code>J’aime</code>, <code>les</code>, <code>grands</code>, <code>modèles</code>, and <code>&lt;end&gt;</code>. We will compute a score for every entry.</p>
+<p>Each score indicates how strongly the model favours a candidate as the next token. A higher score means a stronger preference.</p>
+<p>For this prediction, we use <b>the decoder’s final vector \(\mathbf{h}\) for <code>les</code></b>. The output head has <b>a learned weight vector for each candidate token</b>. On this run, all six candidates are scored using the same \(\mathbf{h}\), but each candidate has its own output weights. On the next run, the decoder computes a new \(\mathbf{h}\); the output weights stay fixed.</p>
+<p>Each output-weight vector contains four numbers to match the four components of \(\mathbf{h}\). To score a candidate, take the dot product of \(\mathbf{h}\) and that candidate’s weights: multiply matching components, then add the products.</p>
+<p>For <code>grands</code>, use the output weights \((1,1,0,0)\). Call its score \(z_{\text{grands}}\). The calculation is:</p>
+\[
+z_{\text{grands}}=(1)(1)+(2)(1)+(-1)(0)+(0.5)(0)=3.
+\]
+<p>The table applies the same calculation to all six candidates, always using the same input vector \(\mathbf{h}=(1,2,-1,0.5)\):</p>
+<div class="table-scroll"><table id="french-output-scores">
+<thead><tr><th>Candidate token</th><th>Output weights</th><th>Dot product with h</th><th>Score</th></tr></thead>
+<tbody>
+<tr data-candidate="start" data-output-weights="0,-1,0,0" data-logit="-2"><td><code>&lt;start&gt;</code></td><td>0, −1, 0, 0</td><td>2 × (−1)</td><td>−2</td></tr>
+<tr data-candidate="jaime" data-output-weights="0,0,1,0" data-logit="-1"><td><code>J’aime</code></td><td>0, 0, 1, 0</td><td>(−1) × 1</td><td>−1</td></tr>
+<tr data-candidate="les" data-output-weights="0,0,0,1" data-logit="0.5"><td><code>les</code></td><td>0, 0, 0, 1</td><td>0.5 × 1</td><td>0.5</td></tr>
+<tr data-candidate="grands" data-output-weights="1,1,0,0" data-logit="3"><td><code>grands</code></td><td>1, 1, 0, 0</td><td>1 + 2</td><td>3</td></tr>
+<tr data-candidate="modeles" data-output-weights="1,0,0,0" data-logit="1"><td><code>modèles</code></td><td>1, 0, 0, 0</td><td>1 × 1</td><td>1</td></tr>
+<tr data-candidate="end" data-output-weights="0,0,1,1" data-logit="-0.5"><td><code>&lt;end&gt;</code></td><td>0, 0, 1, 1</td><td>−1 + 0.5</td><td>−0.5</td></tr>
+</tbody></table></div>
+<p>These six scores are called <b>logits</b>. They are the output of the output head: one number for each vocabulary token. They can be negative and do not have to sum to one. The largest score here belongs to <code>grands</code>.</p>
+
+<h4>Compute all six scores with one matrix multiplication</h4>
+<p>Place each candidate’s output-weight vector in a column of a matrix called \(\mathbf{W}_{\text{out}}\). Keep the same candidate order as the table:</p>
+\[
+\mathbf{W}_{\text{out}}=
+\begin{bmatrix}
+0 &amp; 0 &amp; 0 &amp; 1 &amp; 1 &amp; 0\\
+-1 &amp; 0 &amp; 0 &amp; 1 &amp; 0 &amp; 0\\
+0 &amp; 1 &amp; 0 &amp; 0 &amp; 0 &amp; 1\\
+0 &amp; 0 &amp; 1 &amp; 0 &amp; 0 &amp; 1
+\end{bmatrix}.
+\]
+<p>Collect the six scores into a vector called \(\mathbf{z}\), keeping the vocabulary order shown in the table. Each entry of \(\mathbf{z}\) corresponds to one candidate token. Multiplying \(\mathbf{h}\) by the weight matrix computes all six scores at once:</p>
+\[
+\mathbf{z}=\mathbf{h}\mathbf{W}_{\text{out}}
+=(1,2,-1,0.5)\mathbf{W}_{\text{out}}
+=(-2,\ -1,\ 0.5,\ 3,\ 1,\ -0.5). \tag{6-1}
+\]
+<p>The dimensions show what changes: a <span class="shape">1 × 4</span> input vector multiplied by a <span class="shape">4 × 6</span> weight matrix gives <span class="shape">1 × 6</span> logits. The four entries of \(\mathbf{h}\) describe the decoder’s hidden state; the six entries of \(\mathbf{z}\) score the six candidate tokens.</p>
+
+<h3 id="s632"><span class="num">6.3.2</span>Turn logits into probabilities</h3>
+<p><b>Softmax</b> takes all six logits together and converts them into probabilities. First, exponentiate each score. Then divide each result by the sum of all six exponentials.</p>
+<p>For candidate token \(j\), let \(z_j\) be its logit and \(p_j\) its probability. With \(V=6\) vocabulary entries:</p>
+\[p_j=\frac{e^{z_j}}{\sum_{k=1}^{V}e^{z_k}}.\]
+<p>Every candidate uses the same denominator:</p>
+\[
+\begin{aligned}
+S &amp;=e^{-2}+e^{-1}+e^{0.5}+e^3+e^1+e^{-0.5}\\
+  &amp;\approx25.562285.
+\end{aligned}
+\]
+<p>For <code>grands</code>, divide the exponential of its score, 3, by this total:</p>
+\[p_{\text{grands}}=\frac{e^3}{S}\approx\frac{20.085537}{25.562285}\approx0.7857.\]
+<p>Repeating that division for each candidate gives:</p>
+<div class="table-scroll"><table id="french-output-probabilities">
+<thead><tr><th>Candidate token</th><th>Logit</th><th>Exponential</th><th>Probability</th></tr></thead>
+<tbody>
+<tr data-candidate="start"><td><code>&lt;start&gt;</code></td><td>−2</td><td>0.1353</td><td>0.0053</td></tr>
+<tr data-candidate="jaime"><td><code>J’aime</code></td><td>−1</td><td>0.3679</td><td>0.0144</td></tr>
+<tr data-candidate="les"><td><code>les</code></td><td>0.5</td><td>1.6487</td><td>0.0645</td></tr>
+<tr data-candidate="grands"><td><code>grands</code></td><td>3</td><td>20.0855</td><td><b>0.7857</b></td></tr>
+<tr data-candidate="modeles"><td><code>modèles</code></td><td>1</td><td>2.7183</td><td>0.1063</td></tr>
+<tr data-candidate="end"><td><code>&lt;end&gt;</code></td><td>−0.5</td><td>0.6065</td><td>0.0237</td></tr>
+</tbody></table></div>
+<p>The probabilities sum to one before rounding. Keep full precision in the calculation; the table displays four decimal places. The value 0.7857 is the probability assigned to <code>grands</code> in this example.</p>
+
+<h4 id="s632-select">Choose the next token</h4>
+<p>Softmax gives us six probabilities. To select a token, this example uses <b>greedy selection</b>: choose the token with the largest probability. That token is <code>grands</code>, with probability about 0.7857.</p>
+<p>Softmax preserves the order of the scores, so greedy selection could also choose the largest logit directly. Calculating the probabilities lets us see how the score for <code>grands</code> compares with all the other candidates.</p>
+<figure id="figure4-output-head"><div class="plate"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 485" role="img" aria-labelledby="f4-title f4-desc">
+<title id="f4-title">Figure 4. From the decoder vector for les to the next token grands</title>
+<desc id="f4-desc">The decoder output vector h equals 1, 2, minus 1, 0.5. This vector is the input to the output head, which multiplies h by the output-weight matrix W out. A separate output table lists six logits in vocabulary order: minus 2, minus 1, 0.5, 3, 1, minus 0.5. All six go into softmax with denominator approximately 25.562285. The largest probability is approximately 0.7857 for grands; greedy selection chooses grands.</desc>
+<defs><marker id="arrow-f4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="var(--h1c,#2E6F8E)"/></marker></defs>
+<g font-family="IBM Plex Mono, monospace">
+<text x="20" y="26" font-size="12" fill="var(--fig-soft,#5A6B7A)" text-anchor="start">Decoder output for les</text><rect x="20" y="40" width="205" height="40" rx="4" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1"/><text x="122.5" y="65" font-size="13" fill="var(--fig-line,#16202B)" text-anchor="middle">h = (1, 2, −1, 0.5)</text><text x="245" y="65" font-size="12" fill="var(--h1c,#2E6F8E)" text-anchor="start">This is the output head’s input.</text><path data-flow="hidden-state-to-output-head" d="M122.5,86 L122.5,99" fill="none" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2" marker-end="url(#arrow-f4)"/><rect x="20" y="105" width="205" height="40" rx="4" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1"/>
+<text x="32" y="121" font-size="12" fill="var(--h1c,#2E6F8E)">1 · Output head</text>
+<text x="122.5" y="138" font-size="12" fill="var(--fig-line,#16202B)" text-anchor="middle">z = h W<tspan baseline-shift="sub" font-size="9">out</tspan></text>
+<path data-flow="output-head-to-logits" d="M122.5,151 L122.5,174" fill="none" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2" marker-end="url(#arrow-f4)"/>
+<g transform="translate(0,30)"><rect x="20" y="150" width="205" height="200" rx="4" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"/><rect x="287" y="150" width="210" height="200" rx="4" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"/><rect x="559" y="150" width="201" height="200" rx="4" fill="var(--fig-fill,#FFFFFF)" stroke="var(--rule,#D6DEE5)" stroke-width="1"/><text x="32" y="174" font-size="12" fill="var(--h1c,#2E6F8E)" text-anchor="start">Output: six logits</text><text x="32" y="201" font-size="11" fill="var(--fig-soft,#5A6B7A)" text-anchor="start">Token</text><text x="211" y="201" font-size="11" fill="var(--fig-soft,#5A6B7A)" text-anchor="end">Logit</text><text x="300" y="174" font-size="13" fill="var(--h1c,#2E6F8E)" text-anchor="start">2 · Softmax</text><text x="392" y="218" font-size="12" fill="var(--fig-line,#16202B)" text-anchor="middle">Use all six logits.</text><text x="392" y="250" font-size="12" fill="var(--fig-line,#16202B)" text-anchor="middle">p = exp(logit) / S</text><text x="392" y="280" font-size="12" fill="var(--fig-soft,#5A6B7A)" text-anchor="middle">S ≈ 25.562285</text><text x="571" y="174" font-size="13" fill="var(--h1c,#2E6F8E)" text-anchor="start">Probabilities</text><text x="571" y="201" font-size="11" fill="var(--fig-soft,#5A6B7A)" text-anchor="start">Token</text><text x="746" y="201" font-size="11" fill="var(--fig-soft,#5A6B7A)" text-anchor="end">p</text><text x="32" y="225" font-size="12" fill="var(--fig-line,#16202B)" text-anchor="start">&lt;start&gt;</text><text x="211" y="225" font-size="12" fill="var(--fig-line,#16202B)" text-anchor="end">−2</text><text x="571" y="225" font-size="12" fill="var(--fig-line,#16202B)" text-anchor="start">&lt;start&gt;</text><text x="746" y="225" font-size="12" fill="var(--fig-line,#16202B)" text-anchor="end">0.0053</text><text x="32" y="247" font-size="12" fill="var(--fig-line,#16202B)" text-anchor="start">J’aime</text><text x="211" y="247" font-size="12" fill="var(--fig-line,#16202B)" text-anchor="end">−1</text><text x="571" y="247" font-size="12" fill="var(--fig-line,#16202B)" text-anchor="start">J’aime</text><text x="746" y="247" font-size="12" fill="var(--fig-line,#16202B)" text-anchor="end">0.0144</text><text x="32" y="269" font-size="12" fill="var(--fig-line,#16202B)" text-anchor="start">les</text><text x="211" y="269" font-size="12" fill="var(--fig-line,#16202B)" text-anchor="end">0.5</text><text x="571" y="269" font-size="12" fill="var(--fig-line,#16202B)" text-anchor="start">les</text><text x="746" y="269" font-size="12" fill="var(--fig-line,#16202B)" text-anchor="end">0.0645</text><rect x="27" y="276" width="191" height="20" rx="2" fill="var(--h1c,#2E6F8E)" fill-opacity="0.08"/><rect x="566" y="276" width="187" height="20" rx="2" fill="var(--h1c,#2E6F8E)" fill-opacity="0.08"/><text x="32" y="291" font-size="12" fill="var(--h1c,#2E6F8E)" text-anchor="start">grands</text><text x="211" y="291" font-size="12" fill="var(--h1c,#2E6F8E)" text-anchor="end">3</text><text x="571" y="291" font-size="12" fill="var(--h1c,#2E6F8E)" text-anchor="start">grands</text><text x="746" y="291" font-size="12" fill="var(--h1c,#2E6F8E)" text-anchor="end">0.7857</text><text x="32" y="313" font-size="12" fill="var(--fig-line,#16202B)" text-anchor="start">modèles</text><text x="211" y="313" font-size="12" fill="var(--fig-line,#16202B)" text-anchor="end">1</text><text x="571" y="313" font-size="12" fill="var(--fig-line,#16202B)" text-anchor="start">modèles</text><text x="746" y="313" font-size="12" fill="var(--fig-line,#16202B)" text-anchor="end">0.1063</text><text x="32" y="335" font-size="12" fill="var(--fig-line,#16202B)" text-anchor="start">&lt;end&gt;</text><text x="211" y="335" font-size="12" fill="var(--fig-line,#16202B)" text-anchor="end">−0.5</text><text x="571" y="335" font-size="12" fill="var(--fig-line,#16202B)" text-anchor="start">&lt;end&gt;</text><text x="746" y="335" font-size="12" fill="var(--fig-line,#16202B)" text-anchor="end">0.0237</text><path data-flow="all-logits-to-softmax" d="M233,250 L279,250" fill="none" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2" marker-end="url(#arrow-f4)"/><path data-flow="softmax-to-probabilities" d="M505,250 L551,250" fill="none" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2" marker-end="url(#arrow-f4)"/><path data-flow="probabilities-to-selection" d="M659.5,356 L659.5,394" fill="none" stroke="var(--h1c,#2E6F8E)" stroke-width="1.2" marker-end="url(#arrow-f4)"/><text x="310" y="422" font-size="13" fill="var(--h1c,#2E6F8E)" text-anchor="start">3 · Greedy selection</text><text x="310" y="443" font-size="11" fill="var(--fig-soft,#5A6B7A)" text-anchor="start">Choose the largest probability.</text><rect x="559" y="400" width="201" height="36" rx="4" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1"/><text x="659.5" y="423" font-size="14" fill="var(--h1c,#2E6F8E)" text-anchor="middle">grands</text></g></g></svg></div><figcaption><b>Figure 4.</b> The output head multiplies the decoder’s vector for <code>les</code> by \(\mathbf{W}_{\text{out}}\), producing six logits. Softmax converts them into six probabilities; greedy selection chooses <code>grands</code>. The vector and weights are illustrative, and probabilities are rounded.</figcaption></figure>
+<p>We have now selected <code>grands</code>. Append it to the existing tokens, giving <code>&lt;start&gt; J’aime les grands</code> as the input for the next run.</p>
+<details><summary>Optional: computing softmax without very large exponentials</summary><p>Subtract the largest logit \(m\) before exponentiating: \(p_j=e^{z_j-m}/\sum_k e^{z_k-m}\). The shared factor cancels, so the probabilities are unchanged. Here \(m=3\); the shifted logits are \((-5,-4,-2.5,0,-2,-3.5)\). This form helps avoid numerical overflow.</p></details>
+
+<details id="s633"><summary>Extra practice: use the same weights on the next run</summary>
+<p>The next input is <code>&lt;start&gt; J’aime les grands</code>. Suppose the decoder’s final vector for <code>grands</code> is now \(\mathbf{h}'=(2,-1,0,0)\). This is another illustrative vector. Keep the output weights fixed. Calculate all six logits and identify the greedy choice.</p>
+<details><summary>Check the calculation</summary>
+<p>In the same vocabulary order, the logits are \((1,0,0,1,2,0)\). The largest score is 2 for <code>modèles</code>, so greedy selection chooses <code>modèles</code>. Softmax would give approximately \((0.1718,0.0632,0.0632,0.1718,0.4669,0.0632)\); it preserves that ordering.</p>
+<p>The decoder supplies a new hidden-state vector on each run, while the learned output weights stay fixed during generation.</p>
+</details></details>
+
+<h3 id="s634"><span class="num">6.3.3</span>Why reuse the embedding table?</h3>
+<p>We used \((1,1,0,0)\) as the output weights for <code>grands</code>. The decoder also needs an <b>embedding vector</b> to represent <code>grands</code> when that token appears in its input.</p>
+<p>With <b>weight tying</b>, one learned vector serves both roles. If we tie the weights in this example, \((1,1,0,0)\) is both the input embedding for <code>grands</code> and the output-weight vector used to score <code>grands</code>.</p>
+<p>This sharing connects the <b>input embedding weights</b> and the <b>output weights</b>. The hidden-state vector \(\mathbf{h}\) is computed by the decoder from the current input tokens and source memory. It changes with the context, while the shared weights stay fixed during generation.</p>
+<p>Let \(\mathbf{E}\) be the decoder’s input embedding table. Each token’s embedding occupies one row. At input, its token ID selects that row. With weight tying, the output head uses that same row as the candidate’s output weights.</p>
+<p>Our scoring matrix \(\mathbf{W}_{\text{out}}\) stores candidate weights in columns. Transposing \(\mathbf{E}\) puts its rows into those columns, so weight tying gives:</p>
+\[\mathbf{W}_{\text{out}}=\mathbf{E}^{\top},\qquad \mathbf{z}=\mathbf{h}\mathbf{E}^{\top}.\]
+<p>If we use weight tying in this example, the six vectors in the scoring table are also the rows of \(\mathbf{E}\). Thus \(\mathbf{E}\) has shape <span class="shape">6 × 4</span>, and \(\mathbf{E}^{\top}\) has shape <span class="shape">4 × 6</span>. The dot products and logits remain exactly the ones calculated above.</p>
+<p>Sharing the weights saves parameters compared with learning a separate output matrix. With \(d_{\text{model}}\) numbers per vector and \(V\) vocabulary entries, it saves \(d_{\text{model}}V\) matrix parameters. For example, \(512\times37{,}000=18{,}944{,}000\).</p>
+<details><summary>Optional: separate output weights and an output bias</summary><p>A model without weight tying learns \(\mathbf{W}_{\text{out}}\) separately from the input embedding table. Either design may also add an output bias \(\mathbf{b}\), giving \(\mathbf{z}=\mathbf{h}\mathbf{W}_{\text{out}}+\mathbf{b}\). Our worked calculation omits the bias.</p></details>
+
+<blockquote class="takeaway"><b>Key takeaway</b>The vector for <code>les</code> is the output head’s input. The output head produces one logit per vocabulary token. Softmax turns the logits into probabilities, and greedy selection chooses <code>grands</code> in this example. Weight tying reuses the decoder’s input embeddings as output weights.</blockquote>
+<p><b>Try it (3 minutes):</b></p>
+<ol>
+<li>What do the four numbers in \(\mathbf{h}\) represent? What do the six numbers in \(\mathbf{z}\) represent?</li>
+<li>Suppose a later run produces \(\mathbf{h}=(0,0,1,1)\). Use the same output weights to calculate all six logits. Which token does greedy selection choose, and what should the generation code do?</li>
+<li>If the vocabulary grew to eight entries while each hidden-state vector still had four numbers, what would be the shape of \(\mathbf{W}_{\text{out}}\)? How many logits would it produce?</li>
+</ol>
+<details><summary>Check your answers</summary><ol>
+<li>\(\mathbf{h}\) contains the four components of the decoder’s final vector for the last input token. \(\mathbf{z}\) contains six logits, one for each vocabulary token.</li>
+<li>In the table’s vocabulary order, the logits are \((0,1,1,0,0,2)\). The largest belongs to <code>&lt;end&gt;</code>, so greedy selection chooses it and generation stops.</li>
+<li>\(\mathbf{W}_{\text{out}}\) would have shape <span class="shape">4 × 8</span>. Multiplying a <span class="shape">1 × 4</span> hidden-state vector by it would produce eight logits.</li>
+</ol></details>
+<p>We have worked through one choice: selecting <code>grands</code> after <code>J’aime les</code>. Section 6.4 follows the complete translation, from the initial <code>&lt;start&gt;</code> to the end token.</p>
+<h2 id="s64"><span class="num">6.4</span>How does the model generate a complete translation?</h2>
+<p>Section 6.3 showed how to choose one token. To generate a complete translation, we add the selected token to the target prefix and run the decoder again.</p>
+<p>The encoder processes the English sentence once. The same source memory is used on every decoder run; the target prefix changes as new French tokens are selected. The model weights stay fixed throughout generation.</p>
+<h3 id="s641"><span class="num">6.4.1</span>Start, select, append, and repeat</h3>
+<p>Before the first run, no French tokens have been generated. Begin with the single token <code>&lt;start&gt;</code>, which lets the decoder compute a vector for choosing the first French token.</p>
+<ol>
+<li><b>Read the prefix.</b> Take <code>&lt;start&gt;</code> and all French tokens generated so far as this run’s target input.</li>
+<li><b>Compute the vectors.</b> Represent the input tokens with embeddings and positional information, then run the decoder with source memory. This produces one final hidden-state vector per input token.</li>
+<li><b>Select a token.</b> Apply the output head to the vector for the last input token. Greedy selection chooses the token with the largest score; as Section 6.3 showed, softmax gives the same ranking.</li>
+<li><b>Append or stop.</b> The special token <code>&lt;end&gt;</code> tells the generation code to stop. Otherwise, append the selected token to the target prefix and begin the next run.</li>
+</ol>
+<p>For example, run 1 takes <code>&lt;start&gt;</code> as its input and selects <code>J’aime</code>. Append that token: run 2 now takes <code>&lt;start&gt; J’aime</code> as its input and selects the next token.</p>
+<p>Figure 5 lets you follow the complete translation. Each run is shown in the same four steps: read the prefix, compute the vectors, select a token, and append or stop. The demonstration processes the whole prefix again on each run.</p>
+<figure id="figure2-walkthrough">
+        <aside class="gloss" aria-label="Reading the vectors in Figure 5"><b>Reading the vectors:</b> one group of four bars represents one vector. The groups above the decoder are its <b>final hidden states</b>. The highlighted group belongs to the last input token. Inside the decoder, the lower groups labelled Values supply self-attention. The internal path follows the last input token; the other final hidden-state vectors are also computed. The gold arrow brings source memory into cross-attention. Parts 7 and 8 explain the attention calculations in detail.</aside>
+        <div class="f2-workspace">
+        <div class="f2-controls" data-f2="controls" hidden>
+          <div class="f2-toolbar" role="group" aria-label="Figure 5 manual navigation">
+            <button type="button" data-f2="previous">Previous step</button>
+            <button type="button" data-f2="next">Next step</button>
+            <button type="button" data-f2="restart">Restart</button>
+          </div>
+          <div class="f2-runs" role="group" aria-label="Jump to a generation run">
+            <span>Jump to:</span>
+            <button type="button" data-f2-run="1" aria-pressed="true">Run 1</button>
+            <button type="button" data-f2-run="2" aria-pressed="false">Run 2</button>
+            <button type="button" data-f2-run="3" aria-pressed="false">Run 3</button>
+            <button type="button" data-f2-run="4" aria-pressed="false">Run 4</button>
+            <button type="button" data-f2-run="5" aria-pressed="false">Run 5</button>
+          </div>
+          <ol class="f2-stages" aria-label="Steps within each run">
+            <li><button type="button" data-f2-stage="0">Read the prefix</button></li><li><button type="button" data-f2-stage="1">Compute the vectors</button></li><li><button type="button" data-f2-stage="2">Select a token</button></li><li><button type="button" data-f2-stage="3">Append or stop</button></li>
+          </ol>
+        </div>
+        <div class="plate"><svg data-f2="svg" role="img" aria-label="Run 5, append or stop: the decoder produces five vectors. The output head uses the vector for modèles, and token selection chooses the end marker. Generation stops after four French tokens." xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 710"><defs><marker id="f2-step-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="var(--fig-soft,#5A6B7A)"></path></marker><marker id="f2-context-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="var(--h1c,#2E6F8E)"></path></marker><marker id="f2-source-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="var(--h2c,#B07D1A)"></path></marker></defs><g font-family="IBM Plex Mono, monospace"><text x="30" y="30" font-size="15" text-anchor="start" fill="var(--h2c,#B07D1A)">SOURCE MEMORY · FIXED</text><text x="30" y="62" font-size="14" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">3 source tokens → 3 vectors</text><text x="30" y="95" font-size="13" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">One bar group = one vector / row</text><rect x="38" y="282" width="74" height="32" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-line,#16202B)" stroke-width="1.6"></rect><text x="75" y="303" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">I</text><path d="M75,276 L75,258" stroke="var(--fig-line,#16202B)" stroke-width="1.5" fill="none" marker-end="url(#f2-step-arrow)"></path><path d="M75,206 L75,192" stroke="var(--fig-line,#16202B)" stroke-width="1.5" fill="none" marker-end="url(#f2-step-arrow)"></path><rect x="50" y="160" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.6"></rect><rect x="63" y="160" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.6"></rect><rect x="76" y="160" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.6"></rect><rect x="89" y="160" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.6"></rect><rect x="128" y="282" width="74" height="32" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-line,#16202B)" stroke-width="1.6"></rect><text x="165" y="303" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">love</text><path d="M165,276 L165,258" stroke="var(--fig-line,#16202B)" stroke-width="1.5" fill="none" marker-end="url(#f2-step-arrow)"></path><path d="M165,206 L165,192" stroke="var(--fig-line,#16202B)" stroke-width="1.5" fill="none" marker-end="url(#f2-step-arrow)"></path><rect x="140" y="160" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.6"></rect><rect x="153" y="160" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.6"></rect><rect x="166" y="160" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.6"></rect><rect x="179" y="160" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.6"></rect><rect x="218" y="282" width="74" height="32" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-line,#16202B)" stroke-width="1.6"></rect><text x="255" y="303" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">LLMs</text><path d="M255,276 L255,258" stroke="var(--fig-line,#16202B)" stroke-width="1.5" fill="none" marker-end="url(#f2-step-arrow)"></path><path d="M255,206 L255,192" stroke="var(--fig-line,#16202B)" stroke-width="1.5" fill="none" marker-end="url(#f2-step-arrow)"></path><rect x="230" y="160" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.6"></rect><rect x="243" y="160" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.6"></rect><rect x="256" y="160" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.6"></rect><rect x="269" y="160" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.6"></rect><rect x="30" y="212" width="270" height="40" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.6"></rect><text x="165" y="237" font-size="14" text-anchor="middle" fill="var(--fig-line,#16202B)">encoder · already run</text><text x="165" y="136" font-size="13" text-anchor="middle" fill="var(--h2c,#B07D1A)">same three vectors on every run</text><text x="30" y="331" font-size="13" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">Source length stays at 3.</text><path d="M318,20 L318,700" stroke="var(--rule,#D6DEE5)" fill="none"></path><text x="360" y="30" font-size="15" text-anchor="start" fill="var(--h1c,#2E6F8E)">DECODER · RUN 5 OF 5</text><rect x="360" y="222" width="700" height="300" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><path class="f2-context-flow" data-attention-position="1" d="M450,474 L890,428" fill="none" stroke="var(--h1c,#2E6F8E)" stroke-width="1.7" marker-end="url(#f2-context-arrow)"></path><rect x="425" y="480" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><rect x="438" y="480" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><rect x="451" y="480" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><rect x="464" y="480" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><path class="f2-context-flow" data-attention-position="2" d="M560,474 L890,428" fill="none" stroke="var(--h1c,#2E6F8E)" stroke-width="1.7" marker-end="url(#f2-context-arrow)"></path><rect x="535" y="480" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><rect x="548" y="480" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><rect x="561" y="480" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><rect x="574" y="480" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><path class="f2-context-flow" data-attention-position="3" d="M670,474 L890,428" fill="none" stroke="var(--h1c,#2E6F8E)" stroke-width="1.7" marker-end="url(#f2-context-arrow)"></path><rect x="645" y="480" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><rect x="658" y="480" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><rect x="671" y="480" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><rect x="684" y="480" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><path class="f2-context-flow" data-attention-position="4" d="M780,474 L890,428" fill="none" stroke="var(--h1c,#2E6F8E)" stroke-width="1.7" marker-end="url(#f2-context-arrow)"></path><rect x="755" y="480" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><rect x="768" y="480" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><rect x="781" y="480" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><rect x="794" y="480" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><path class="f2-context-flow" data-attention-position="5" d="M890,474 L890,428" fill="none" stroke="var(--h1c,#2E6F8E)" stroke-width="1.7" marker-end="url(#f2-context-arrow)"></path><rect x="865" y="480" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><rect x="878" y="480" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><rect x="891" y="480" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><rect x="904" y="480" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><text x="370" y="496" font-size="14" text-anchor="start" fill="var(--h1c,#2E6F8E)">Values</text><rect x="825" y="382" width="130" height="40" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><text x="890" y="398" font-size="13" text-anchor="middle" fill="var(--h1c,#2E6F8E)">self-attention</text><text x="890" y="415" font-size="13" text-anchor="middle" fill="var(--h1c,#2E6F8E)">weighted mix</text><path d="M890,376 L890,336" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5" fill="none" marker-end="url(#f2-step-arrow)"></path><text x="898" y="360" font-size="13" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">Add &amp; Norm</text><rect x="804" y="294" width="172" height="36" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.6"></rect><text x="890" y="317" font-size="14" text-anchor="middle" fill="var(--h2c,#B07D1A)">cross-attention</text><path data-source-bundle="true" d="M50,156 L50,150 L279,150 L279,156 M279,150 L330,150 L330,312 L798,312" fill="none" stroke="var(--h2c,#B07D1A)" stroke-width="1.5" marker-end="url(#f2-source-arrow)"></path><path d="M890,288 L890,278" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5" fill="none" marker-end="url(#f2-step-arrow)"></path><rect x="810" y="232" width="160" height="40" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><text x="890" y="249" font-size="14" text-anchor="middle" fill="var(--h1c,#2E6F8E)">remaining decoder</text><text x="890" y="266" font-size="14" text-anchor="middle" fill="var(--h1c,#2E6F8E)">computations</text><path d="M890,226 L890,217" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5" fill="none" marker-end="url(#f2-step-arrow)"></path><text x="365" y="190" font-size="14" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">Final</text><text x="365" y="207" font-size="14" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">states</text><rect x="405" y="540" width="90" height="30" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><text x="450" y="560" font-size="14" text-anchor="middle" fill="var(--fig-line,#16202B)">&lt;start&gt;</text><g data-context-position="1"><path d="M450,534 L450,512" stroke="var(--fig-line,#16202B)" stroke-width="1.5" fill="none" marker-end="url(#f2-step-arrow)"></path></g><g data-hidden-state="1"><path d="M450,220 L450,217" stroke="var(--fig-line,#16202B)" stroke-width="1.5" fill="none" marker-end="url(#f2-step-arrow)"></path><rect x="425" y="185" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.6"></rect><rect x="438" y="185" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.6"></rect><rect x="451" y="185" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.6"></rect><rect x="464" y="185" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.6"></rect></g><rect x="515" y="540" width="90" height="30" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><text x="560" y="560" font-size="14" text-anchor="middle" fill="var(--fig-line,#16202B)">J’aime</text><g data-context-position="2"><path d="M560,534 L560,512" stroke="var(--fig-line,#16202B)" stroke-width="1.5" fill="none" marker-end="url(#f2-step-arrow)"></path></g><g data-hidden-state="2"><path d="M560,220 L560,217" stroke="var(--fig-line,#16202B)" stroke-width="1.5" fill="none" marker-end="url(#f2-step-arrow)"></path><rect x="535" y="185" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.6"></rect><rect x="548" y="185" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.6"></rect><rect x="561" y="185" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.6"></rect><rect x="574" y="185" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.6"></rect></g><rect x="625" y="540" width="90" height="30" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><text x="670" y="560" font-size="14" text-anchor="middle" fill="var(--fig-line,#16202B)">les</text><g data-context-position="3"><path d="M670,534 L670,512" stroke="var(--fig-line,#16202B)" stroke-width="1.5" fill="none" marker-end="url(#f2-step-arrow)"></path></g><g data-hidden-state="3"><path d="M670,220 L670,217" stroke="var(--fig-line,#16202B)" stroke-width="1.5" fill="none" marker-end="url(#f2-step-arrow)"></path><rect x="645" y="185" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.6"></rect><rect x="658" y="185" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.6"></rect><rect x="671" y="185" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.6"></rect><rect x="684" y="185" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.6"></rect></g><rect x="735" y="540" width="90" height="30" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><text x="780" y="560" font-size="14" text-anchor="middle" fill="var(--fig-line,#16202B)">grands</text><g data-context-position="4"><path d="M780,534 L780,512" stroke="var(--fig-line,#16202B)" stroke-width="1.5" fill="none" marker-end="url(#f2-step-arrow)"></path></g><g data-hidden-state="4"><path d="M780,220 L780,217" stroke="var(--fig-line,#16202B)" stroke-width="1.5" fill="none" marker-end="url(#f2-step-arrow)"></path><rect x="755" y="185" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.6"></rect><rect x="768" y="185" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.6"></rect><rect x="781" y="185" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.6"></rect><rect x="794" y="185" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-soft,#5A6B7A)" stroke-width="1.6"></rect></g><rect x="845" y="540" width="90" height="30" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><text x="890" y="560" font-size="14" text-anchor="middle" fill="var(--fig-line,#16202B)">modèles</text><g data-context-position="5"><path d="M890,534 L890,512" stroke="var(--fig-line,#16202B)" stroke-width="1.5" fill="none" marker-end="url(#f2-step-arrow)"></path></g><g data-hidden-state="5"><rect x="865" y="185" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><rect x="878" y="185" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><rect x="891" y="185" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><rect x="904" y="185" width="10" height="26" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect></g><text x="360" y="595" font-size="14" text-anchor="start" fill="var(--h1c,#2E6F8E)">This run’s input · 5 positions</text><text x="360" y="620" font-size="13" text-anchor="start" fill="var(--h1c,#2E6F8E)">STOP · no next run</text><path data-last-row-label="true" d="M922,198 L938,198" stroke="var(--h1c,#2E6F8E)" fill="none"></path><text x="945" y="202" font-size="13" text-anchor="start" fill="var(--h1c,#2E6F8E)">last row</text><path d="M890,179 L890,152" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5" fill="none" marker-end="url(#f2-step-arrow)"></path><rect x="810" y="108" width="160" height="38" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><text x="890" y="124" font-size="14" text-anchor="middle" fill="var(--fig-line,#16202B)">output head</text><text x="890" y="140" font-size="13" text-anchor="middle" fill="var(--fig-line,#16202B)">+ token selection</text><path d="M890,102 L890,92" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5" fill="none" marker-end="url(#f2-step-arrow)"></path><rect x="845" y="58" width="90" height="28" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"></rect><text x="890" y="78" font-size="15" text-anchor="middle" fill="var(--h1c,#2E6F8E)">&lt;end&gt;</text><text x="890" y="48" font-size="13" text-anchor="middle" fill="var(--h1c,#2E6F8E)">NEW SELECTION</text></g><foreignObject x="24" y="344" width="280" height="286"><div xmlns="http://www.w3.org/1999/xhtml" class="f2-inset" aria-live="polite" aria-atomic="true"><p class="f2-status" data-f2="status">Run 5 / 5 · Step 4 / 4 — Append or stop</p><p data-f2="explanation">The selected token is &lt;end&gt;, so generation stops. The displayed translation contains the four French tokens.</p></div></foreignObject></svg></div>
+        <div class="f2-transcript">
+          <p class="f2-transcript-label">Translation written so far</p>
+          <div data-f2="translation"><span class="f2-token">J’aime</span><span class="f2-token">les</span><span class="f2-token">grands</span><span class="f2-token">modèles</span></div>
+          <p class="f2-result" data-f2="result">Finished · &lt;end&gt; is not added to the translation.</p>
+        </div>
+        <div class="f2-toolbar f2-bottom-controls" data-f2="controls-bottom" role="group" aria-label="Figure 5 manual navigation below diagram" hidden>
+          <button type="button" data-f2="previous-bottom">Previous step</button>
+          <button type="button" data-f2="next-bottom">Next step</button>
+        </div>
+        </div>
+        <figcaption><b>Figure 5.</b> Each run is shown in four steps. Follow one run at a time with the step buttons, or jump to a run or stage. Blue arrows show how target-prefix information reaches the last token’s self-attention calculation; the gold arrow supplies cross-attention with source memory. Each view waits for your next action. The token choices illustrate the loop; Section 6.3 works through the choice of <code>grands</code> on run 3.</figcaption>
+        <div class="f2-mechanism"><p><b>What to notice in Figure 5</b></p>
+          <p>On run 4, the decoder uses <code>&lt;start&gt; J’aime les grands</code> together with the English source information to help choose <code>modèles</code>. The vector for <code>grands</code> can use the earlier French tokens too. Follow how the input grows from one run to the next; Parts 7 and 8 explain the attention calculations inside the decoder.</p>
+        </div>
+        <div class="f2-summary"><h4>All five runs</h4>
+          <p>Read each row from left to right: the decoder processes the input tokens, produces one final hidden-state row per input token, and uses the last row to select the next token. That new token joins the input for the <em>next</em> run; selecting it does not add a row to the hidden states already computed. The source memory stays fixed at three rows throughout.</p>
+          <div class="table-scroll"><table>
+            <thead><tr><th>Run</th><th>Input tokens at the start of this run</th><th>Hidden-state rows produced in this run</th><th>Token selected after this computation</th><th>What happens next</th></tr></thead>
+            <tbody>
+              <tr><td>1</td><td><code>&lt;start&gt;</code></td><td>1</td><td>J’aime</td><td>Append J’aime; include it in run 2.</td></tr>
+              <tr><td>2</td><td><code>&lt;start&gt; J’aime</code></td><td>2</td><td>les</td><td>Append les; include it in run 3.</td></tr>
+              <tr><td>3</td><td><code>&lt;start&gt; J’aime les</code></td><td>3</td><td>grands</td><td>Append grands; include it in run 4.</td></tr>
+              <tr><td>4</td><td><code>&lt;start&gt; J’aime les grands</code></td><td>4</td><td>modèles</td><td>Append modèles; include it in run 5.</td></tr>
+              <tr><td>5</td><td><code>&lt;start&gt; J’aime les grands modèles</code></td><td>5</td><td><code>&lt;end&gt;</code></td><td>Stop. The displayed translation still has four tokens.</td></tr>
+            </tbody>
+          </table></div>
+          <p>For example, run 1 starts with only <code>&lt;start&gt;</code>, so it produces one hidden-state row. After <code>J’aime</code> is selected and appended, the sequence has two tokens. Those two tokens are processed in run 2, which produces two hidden-state rows.</p>
+        </div>
+      </figure>
+<p>The completed example has three English source tokens and four French translation tokens. Their lengths can differ because each decoder run selects one new token, and the model can continue until it selects <code>&lt;end&gt;</code>. The source memory stays at three vectors throughout.</p>
+<h3 id="s642"><span class="num">6.4.2</span>Stop when the model selects &lt;end&gt;</h3>
+<p>The output vocabulary includes the special token <code>&lt;end&gt;</code>. The output head scores it along with the other candidate tokens. When token selection chooses it, the generation code stops.</p>
+<p>On run 5, the input is <code>&lt;start&gt; J’aime les grands modèles</code>. The final hidden-state vector for <code>modèles</code> goes to the output head, and token selection chooses <code>&lt;end&gt;</code>. The program then stops: there is no run 6. The end marker is not displayed, so the translation contains the four French tokens.</p>
+<p>During training, completed target sequences include an end token. The model learns to predict it after the final translation token. During generation, the program stops when that token is selected. A practical implementation also sets a maximum generation length, so generation can stop at that limit even if no end token is selected.</p>
+<details><summary>Looking ahead to Part 10: selection rules and caching</summary>
+<p><b>Other ways to choose a token.</b> Greedy selection is the rule used in this example. Sampling and beam search use the scores differently; <a href="./TTNN-Part10-Generation.html#s103">Part 10</a> develops these choices. Softmax supplies probabilities; the selection rule determines what happens next.</p>
+<p><b>Avoiding repeated work.</b> This demonstration processes the whole prefix on every run. A KV cache saves part of the earlier computation so later runs can process only the new token while still using information from earlier tokens. <a href="./TTNN-Part10-Generation.html">Part 10</a> explains what is saved and how it is reused.</p>
+</details>
+<blockquote class="takeaway"><b>Key takeaway</b>Begin with <code>&lt;start&gt;</code>. Use the decoder’s final vector for the last input token to select the next token. If it is <code>&lt;end&gt;</code>, stop; otherwise, append it to the prefix for the next run. The prefix grows, while source memory and model weights stay fixed. A generation-length limit provides another stopping condition.</blockquote>
+<p><b>Try it (2 minutes):</b> Run 4 has just selected <code>modèles</code>. Use the full-prefix version shown above.</p>
+<ol><li>What is the input prefix on run 5?</li><li>Which token’s vector goes to the output head?</li><li>If run 5 selects <code>&lt;end&gt;</code>, is another run needed?</li><li>What stays unchanged across all five runs?</li></ol>
+<details><summary>Check your answers</summary><ol><li><code>&lt;start&gt; J’aime les grands modèles</code>.</li><li>The vector for <code>modèles</code>, the last input token.</li><li>No. Selecting <code>&lt;end&gt;</code> stops generation.</li><li>The source memory and learned model weights.</li></ol></details>
+<h2 id="s65"><span class="num">6.5</span>What changes in a decoder-only model?</h2>
+      <p>So far, we have used an <b>encoder–decoder</b> model: the encoder processes the English sentence, and the decoder generates the French translation. We now consider a different architecture, a <b>decoder-only</b> language model, to see how the same token-by-token generation loop works there.</p>
+      <p>For the same translation task, the initial input could be:</p>
+      <pre class="pseudocode"><code>Translate into French: I love LLMs. French:</code></pre>
+      <p>This initial text is the <b>prompt</b>. It contains the translation instruction and the English source sentence; <code>French:</code> cues the model to continue with the translation. As French tokens are generated, they are appended after the prompt.</p>
+      <p>The prompt is tokenized before it enters the model. The displayed text therefore represents a sequence of input tokens; its exact token boundaries depend on the tokenizer. Run 1 already has all of these prompt tokens as input, before any French token has been generated.</p>
+      <p>Compare how the two models receive the English source information:</p>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Model</th><th>Where the source sentence enters</th></tr></thead>
+        <tbody>
+          <tr><td>Encoder–decoder</td><td>The encoder processes <code>I love LLMs</code>. Its output becomes source memory, read by the decoder through cross-attention.</td></tr>
+          <tr><td>Decoder-only</td><td>The source is part of the prompt shown above. The prompt and the French tokens generated so far enter together as one sequence, processed through self-attention.</td></tr>
+        </tbody>
+      </table></div>
+      <p>The decoder-only model has no separate encoder and no cross-attention to encoder outputs. Its <b>causal self-attention</b> lets each position use information from that position and earlier positions. When computing the vector for the last input token, it can therefore use the preceding prompt and any French tokens already generated. A suitably trained model can use that information to translate.</p>
+      <p>As in the earlier walkthrough, we describe generation by processing the complete input sequence on each run, without a KV cache. The model produces one final hidden-state row per input token. On run 1, that means one row for each prompt token; the <b>last row</b> belongs to the prompt’s last token and is used to choose the first French token.</p>
+      <p>Now follow the first two runs. We keep the simplified French token units used earlier and suppose this model selects <code>J’aime</code>, then <code>les</code>:</p>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Run</th><th>Input at the start of this run</th><th>Vector sent to the output head</th><th>Selected token</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td><code>Translate into French: I love LLMs. French:</code></td><td>The final hidden-state vector for the prompt’s last token.</td><td><code>J’aime</code></td></tr>
+          <tr><td>2</td><td><code>Translate into French: I love LLMs. French: J’aime</code></td><td>The final hidden-state vector for <code>J’aime</code>.</td><td><code>les</code></td></tr>
+        </tbody>
+      </table></div>
+      <p>Run 1 selects <code>J’aime</code>, which is appended for run 2. Run 2 computes its hidden-state vector and uses it to select <code>les</code>, which is appended for run 3. A selected token gets its own hidden-state row when it is processed on the next run. As in Section 6.3, the output head converts the last row into vocabulary scores, and token selection chooses the next token.</p>
+      <p>Continue appending selected tokens and running the model until a stopping condition is met, such as selecting an end token or reaching the generation-length limit. The displayed translation contains the generated French tokens; the prompt remains part of the model’s input.</p>
+      <blockquote class="takeaway"><b>Key takeaway</b>An encoder–decoder model receives source information through separate source memory. A decoder-only model receives it within the prompt. In both, the final vector for the last input token goes to the output head. Select the next token; if generation continues, append it for the next run.</blockquote>
+
+      <h2 id="s6next"><span class="num">Next</span>How cross-attention uses source memory</h2>
+      <p>The generation loop now has three clear steps: compute hidden-state vectors for the existing input positions; use the last vector to score the possible next tokens; and, unless generation stops, append the selected token for the next run. The new token becomes an input position on that next run.</p>
+      <p><b>How does source memory contribute to the decoder’s hidden-state vectors?</b> Part 7 returns to our encoder–decoder translation example and works through cross-attention numerically, following the source-memory connections shown in this part.</p>
+      <p><b>Part 8</b> explains how masks control which positions attention can use. <b>Part 9</b> shows how training teaches the model to predict the next token. <b>Part 10</b> explores other token-selection rules and how a KV cache avoids repeating earlier computation.</p>
+
+      <details id="sources"><summary>Technical references</summary>
+        <ul>
+          <li><a href="https://arxiv.org/html/1706.03762v7">Vaswani et al., <em>Attention Is All You Need</em></a>, Sections 3.1–3.5 and 5.1: original architecture, causal attention, tied embeddings, positional encoding, and vocabulary size.</li>
+          <li><a href="https://huggingface.co/docs/transformers/main/en/cache_explanation">Hugging Face Transformers: How caching works</a>: per-layer key/value reuse during autoregressive inference.</li>
+        </ul>
+      </details>
+      <footer>The Transformer, Number by Number &nbsp;&#183;&nbsp; Part 6.<br>
+        Continues from Part 5.<br>
+        Cross-attention: Part 7. Masks: Part 8. Training: Part 9. Generation strategies and caching: Part 10.</footer>
+    </main>
+  </div>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"
+    integrity="sha384-XjKyOOlGwcjNTAIQHIpgOno0Hl1YQqzUOEleOLALmuqehneUG+vnGctmUb0ZY0l8"
+    crossorigin="anonymous"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+    integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05"
+    crossorigin="anonymous"></script>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      if (window.renderMathInElement) {
+        renderMathInElement(document.body, {
+          delimiters: [
+            { left: "\\[", right: "\\]", display: true },
+            { left: "$$", right: "$$", display: true },
+            { left: "\\(", right: "\\)", display: false },
+            { left: "$", right: "$", display: false }
+          ],
+          ignoredTags: ["script", "noscript", "style", "textarea", "pre", "code", "option"],
+          throwOnError: false
+        });
+      }
+
+      var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+      var targets = links
+        .map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); })
+        .filter(Boolean);
+
+      var obs = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (!e.isIntersecting) return;
+          links.forEach(function (a) {
+            a.classList.toggle("on", a.getAttribute("href") === "#" + e.target.id);
+          });
+        });
+      }, { rootMargin: "0px 0px -70% 0px", threshold: 0 });
+
+      targets.forEach(function (t) { obs.observe(t); });
+    });
+  </script>
+
+  <script id="diagram-reading-script">
+    (function () {
+      document.querySelectorAll('figure .plate').forEach(function (plate, index) {
+        var svg = plate.querySelector('svg');
+        if (!svg) return;
+        var width = Number(svg.getAttribute('viewBox').trim().split(/\s+/)[2]);
+        if (!Number.isFinite(width)) return;
+        var enlargedWidth = Math.ceil(width * 1.1);
+        plate.style.setProperty('--diagram-reading-width', enlargedWidth + 'px');
+        plate.id = plate.id || 'diagram-plate-' + (index + 1);
+        var toolbar = document.createElement('div');
+        toolbar.className = 'diagram-reading-controls';
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'diagram-size-toggle';
+        button.textContent = 'Enlarge diagram';
+        button.setAttribute('aria-controls', plate.id);
+        button.setAttribute('aria-pressed', 'false');
+        button.addEventListener('click', function () {
+          var expanded = plate.classList.toggle('diagram-enlarged');
+          button.setAttribute('aria-pressed', String(expanded));
+          button.textContent = expanded ? 'Fit to page' : 'Enlarge diagram';
+          if (expanded) {
+            plate.setAttribute('tabindex', '0');
+            plate.setAttribute('role', 'region');
+            plate.setAttribute('aria-label', 'Enlarged diagram; scroll to explore');
+          } else {
+            plate.scrollLeft = 0;
+            plate.removeAttribute('tabindex');
+            plate.removeAttribute('role');
+            plate.removeAttribute('aria-label');
+          }
+        });
+        toolbar.appendChild(button);
+        plate.parentNode.insertBefore(toolbar, plate);
+      });
+    })();
+  </script>
+
+  <script id="figure2-walkthrough-script">
+(function () {
+  'use strict';
+  const root = document.getElementById('figure2-walkthrough');
+  if (!root) return;
+  const el = name => root.querySelector('[data-f2="' + name + '"]');
+  const words = ['J’aime', 'les', 'grands', 'modèles'];
+  const stages = ['Read the prefix', 'Compute the vectors', 'Select a token', 'Append or stop'];
+  const ink = 'var(--fig-line,#16202B)', soft = 'var(--fig-soft,#5A6B7A)';
+  const blue = 'var(--h1c,#2E6F8E)', gold = 'var(--h2c,#B07D1A)';
+  let cursor = 0;
+  const escape = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const text = (x,y,s,size=14,color=ink,anchor='middle') => `<text x="${x}" y="${y}" font-size="${size}" text-anchor="${anchor}" fill="${color}">${escape(s)}</text>`;
+  const box = (x,y,w,h,color=ink) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="5" fill="var(--fig-fill,#FFFFFF)" stroke="${color}" stroke-width="1.6"></rect>`;
+  const arrow = (x1,y1,x2,y2,color=ink) => `<path d="M${x1},${y1} L${x2},${y2}" stroke="${color}" stroke-width="1.5" fill="none" marker-end="url(#f2-step-arrow)"></path>`;
+  const vector = (x,y,color) => [-25,-12,1,14].map(dx=>box(x+dx,y,10,26,color)).join('');
+
+  function stateAt(index) {
+    const run = Math.floor(index / 4) + 1, phase = index % 4;
+    return {run, phase, prefix:['<start>', ...words.slice(0,run-1)],
+      selected:run===5 ? '<end>' : words[run-1],
+      written:words.slice(0, Math.min(4, run-1+(phase===3 ? 1 : 0))),
+      stopped:run===5 && phase===3};
+  }
+
+  function explanation(s) {
+    const {run,phase,prefix,selected}=s;
+    if(phase===0) return run===1
+      ? 'No French token has been written yet. Start with <start>; the three English source-memory rows are already available.'
+      : `Run ${run} reads the full prefix: ${prefix.join(' ')}. The token selected on the previous run is now part of the input.`;
+    if(phase===1) return run===1
+      ? 'One input token, <start>, gives one final hidden-state vector. The decoder also uses source memory to compute that vector.'
+      : `The decoder’s vector for ${prefix[run-1]} can use every token in ${prefix.join(' ')}, together with the English source information. It is not limited to the last token alone.`;
+    if(phase===2) return `Use the decoder’s vector for ${prefix[run-1]}, the last input token. The output head scores the vocabulary, and the next token selected is ${selected}.`;
+    if(run===5) return 'The selected token is <end>, so generation stops. The displayed translation contains the four French tokens.';
+    return `Append ${selected} to the target prefix. Run ${run+1} will receive ${[...prefix,selected].join(' ')}.`;
+  }
+
+  // The source panel never changes: the encoder is run once, before decoding.
+  const source = (() => {
+    let s=text(30,30,'SOURCE MEMORY · FIXED',15,gold,'start');
+    s+=text(30,62,'3 source tokens → 3 vectors',14,soft,'start');
+    s+=text(30,95,'One bar group = one vector / row',13,soft,'start');
+    [75,165,255].forEach((x,i)=>{
+      s+=box(x-37,282,74,32)+text(x,303,['I','love','LLMs'][i],13);
+      s+=arrow(x,276,x,258)+arrow(x,206,x,192)+vector(x,160,gold);
+    });
+    s+=box(30,212,270,40,gold)+text(165,237,'encoder · already run',14);
+    s+=text(165,136,'same three vectors on every run',13,gold);
+    s+=text(30,331,'Source length stays at 3.',13,soft,'start');
+    return s;
+  })();
+
+  function drawing(s) {
+    const {run,phase,prefix,selected}=s, lastX=450+(run-1)*110;
+    let d='<defs>'+[['f2-step-arrow',soft],['f2-context-arrow',blue],['f2-source-arrow',gold]].map(([id,color])=>`<marker id="${id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="${color}"></path></marker>`).join('')+'</defs><g font-family="IBM Plex Mono, monospace">'+source;
+    d+=`<path d="M318,20 L318,700" stroke="var(--rule,#D6DEE5)" fill="none"></path>`;
+    d+=text(360,30,`DECODER · RUN ${run} OF 5`,15,blue,'start');
+    d+=box(360,222,700,300,blue);
+    if(phase>=1) {
+      prefix.forEach((token,i)=>{
+        const x=450+i*110;
+        d+=`<path class="f2-context-flow" data-attention-position="${i+1}" d="M${x},474 L${lastX},428" fill="none" stroke="${blue}" stroke-width="1.7" marker-end="url(#f2-context-arrow)"></path>`;
+        d+=vector(x,480,blue);
+      });
+      d+=text(370,496,'Values',14,blue,'start');
+      d+=box(lastX-65,382,130,40,blue)+text(lastX,398,'self-attention',13,blue)+text(lastX,415,'weighted mix',13,blue);
+      d+=arrow(lastX,376,lastX,336,blue);
+      d+=text(lastX+8,360,'Add & Norm',13,soft,'start');
+      d+=box(lastX-86,294,172,36,gold)+text(lastX,317,'cross-attention',14,gold);
+      // A bracket groups all three source vectors; the gold path reaches cross-attention.
+      d+=`<path data-source-bundle="true" d="M50,156 L50,150 L279,150 L279,156 M279,150 L330,150 L330,312 L${lastX-92},312" fill="none" stroke="${gold}" stroke-width="1.5" marker-end="url(#f2-source-arrow)"></path>`;
+      d+=arrow(lastX,288,lastX,278,blue);
+      d+=box(lastX-80,232,160,40,blue)+text(lastX,249,'remaining decoder',14,blue)+text(lastX,266,'computations',14,blue);
+      d+=arrow(lastX,226,lastX,217,blue);
+      d+=text(365,190,'Final',14,soft,'start')+text(365,207,'states',14,soft,'start');
+    } else {
+      d+=text(660,340,'Use the full target prefix',16,soft);
+      d+=text(660,365,'together with the fixed source memory.',14,soft);
+    }
+    prefix.forEach((token,i)=>{
+      const x=450+i*110;
+      d+=box(x-45,540,90,30,phase>=1?blue:ink)+text(x,560,token,14);
+      d+=`<g data-context-position="${i+1}">${arrow(x,534,x,phase>=1?512:528)}</g>`;
+      if(phase>=1) d+=`<g data-hidden-state="${i+1}">`+(i!==run-1?arrow(x,220,x,217):'')+vector(x,185,i===run-1?blue:soft)+'</g>';
+    });
+    d+=text(360,595,`This run’s input · ${run} ${run===1?'position':'positions'}`,14,blue,'start');
+    if(phase===3 && run<5) {
+      d+=text(360,630,'Next run’s input',14,blue,'start');
+      [...prefix,selected].forEach((token,i)=>{
+        const x=450+i*110,isNew=i===prefix.length;
+        d+=`<g data-next-position="${i+1}"${isNew?' data-new-token="true"':''}>`;
+        d+=box(x-45,642,90,30,isNew?blue:soft);
+        if(isNew) d+=`<rect x="${x-45}" y="642" width="90" height="30" rx="5" fill="${blue}" fill-opacity="0.14"></rect>`;
+        d+=text(x,662,token,14,isNew?blue:soft)+'</g>';
+      });
+      d+=text(360,696,'The highlighted token is processed on the next run.',13,soft,'start');
+    } else {
+      d+=text(360,620,phase===3?'STOP · no next run':'Each run processes the whole prefix',13,phase===3?blue:soft,'start');
+    }
+    if(phase>=1) {
+      d+=`<path data-last-row-label="true" d="M${lastX+32},198 L${lastX+48},198" stroke="${blue}" fill="none"></path>`;
+      d+=text(lastX+55,202,'last row',13,blue,'start');
+    }
+    if(phase===0) {
+      d+=text(660,90,'Begin with all tokens available so far.',15,soft);
+      d+=text(660,115,'The next token has not been selected yet.',14,soft);
+    }
+    if(phase===1) {
+      d+=text(660,90,`${run} input ${run===1?'row':'rows'} → ${run} final hidden-state ${run===1?'row':'rows'}`,15,blue);
+      d+=text(660,118,'The last row combines target and source information.',14,blue);
+    }
+    if(phase>=2) {
+      d+=arrow(lastX,179,lastX,152,blue);
+      d+=box(lastX-80,108,160,38,blue)+text(lastX,124,'output head',14)+text(lastX,140,'+ token selection',13);
+      d+=arrow(lastX,102,lastX,92,blue)+box(lastX-45,58,90,28,blue)+text(lastX,78,selected,15,blue);
+      d+=text(lastX,48,'NEW SELECTION',13,blue);
+    }
+    const status=`Run ${run} / 5 · Step ${phase+1} / 4 — ${stages[phase]}`;
+    d+='</g>';
+    d+=`<foreignObject x="24" y="344" width="280" height="286"><div xmlns="http://www.w3.org/1999/xhtml" class="f2-inset" aria-live="polite" aria-atomic="true"><p class="f2-status" data-f2="status">${escape(status)}</p><p data-f2="explanation">${escape(explanation(s))}</p></div></foreignObject>`;
+    return d;
+  }
+
+  function render() {
+    const s=stateAt(cursor);
+    el('svg').setAttribute('viewBox','0 0 1100 710');
+    el('svg').innerHTML=drawing(s);
+    el('status').textContent=`Run ${s.run} / 5 · Step ${s.phase+1} / 4 — ${stages[s.phase]}`;
+    el('explanation').textContent=explanation(s);
+    el('svg').setAttribute('aria-label',`Run ${s.run}, ${stages[s.phase]}. Input: ${s.prefix.join(' ')}. Source memory: three rows. ${s.phase>=1?s.run+' decoder hidden-state rows. The vector for the last input token can use information from the whole prefix. ':''}${s.phase>=2?'New selection: '+s.selected+'. ':''}Translation written so far: ${s.written.join(' ')||'none'}.`);
+    el('translation').innerHTML=s.written.length?s.written.map((w,i)=>`<span class="f2-token${s.phase===3&&s.run<5&&i===s.written.length-1?' f2-new':''}">${escape(w)}</span>`).join(''):'<span class="f2-empty">No target tokens yet.</span>';
+    el('result').textContent=s.stopped?'Finished · <end> is not added to the translation.':s.phase===3?`Ready for run ${s.run+1}.`:'The translation updates when the selected French token is appended.';
+    el('previous').disabled=cursor===0;
+    el('next').disabled=cursor===19;
+    const nextLabel=cursor===19?'Complete':s.phase===3?`Enter Run ${s.run+1}`:'Next step';
+    el('next').textContent=nextLabel;
+    el('previous-bottom').disabled=cursor===0;
+    el('next-bottom').disabled=cursor===19;
+    el('next-bottom').textContent=nextLabel;
+    root.querySelectorAll('[data-f2-run]').forEach(button=>button.setAttribute('aria-pressed',String(Number(button.dataset.f2Run)===s.run)));
+    root.querySelectorAll('[data-f2-stage]').forEach(item=>{
+      if(Number(item.dataset.f2Stage)===s.phase) item.setAttribute('aria-current','step');
+      else item.removeAttribute('aria-current');
+    });
+  }
+  el('previous').addEventListener('click',()=>{cursor=Math.max(0,cursor-1);render();});
+  el('next').addEventListener('click',()=>{cursor=Math.min(19,cursor+1);render();});
+  el('restart').addEventListener('click',()=>{cursor=0;render();});
+  root.querySelectorAll('[data-f2-run]').forEach(button=>button.addEventListener('click',()=>{cursor=(Number(button.dataset.f2Run)-1)*4;render();}));
+  el('previous-bottom').addEventListener('click',()=>{cursor=Math.max(0,cursor-1);render();});
+  el('next-bottom').addEventListener('click',()=>{cursor=Math.min(19,cursor+1);render();});
+  root.querySelectorAll('[data-f2-stage]').forEach(button=>button.addEventListener('click',()=>{cursor=Math.floor(cursor/4)*4+Number(button.dataset.f2Stage);render();}));
+  el('controls-bottom').hidden=false;
+  el('controls').hidden=false;
+  render();
+})();
+
+  </script>
+</body>
+
+</html>
