@@ -1,0 +1,1473 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="author" content="Hao Ma">
+  <title>Where the Encoder Stack Meets the Decoder Stack &#8212; part 7 &#8212; Cross-Attention, the Decoder Block, and the Whole Transformer</title>
+
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"
+    integrity="sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV" crossorigin="anonymous">
+
+  <style>
+    :root {
+      --paper: #FBFCFD;
+      --panel: #F2F5F8;
+      --ink: #16202B;
+      --ink-soft: #5A6B7A;
+      --rule: #D6DEE5;
+      --chip-bg: #EAF0F4;
+      --h1c: #2E6F8E;
+      --h2c: #B07D1A;
+      --accent: #7D4A72;
+      --fig-fill: #FFFFFF;
+      --fig-line: #16202B;
+      --fig-soft: #5A6B7A;
+      --fig-grid: #E4EAEF;
+    }
+
+    @media (prefers-color-scheme:dark) {
+      :root {
+        --paper: #101720;
+        --panel: #18212C;
+        --ink: #E3E9EE;
+        --ink-soft: #93A3B1;
+        --rule: #2A3644;
+        --chip-bg: #1E2833;
+        --h1c: #6FB6D4;
+        --h2c: #D9AC4E;
+        --accent: #C08FB6;
+        --fig-fill: #18212C;
+        --fig-line: #E3E9EE;
+        --fig-soft: #93A3B1;
+        --fig-grid: #243040;
+      }
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 2rem
+    }
+
+    @media (prefers-reduced-motion:reduce) {
+      html {
+        scroll-behavior: auto
+      }
+    }
+
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: "Source Serif 4", Georgia, serif;
+      font-size: 18px;
+      line-height: 1.72;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ---------- layout ---------- */
+    .wrap {
+      display: grid;
+      grid-template-columns: 246px minmax(0, 1fr);
+      gap: 3rem;
+      max-width: 1500px;
+      margin: 0 auto;
+      padding: 0 1.5rem
+    }
+
+    .main {
+      max-width: 720px;
+      padding: 3.5rem 0 6rem
+    }
+
+    /* ---------- table of contents ---------- */
+    .toc {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      height: 100vh;
+      overflow-y: auto;
+      padding: 3.5rem 0 2rem;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12.5px
+    }
+
+    .toc-label {
+      text-transform: uppercase;
+      letter-spacing: .13em;
+      font-size: 10.5px;
+      color: var(--ink-soft);
+      margin-bottom: 1rem
+    }
+
+    .toc a {
+      display: block;
+      padding: .34rem 0 .34rem .8rem;
+      color: var(--ink-soft);
+      text-decoration: none;
+      border-left: 2px solid var(--rule);
+      line-height: 1.45
+    }
+
+    .toc a:hover {
+      color: var(--ink)
+    }
+
+    .toc a.lvl2 {
+      padding-left: 1.7rem
+    }
+
+    .toc a.on {
+      color: var(--h1c);
+      border-left-color: var(--h1c)
+    }
+
+    .toc a:focus-visible {
+      outline: 2px solid var(--h1c);
+      outline-offset: 2px
+    }
+
+    /* ---------- type ---------- */
+    .eyebrow {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11.5px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+      margin-bottom: 1.1rem
+    }
+
+    h1 {
+      font-family: Fraunces, serif;
+      font-weight: 600;
+      font-size: 2.55rem;
+      line-height: 1.14;
+      letter-spacing: -.015em;
+      margin: 0 0 .9rem
+    }
+
+    .standfirst {
+      color: var(--ink-soft);
+      font-size: 1.06rem;
+      margin: 0 0 2.4rem;
+      padding-bottom: 2.4rem;
+      border-bottom: 1px solid var(--rule)
+    }
+
+    h2 {
+      font-family: Fraunces, serif;
+      font-weight: 600;
+      font-size: 1.62rem;
+      letter-spacing: -.01em;
+      margin: 3.4rem 0 1rem
+    }
+
+    h3 {
+      font-family: Fraunces, serif;
+      font-weight: 400;
+      font-size: 1.2rem;
+      margin: 2.4rem 0 .7rem
+    }
+
+    h2 .num,
+    h3 .num {
+      font-family: "IBM Plex Mono", monospace;
+      font-weight: 400;
+      color: var(--h1c);
+      font-size: .72em;
+      margin-right: .6em
+    }
+
+    p {
+      margin: 0 0 1.15rem
+    }
+
+    a {
+      color: var(--h1c)
+    }
+
+    /* ---------- signature: tensor shape chips ---------- */
+    .shape {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: .78em;
+      white-space: nowrap;
+      background: var(--chip-bg);
+      color: var(--ink-soft);
+      border: 1px solid var(--rule);
+      border-radius: 3px;
+      padding: .1em .45em;
+      letter-spacing: .02em
+    }
+
+    /* ---------- paper quotes ---------- */
+    blockquote {
+      margin: 1.8rem 0;
+      padding: .15rem 0 .15rem 1.3rem;
+      border-left: 3px solid var(--accent);
+      color: var(--ink-soft);
+      font-style: italic
+    }
+
+    blockquote cite {
+      display: block;
+      margin-top: .5rem;
+      font-style: normal;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11.5px;
+      letter-spacing: .04em
+    }
+
+    /* ---------- figures ---------- */
+    figure {
+      margin: 2.6rem 0;
+      width: 100%
+    }
+
+
+    .replay {
+      display: block;
+      margin: .55rem auto 0;
+      font: inherit;
+      font-size: .82rem;
+      color: var(--ink-soft);
+      background: none;
+      border: 1px solid var(--rule);
+      border-radius: 4px;
+      padding: .22rem .75rem;
+      cursor: pointer
+    }
+
+    .replay:hover,
+    .replay:focus {
+      color: var(--ink);
+      border-color: var(--ink-soft)
+    }
+
+    .plate {
+      background: var(--fig-fill);
+      border: 1px solid var(--rule);
+      border-radius: 5px;
+      padding: 21px 20px;
+      background-image: linear-gradient(var(--fig-grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--fig-grid) 1px, transparent 1px);
+      background-size: 22px 22px
+    }
+
+    .plate > svg {
+      display: block;
+      width: 100%;
+      height: auto
+    }
+
+    figcaption {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--ink-soft);
+      margin-top: .85rem
+    }
+
+    figcaption b {
+      color: var(--ink);
+      font-weight: 500
+    }
+
+    /* ---------- image slot for third-party figures ---------- */
+    .imgslot {
+      border: 1.5px dashed var(--rule);
+      border-radius: 5px;
+      background: var(--panel);
+      min-height: 210px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: .55rem;
+      padding: 2.2rem 1.5rem;
+      text-align: center
+    }
+
+    .imgslot .tag {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--accent)
+    }
+
+    .imgslot .what {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 13.5px;
+      color: var(--ink)
+    }
+
+    .imgslot .hint {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11.5px;
+      line-height: 1.7;
+      color: var(--ink-soft);
+      max-width: 46ch
+    }
+
+    /* ---------- placeholder ---------- */
+    .todo {
+      border-left: 3px solid var(--h2c);
+      border-radius: 0 4px 4px 0;
+      padding: 1rem 1.2rem;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12.5px;
+      line-height: 1.75;
+      color: var(--ink-soft);
+      background: var(--panel);
+      margin: 1.8rem 0
+    }
+
+    .todo b {
+      color: var(--h2c);
+      font-weight: 500;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      font-size: 11px;
+      display: block;
+      margin-bottom: .35rem
+    }
+
+    /* ---------- footer ---------- */
+    footer {
+      margin-top: 5rem;
+      padding-top: 1.6rem;
+      border-top: 1px solid var(--rule);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11.5px;
+      line-height: 1.9;
+      color: var(--ink-soft)
+    }
+
+    /* ---------- responsive ---------- */
+    @media (max-width:900px) {
+      .wrap {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0
+      }
+
+      .toc {
+        position: static;
+        height: auto;
+        padding: 2rem 0 0;
+        border-bottom: 1px solid var(--rule)
+      }
+
+      .toc-inner {
+        columns: 2;
+        column-gap: 1.2rem
+      }
+
+      .main {
+        padding-top: 2rem
+      }
+
+      h1 {
+        font-size: 2rem
+      }
+
+      body {
+        font-size: 17px
+      }
+    }
+
+    /* ---------- sub-headings and inline code ---------- */
+
+    h4 {
+      font-family: Fraunces, serif;
+      font-weight: 600;
+      font-size: 1.02rem;
+      letter-spacing: -.005em;
+      color: var(--ink);
+      margin: 2rem 0 .6rem;
+    }
+
+    code {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: .84em;
+      background: var(--chip-bg);
+      color: var(--ink);
+      border: 1px solid var(--rule);
+      border-radius: 3px;
+      padding: .1em .38em;
+      white-space: nowrap;
+    }
+
+    /* ---------- callout boxes: think / mistake / takeaway ---------- */
+
+    blockquote.think {
+      border-left-color: var(--h1c);
+      font-style: normal;
+    }
+
+    blockquote.mistake {
+      border-left-color: var(--h2c);
+      font-style: normal;
+    }
+
+    blockquote.takeaway {
+      border-left-color: var(--accent);
+      font-style: normal;
+      margin-bottom: .4rem;
+    }
+
+    blockquote.think b,
+    blockquote.mistake b,
+    blockquote.takeaway b {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+      display: block;
+      margin-bottom: .3rem;
+    }
+
+    blockquote.think b {
+      color: var(--h1c);
+    }
+
+    blockquote.mistake b {
+      color: var(--h2c);
+    }
+
+    blockquote.takeaway b {
+      color: var(--accent);
+    }
+
+
+    /* ---------- added: math and tables ---------- */
+    .katex-display {
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: .35rem 0
+    }
+
+    .katex {
+      font-size: 1.02em
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1.8rem 0;
+      font-size: .92em
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid var(--rule);
+      padding: .55rem .7rem;
+      text-align: left
+    }
+
+    th {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--ink-soft)
+    }
+      
+
+  /* Prose and figures share one column, as in Parts 1 to 6: the prose is whatever the
+       column is. The shared stylesheet stops the page at 1500px, which throws away most
+       of a wide screen, so the wrap widens with the viewport and the column with it.
+
+       The column stops at 1167px. A prose line there holds 150 characters, and the
+       figure labels, which scale with the drawing, are at about 14px against the body
+       text's 16px. Both were measured on the rendered page. */
+    @media (min-width: 1260px) { .main { max-width: 846px } }
+    @media (min-width: 1380px) { .main { max-width: 929px } }
+    @media (min-width: 1480px) { .main { max-width: 994px } }
+    @media (min-width: 1560px) { .main { max-width: 1058px } }
+    @media (min-width: 1700px) { .wrap { max-width: 1760px } .main { max-width: 1167px } }
+    figure { width: 100% }
+
+    /* Most tables want the column; this one is four narrow columns and looks stranded
+       when stretched across it. */
+    table.runs { max-width: 34rem }
+
+    /* A margin note: it defines a word without stopping the sentence that uses it.
+       Below the width where a margin exists it is an inset block in the flow instead. */
+    .gloss {
+      font-size: 13.5px;
+      line-height: 1.55;
+      color: var(--ink-soft);
+      border-left: 2px solid var(--h2c);
+      background: var(--panel);
+      padding: 0.55rem 0.9rem;
+      margin: 0 0 1.5rem 2.5rem;
+      max-width: 38ch;
+    }
+    .gloss b { color: var(--ink); font-weight: 600 }
+    .gloss .runs { font-family: "IBM Plex Mono", monospace; font-size: 12px; line-height: 1.7 }
+
+    /* The note needs 192px plus a 32px gap to the right of the column, measured on the
+       rendered page. */
+    @media (min-width: 1780px) {
+      .main { position: relative }
+      /* float, not position:absolute. An absolutely positioned note takes no space, so it
+         cannot push anything down, and it will sit on top of a Common mistake note that
+         happens to land beside it — which is exactly what Part 8, Section 8.3.1 did. A float
+         may not overlap another float, so the two kinds now stack in one column. */
+      .gloss {
+        float: right;
+        clear: right;
+        margin: -0.4rem -14rem 1.5rem 0;
+        width: 12rem;
+        max-width: none;
+        padding: 0.5rem 0 0;
+        border-left: 0;
+        border-top: 2px solid var(--h2c);
+        background: transparent;
+      }
+    }
+
+    /* A Common mistake box in the margin. It carries the same mark and label as the
+       in-flow version, at the size of a margin note. float + clear:right is what keeps
+       two of them from landing on top of each other: floats are not allowed to overlap
+       other floats, so a second note is pushed below the first instead of over it.
+       The negative right margin puts the whole box outside the text column, so no line
+       of prose is shortened by it. Below the width where a margin exists, the box stays
+       in the flow and looks as it always did. */
+    @media (min-width: 1780px) {
+      blockquote.mistake.side {
+        float: right;
+        clear: right;
+        width: 12rem;
+        margin: -0.4rem -14rem 1.5rem 0;
+        padding: 0.5rem 0 0;
+        border-left: 0;
+        border-top: 2px solid var(--h2c);
+        background: transparent;
+        font-size: 13.5px;
+        line-height: 1.55;
+        color: var(--ink-soft);
+      }
+      blockquote.mistake.side b { display: block; margin-bottom: .3rem }
+      /* A figure must not sit beside a note; it needs the whole column. */
+      figure { clear: right }
+      /* …except where the note directly above it is short enough to fit beside the plate:
+         the note sits outside the text column, so nothing overlaps and the figure follows
+         its paragraph instead of being pushed below the whole note. */
+      figure.beside-note { clear: none }
+    }
+
+    /* ---------- home button and byline ---------- */
+    .homebar {
+      margin-bottom: 1.5rem
+    }
+
+    .homebar a {
+      display: inline-block;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11.5px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+      text-decoration: none;
+      background: var(--chip-bg);
+      border: 1px solid var(--rule);
+      border-radius: 999px;
+      padding: .36rem .9rem
+    }
+
+    .homebar a:hover {
+      color: var(--h1c);
+      border-color: var(--h1c)
+    }
+
+    .homebar a:focus-visible {
+      outline: 2px solid var(--h1c);
+      outline-offset: 2px
+    }
+
+    .byline {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12.5px;
+      line-height: 1.6;
+      color: var(--ink-soft);
+      margin: 0 0 1.4rem
+    }
+
+    .byline b {
+      color: var(--ink);
+      font-weight: 500
+    }
+
+    .byline a {
+      color: var(--h1c);
+      text-decoration: none;
+      border-bottom: 1px solid var(--rule)
+    }
+
+    .byline a:hover {
+      border-bottom-color: var(--h1c)
+    }
+  
+    .supplement { margin: 1.3rem 0; padding: .85rem 1rem; border: 1px solid var(--rule); border-radius: 5px; background: var(--panel); }
+    .supplement summary { cursor: pointer; font-weight: 600; color: var(--h1c); }
+    .supplement[open] summary { margin-bottom: 1rem; }
+    .supplement .gloss { float: none; position: static; width: auto; margin: 1rem 0; }
+    .run-controls { display: flex; flex-wrap: wrap; gap: .5rem; margin: .8rem 0; }
+    .run-controls button { font: 12px "IBM Plex Mono", monospace; padding: .45rem .7rem; border: 1px solid var(--rule); border-radius: 4px; color: var(--ink); background: var(--paper); cursor: pointer; }
+    .run-controls button[aria-pressed="true"] { color: var(--paper); background: var(--h1c); border-color: var(--h1c); }
+    .run-controls button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    .loop-status { font: 12px/1.6 "IBM Plex Mono", monospace; color: var(--ink-soft); }
+    /* Below 650px a drawing scaled to the column has 3-4px labels. Every SVG figure keeps
+       the 650px width Figure 7 already used, and its plate scrolls sideways instead. */
+    @media (max-width: 650px) { .plate { overflow-x: auto; } .plate > svg { min-width: 650px; } }
+  
+    .learning-figure { font: 13px/1.55 "IBM Plex Mono", monospace; background-image: none; padding: 1.2rem; }
+    .learning-figure .fig-title { margin: 0 0 .5rem; font-weight: 500; color: var(--ink); }
+    .learning-figure .fig-note { margin: .7rem 0 0; color: var(--ink-soft); font-size: 12px; }
+    .source-examples { display: grid; gap: .85rem; margin: 1rem 0; }
+    .source-example { display: grid; grid-template-columns: minmax(0,1fr) 26px minmax(0,1.2fr); gap: .55rem; align-items: center; }
+    .source-box, .decoder-box { display: flex; flex-direction: column; gap: .45rem; padding: .9rem; border: 1px solid var(--rule); border-radius: 4px; background: var(--panel); }
+    .source-box { border-left: 3px solid var(--h2c); }
+    .decoder-box { border-left: 3px solid var(--h1c); }
+    .source-box strong, .decoder-box strong { font-weight: 500; }
+    .source-box > span, .decoder-box > span { font-size: 12px; }
+    .figure-arrow { text-align: center; color: var(--ink-soft); }
+    .mini-matrix { display: inline-grid; grid-template-columns: repeat(var(--cols),12px); gap: 3px; width: max-content; vertical-align: middle; }
+    .mini-matrix > span { display: block; width: 12px; height: 12px; box-sizing: border-box; border: 1px solid currentColor; border-radius: 2px; background: var(--panel); }
+    .mini-matrix.target { color: var(--accent); }
+    .mini-matrix.source { color: var(--h2c); }
+    .projection-header, .projection-row { display: grid; grid-template-columns: minmax(0,1fr) minmax(120px,1fr) minmax(0,1fr); gap: .65rem; align-items: center; text-align: center; }
+    .projection-header { margin-top: 1rem; color: var(--ink-soft); font-size: 11px; }
+    .projection-row { padding: .85rem 0; border-bottom: 1px solid var(--rule); }
+    .tensor-block { display: flex; flex-direction: column; align-items: center; gap: .45rem; }
+    .tensor-block strong { font-size: 12px; font-weight: 500; }
+    .tensor-block > span:last-child { font-size: 11px; color: var(--ink-soft); }
+    .projection-operation { display: flex; justify-content: space-around; align-items: center; gap: .45rem; }
+    .projection-operation small { display: block; color: var(--ink-soft); margin-top: .35rem; font-size: 11px; }
+    .attention-stage { border: 1px solid var(--rule); border-left: 3px solid var(--rule); border-radius: 4px; padding: .75rem .9rem; margin: .7rem 0; background: var(--panel); }
+    .attention-stage.is-current { border-color: var(--h1c); border-left-width: 3px; }
+    .stage-heading { display: flex; flex-wrap: wrap; gap: .35rem 1rem; align-items: baseline; }
+    .stage-heading b { color: var(--h1c); font-weight: 500; }
+    .stage-heading span { font-size: 12px; color: var(--ink-soft); }
+    .stage-equation { overflow-x: auto; padding: .65rem 0 .3rem; }
+    .attention-stage p { margin: .45rem 0 0; font-size: 12px; color: var(--ink-soft); }
+    .step-explanation { font-size: 12px; min-height: 3.1em; margin: .7rem 0 0; color: var(--ink-soft); }
+    @media (max-width: 650px) {
+      .learning-figure { padding: .85rem; }
+      .source-example { grid-template-columns: minmax(0,1fr); gap: .35rem; }
+      .source-example .figure-arrow { transform: rotate(90deg); }
+      .projection-header, .projection-row { grid-template-columns: minmax(0,1fr) minmax(95px,1fr) minmax(0,1fr); gap: .3rem; }
+      .tensor-block strong { font-size: 11px; }
+      .mini-matrix { grid-template-columns: repeat(var(--cols),10px); gap: 2px; }
+      .mini-matrix > span { width: 10px; height: 10px; }
+      .projection-operation { gap: .2rem; font-size: 11px; }
+      .input-shapes th, .input-shapes td { padding: .45rem .35rem; }
+    }
+
+  
+    .numeric-trace td:not(:first-child) { font: 13px/1.6 "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; }
+    .numeric-trace th { text-transform: none; letter-spacing: 0; }
+    .numeric-trace tfoot { border-top: 2px solid var(--rule); background: var(--panel); }
+    .numeric-trace tfoot td { font-weight: 500; }
+    .table-scroll { overflow-x: auto; margin: 1.5rem 0; }
+    .table-scroll table { margin: 0; }
+    .weighted-values { min-width: 560px; }
+    .weighted-values th, .weighted-values td { padding: .6rem .45rem; }
+
+.rounding-note { margin:1.5rem 0; padding:1rem 1.2rem; border-left:3px solid var(--h2c); background:var(--panel); font-size:.92em; }
+.rounding-note p { margin:.6rem 0 0; }
+.block-trace caption { text-align:left; padding:.8rem 0; color:var(--ink-soft); font-size:.9em; }
+.block-trace th { text-transform:none; letter-spacing:0; }
+.block-trace tbody th { font-family:inherit; font-size:1em; font-weight:400; color:var(--ink); }
+.block-trace td { white-space:nowrap; }
+.two-query-demo { margin:1.7rem 0; }
+.two-query-demo p { margin:.65rem 0; }
+.manual-steps { margin:1rem 0 0; padding:1rem; border:1px solid var(--rule); border-radius:5px; background:var(--panel); }
+.manual-steps .run-controls { margin:.6rem 0; }
+.manual-steps button:disabled { opacity:.45; cursor:default; }
+.manual-status { font:13px/1.7 "IBM Plex Mono",monospace; min-height:3.4em; margin:0; }
+.query-shape th {text-transform:none;letter-spacing:0;} .query-shape td {text-align:center;} .query-shape td:last-child {text-align:left;font-size:12px;} .weight-square {display:inline-block;width:23px;height:23px;border:1.5px solid var(--h1c);border-radius:3px;background:var(--chip-bg);vertical-align:middle;}
+
+    /* Keep mathematical symbols consistent in prose, tables, and diagram labels. */
+    .katex { text-transform: none; letter-spacing: normal; }
+    .math-symbol { font-family: "KaTeX_Main", "Times New Roman", serif; font-weight: 700; text-transform: none; letter-spacing: normal; }
+  
+    /* Compact opening block diagram: contain its width without shrinking other figures. */
+    #fig-cross-attention-inputs .plate { max-width: 680px; margin-inline: auto; padding: 12px 14px; background-image: none; border-radius: 9px; }
+    #fig-cross-attention-inputs .plate > svg { min-width: 600px; }
+    @media print { #fig-cross-attention-inputs .plate > svg { min-width: 0; } }
+  
+    /* Shared figure rhythm: compact containers, legible data, restrained outlines. */
+    figure .plate { background-image:none; border-radius:9px; padding:14px 16px; box-sizing:border-box; overflow-x:auto; }
+    figure:not(#fig-cross-attention-inputs) .plate { max-width:900px; margin-inline:auto; }
+    #fig-source-choice .plate, #fig-qkv-sources .plate, #fig-attention-steps .plate {max-width:760px;}
+    #fig-decoder-row .plate {max-width:840px;}
+    #fig-polished-7 .plate {max-width:850px;}
+    #fig-polished-8 .plate {max-width:800px;}
+    .polished-plate > svg {min-width:690px;}
+    #fig-polished-7 svg {min-width:720px;}
+    #fig-decoder-row svg {min-width:700px;}
+    .learning-figure .source-examples {gap:.65rem;margin:.8rem 0;}
+    .learning-figure .source-box,.learning-figure .decoder-box {padding:.65rem .75rem;gap:.3rem;background:var(--fig-fill);border-radius:5px;}
+    .learning-figure .source-box > span,.learning-figure .decoder-box > span {color:var(--ink-soft);}
+    .learning-figure .source-box strong,.learning-figure .decoder-box strong {color:var(--ink);}
+    .projection-row {padding:.65rem 0;}
+    .projection-row:last-child {border-bottom:0;}
+    .tensor-block {gap:.3rem;}
+    .tensor-block strong {font-size:13px;}
+    .attention-stage {border:0;border-left:2px solid var(--rule);border-radius:0;padding:.6rem .85rem;background:transparent;margin:.4rem 0;}
+    .attention-stage.is-current {border-left:2px solid var(--h1c);background:var(--panel);}
+    .attention-stage.is-current .stage-equation {color:var(--h1c);}
+    .attention-stage.is-muted {opacity:.58;}
+    .stage-equation {padding:.4rem 0 .15rem;}
+    .manual-steps {border:0;border-top:1px solid var(--rule);border-radius:0;background:transparent;padding:.75rem 0 0;margin:.65rem 0 0;}
+    .manual-steps .step-tabs {display:flex;flex-wrap:wrap;gap:.3rem;margin:0 0 .6rem;}
+    .manual-steps .step-nav {display:flex;align-items:center;flex-wrap:wrap;gap:.4rem;margin:.5rem 0 0;}
+    .manual-steps button,.run-controls button {border-radius:5px;font-size:12px;padding:.35rem .6rem;}
+    .manual-steps .step-count {font:12px/1.4 "IBM Plex Mono",monospace;color:var(--ink-soft);margin-right:auto;}
+    .manual-status {font-size:12px;line-height:1.6;min-height:3.2em;color:var(--ink-soft);}
+    .loop-status {font-size:12px;}
+    .polished-plate svg [data-reveal] {transition:opacity 140ms ease;}
+    @media (prefers-reduced-motion:reduce) {.polished-plate svg [data-reveal] {transition:none;}}
+    @media print {figure .plate > svg {min-width:0!important;} .manual-steps,.run-controls {display:none;} .polished-plate svg [data-reveal],.polished-plate svg [data-detail],.attention-stage {opacity:1!important;}}
+
+
+#fig-symbol-map .plate {max-width:1100px;padding:18px 12px;}
+#fig-symbol-map .plate > svg {min-width:940px;}
+@media print {#fig-symbol-map .plate > svg {min-width:0;}}
+
+    /* Important distinctions stay visible in the reading flow. */
+    blockquote.key-point {
+      margin:1.5rem 0; padding:.9rem 1.15rem;
+      border-left:3px solid var(--h1c); border-radius:0 6px 6px 0;
+      background:var(--panel); color:var(--ink); font-style:normal;
+      break-inside:avoid;
+    }
+    blockquote.key-point > .key-point-title {
+      display:block; margin:0 0 .4rem; font-family:inherit;
+      font-size:.95em; font-weight:600; line-height:1.5;
+      color:var(--h1c); text-transform:none; letter-spacing:normal;
+    }
+    blockquote.key-point > p {margin:0; line-height:1.7;}
+    blockquote.mask-key-point {border-left-color:var(--h2c);}
+    blockquote.mask-key-point > .key-point-title {color:var(--h2c);}
+    @media (max-width:650px) {blockquote.key-point {padding:.8rem .9rem;}}
+
+    /* One-button playback for the architecture overviews. */
+    .figure-player {display:grid;grid-template-columns:auto minmax(0,1fr);align-items:start;gap:.8rem;margin:.8rem 0 0;padding:.8rem 0 0;border-top:1px solid var(--rule);}
+    .figure-player button {min-width:76px;}
+    .figure-player .play-status {margin:0;font:12px/1.65 "IBM Plex Mono",monospace;color:var(--ink-soft);min-height:3.3em;}
+    .polished-plate svg.automatic-flow [data-reveal] {transition:opacity .5s ease;}
+    .automatic-flow .is-tracing {stroke-dasharray:var(--trace-length);animation:figure-trace 1.15s ease-out both;}
+    .automatic-flow[data-play-state="paused"] .is-tracing {animation-play-state:paused;}
+    @keyframes figure-trace {from {stroke-dashoffset:var(--trace-length);} to {stroke-dashoffset:0;}}
+    @media (prefers-reduced-motion:reduce) {.polished-plate svg.automatic-flow [data-reveal] {transition:none;} .automatic-flow .is-tracing {animation:none;stroke-dasharray:none;}}
+    @media print {.figure-player {display:none;} .automatic-flow .is-tracing {animation:none;stroke-dasharray:none;} }
+</style>
+</head>
+
+<body>
+  <div class="wrap">
+    <nav class="toc">
+      <div class="toc-inner">
+        <div class="toc-label">Contents</div>
+        <a href="#s71">7.1&nbsp;&nbsp;Why the decoder needs the source sentence</a>
+        <a href="#s72">7.2&nbsp;&nbsp;How the decoder reads the encoder memory</a>
+        <a href="#s721" class="lvl2">7.2.1 Give the vectors three different jobs</a>
+        <a href="#s722" class="lvl2">7.2.2 Compare, weight, and combine</a>
+        <a href="#s723" class="lvl2">7.2.3 Prepare for the numerical example</a>
+        <a href="#s73">7.3&nbsp;&nbsp;Put numbers into the two inputs</a>
+        <a href="#s74">7.4&nbsp;&nbsp;Calculate one cross-attention output</a>
+        <a href="#s741" class="lvl2">7.4.1 Step 1 — build the Query from \(\mathbf D\)</a>
+        <a href="#s742" class="lvl2">7.4.2 Step 2 — build the three Keys from \(\mathbf C\)</a>
+        <a href="#s743" class="lvl2">7.4.3 Step 3 — turn the comparisons into attention weights</a>
+        <a href="#s744" class="lvl2">7.4.4 Step 4 — combine the Values into one output</a>
+        <a href="#s75">7.5&nbsp;&nbsp;Follow the update through the rest of the block</a>
+        <a href="#s751" class="lvl2">7.5.1 Add the update to \(\mathbf D\), then normalise</a>
+        <a href="#s752" class="lvl2">7.5.2 Finish this block, then enter the next one</a>
+        <a href="#s753" class="lvl2">7.5.3 Review the three sublayers</a>
+        <a href="#s76">7.6&nbsp;&nbsp;Connect the block to the generation loop</a>
+        <a href="#s77">7.7&nbsp;&nbsp;Optional: the parameter count</a>
+        <a href="#s7next">Next&nbsp;&nbsp;Control which positions a row can read</a>
+        <a href="./TTNN-Part8-Masks.html">Part 8&nbsp;&nbsp;The Two Masks &#8594;</a>
+      </div>
+    </nav>
+
+    <main class="main">
+      <div class="homebar"><a href="./index.html" aria-label="Back to the home page">&#8592;&nbsp;&nbsp;Home</a></div>
+      <div class="eyebrow">The Transformer, Number by Number &nbsp;&#183;&nbsp; Part 7</div>
+      <h1>Where the Encoder Stack Meets the Decoder Stack</h1>
+      <p class="byline">By <b>Hao Ma</b> &nbsp;&#183;&nbsp; <a href="https://haoma7.github.io" rel="author">haoma7.github.io</a></p>
+      <p class="standfirst">Part 6 showed how the decoder’s final hidden-state vector helps select the next token. That vector already contains information from the source sentence. This part explains how the decoder reads that information: through <b>cross-attention</b>.</p>
+<p>We continue with <code>I love LLMs</code> and the illustrated translation <code>J’aime les grands modèles</code>. As in Part 6, each displayed word counts as one token in this teaching example. We focus on <b>run 1</b>, when the target prefix contains only <code>&lt;start&gt;</code> and the first French token has not yet been selected.</p>
+<p>First we will identify the information that cross-attention reads. Then we will calculate the cross-attention output \(\mathbf Z_{\text{cross}}\) and follow \(\mathbf Z_{\text{cross}}\) into the next step of a decoder block.</p>
+<p>We build on attention from <a href="./TTNN-Part1-Self-Attention.html">Part 1</a>, Add &amp; Norm from <a href="./TTNN-Part5-Encoder-Block.html">Part 5</a>, and the generation loop from <a href="./TTNN-Part6-Decoder-Inference.html">Part 6</a>.</p>
+<h2 id="s71"><span class="num">7.1</span>Why the decoder needs the source sentence</h2>
+<p>Imagine translating two different sentences. <code>I love LLMs</code> could lead to a translation beginning with <code>J’aime</code>. <code>LLMs love me</code> could lead to one beginning with <code>Les</code>. This is the comparison from <a href="./TTNN-Part6-Decoder-Inference.html#s613">Part 6, Section 6.1.3</a>.</p>
+<p>The decoder receives the same <code>&lt;start&gt;</code> input and uses the same learned weights for both source sentences. To produce different translations, the decoder also needs information about the source sentence.</p>
+<blockquote class="think"><b>Think for a moment</b> How does the decoder get information about the source sentence?</blockquote>
+<p>The encoder provides the source information. It has already processed the source sentence into <b>one contextual vector per source token</b>. Each vector represents its token in the context of the whole source sentence. Together, these output vectors form the <b>encoder memory</b>, denoted by \(\mathbf C\). \(\mathbf C\) is the “source memory” introduced in Part 6. The decoder can read \(\mathbf C\) throughout the translation.</p>
+<figure id="fig-source-choice"><div class="plate learning-figure">
+<p class="fig-title">Same decoder input, different source information</p>
+<p class="fig-note">Both translations begin with &lt;start&gt;. The model weights are unchanged.</p>
+<div class="source-examples"><div class="source-example"><div class="source-box"><strong>I love LLMs</strong><span>encoder → encoder memory</span><span class="mini-matrix source" style="--cols:4" role="img" aria-label="Three encoder output vectors"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></div><span class="figure-arrow" aria-hidden="true">→</span><div class="decoder-box"><strong>decoder + output head</strong><span>decoder input: &lt;start&gt;</span><span>possible first token: <b>J’aime</b></span></div></div><div class="source-example"><div class="source-box"><strong>LLMs love me</strong><span>encoder → encoder memory</span><span class="mini-matrix source" style="--cols:4" role="img" aria-label="Three encoder output vectors"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></div><span class="figure-arrow" aria-hidden="true">→</span><div class="decoder-box"><strong>decoder + output head</strong><span>decoder input: &lt;start&gt;</span><span>possible first token: <b>Les</b></span></div></div></div><p class="fig-note">The encoder memory is different, so the next-token probabilities can differ.</p></div><figcaption><b>Figure 1.</b> The encoder supplies the information that distinguishes the two source sentences. J’aime and Les are illustrative first-token choices.</figcaption></figure>
+<p><b>Cross-attention is the operation that reads the encoder memory.</b> For each decoder position, it computes a weight for each source position, then uses those weights to combine information from the encoder output vectors in \(\mathbf C\). That combination becomes an update to the decoder’s vector.</p>
+<p>Every decoder block has a cross-attention sublayer. This is the connection Part 6 called the “side door”: source information enters partway through a decoder block, while the current prefix enters at the bottom of the decoder stack.</p>
+<p>Without cross-attention, the decoder’s next-token probabilities for a fixed prefix would not depend on the source sentence. Cross-attention gives the decoder the source-dependent information it needs for translation.</p>
+<h2 id="s72"><span class="num">7.2</span>How the decoder reads the encoder memory</h2>
+<p>On run 1, cross-attention must connect <b>one decoder position</b>, &lt;start&gt;, with <b>three source positions</b>, I, love and LLMs. Figure 2 shows where the two inputs meet inside the first decoder block.</p>
+<figure id="fig-cross-attention-inputs"><div class="plate"><svg viewBox="0 0 700 448" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="f2-title f2-description">
+<title id="f2-title">Two inputs to cross-attention</title>
+<desc id="f2-description">Read the first decoder block upward. The start-token input passes through masked self-attention and Add and Norm to produce D. Cross-attention receives D from below and encoder memory C from the right. Three residual paths bypass the three sublayers. The remaining operations are shown in muted colours.</desc>
+<defs>
+<marker id="f2-arrow-main" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path d="M1 1 L7 4 L1 7" fill="none" stroke="var(--ink-soft)" stroke-width="1.2" stroke-linejoin="round"/></marker>
+<marker id="f2-arrow-target" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path d="M1 1 L7 4 L1 7" fill="none" stroke="var(--accent)" stroke-width="1.3" stroke-linejoin="round"/></marker>
+<marker id="f2-arrow-source" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path d="M1 1 L7 4 L1 7" fill="none" stroke="var(--h2c)" stroke-width="1.3" stroke-linejoin="round"/></marker>
+</defs>
+<g font-family="IBM Plex Mono, monospace">
+<text x="28" y="25" font-size="11.5" letter-spacing="1.1" fill="var(--ink-soft)">FIRST DECODER BLOCK</text>
+<text x="660" y="25" font-size="11.5" text-anchor="end" fill="var(--ink-soft)">Run 1</text>
+<text x="28" y="46" font-size="11" fill="var(--ink-soft)">Read bottom to top</text>
+<text x="276" y="61" font-size="11.5" text-anchor="middle" fill="var(--ink-soft)">block output</text>
+
+<!-- Muted continuation through the rest of the block. -->
+<g fill="none" stroke="var(--ink-soft)" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round">
+<path d="M276 80 V67" marker-end="url(#f2-arrow-main)"/>
+<path d="M276 128 V108" marker-end="url(#f2-arrow-main)"/>
+<path d="M276 180 V158" marker-end="url(#f2-arrow-main)"/>
+<path d="M276 238 V208" marker-end="url(#f2-arrow-main)"/>
+<path d="M276 170 H145 V94 H176" marker-end="url(#f2-arrow-main)"/>
+<path d="M276 298 H145 V194 H176" marker-end="url(#f2-arrow-main)"/>
+</g>
+<rect x="178" y="80" width="196" height="28" rx="5" fill="var(--panel)" stroke="var(--rule)" stroke-width="1"/>
+<text x="276" y="98" font-size="12" text-anchor="middle" fill="var(--ink-soft)">Add &amp; Norm</text>
+<rect x="178" y="128" width="196" height="30" rx="5" fill="var(--panel)" stroke="var(--rule)" stroke-width="1"/>
+<text x="276" y="148" font-size="12.5" text-anchor="middle" fill="var(--ink-soft)">feed-forward</text>
+<rect x="178" y="180" width="196" height="28" rx="5" fill="var(--panel)" stroke="var(--rule)" stroke-width="1"/>
+<text x="276" y="198" font-size="12" text-anchor="middle" fill="var(--ink-soft)">Add &amp; Norm</text>
+
+<!-- The source and decoder state meet at cross-attention. -->
+<rect x="178" y="238" width="196" height="34" rx="6" fill="var(--chip-bg)" stroke="var(--h1c)" stroke-width="1.7"/>
+<text x="276" y="260" font-size="13.5" font-weight="600" text-anchor="middle" fill="var(--ink)">cross-attention</text>
+<path d="M448 255 H376" fill="none" stroke="var(--h2c)" stroke-width="1.6" marker-end="url(#f2-arrow-source)"/>
+<rect x="448" y="221" width="212" height="68" rx="7" fill="var(--panel)" stroke="var(--h2c)" stroke-width="1.2"/>
+<text x="554" y="246" font-size="13.5" text-anchor="middle" fill="var(--h2c)"><tspan class="math-symbol">C</tspan> · encoder memory</text>
+<text x="554" y="271" font-size="12" text-anchor="middle" fill="var(--ink-soft)">I · love · LLMs</text>
+<path d="M276 310 V274" fill="none" stroke="var(--accent)" stroke-width="1.7" marker-end="url(#f2-arrow-target)"/>
+<circle cx="276" cy="298" r="2.4" fill="var(--accent)"/>
+<text x="296" y="299" font-size="15" fill="var(--accent)"><tspan class="math-symbol">D</tspan></text>
+
+<!-- First sublayer and its residual path. -->
+<g fill="none" stroke="var(--ink-soft)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+<path d="M276 358 V338" marker-end="url(#f2-arrow-main)"/>
+<path d="M276 412 V388" marker-end="url(#f2-arrow-main)"/>
+<path d="M276 402 H145 V324 H176" marker-end="url(#f2-arrow-main)"/>
+</g>
+<circle cx="276" cy="402" r="2" fill="var(--ink-soft)"/>
+<circle cx="276" cy="170" r="2" fill="var(--ink-soft)"/>
+<rect x="178" y="310" width="196" height="28" rx="5" fill="var(--panel)" stroke="var(--h1c)" stroke-width="1"/>
+<text x="276" y="328" font-size="12" text-anchor="middle" fill="var(--ink)">Add &amp; Norm</text>
+<rect x="178" y="358" width="196" height="30" rx="5" fill="var(--panel)" stroke="var(--h1c)" stroke-width="1"/>
+<text x="276" y="378" font-size="13" text-anchor="middle" fill="var(--ink)">masked self-attention</text>
+<text x="276" y="431" font-size="12.5" text-anchor="middle" fill="var(--accent)">&lt;start&gt; input vector</text>
+<text x="126" y="333" font-size="10.5" text-anchor="end" fill="var(--ink-soft)">residual</text>
+</g>
+</svg></div><figcaption><b>Figure 2.</b> Follow the &lt;start&gt; input upward through masked self-attention and the first Add &amp; Norm to reach \(\mathbf D\). Cross-attention reads \(\mathbf D\) from below and encoder memory \(\mathbf C\) from the side. The later sublayers are shown in muted colours; Section 7.5 follows the calculation through them.</figcaption></figure>
+<p>On the source side, the encoder has finished. Each row of the encoder memory <b>\(\mathbf C\)</b> is the encoder output vector for one source token. The three rows follow the source order: I, love, LLMs.</p><blockquote class="key-point " id="key-source-mask"><b class="key-point-title">Cross-attention can read all three source positions</b><p>The encoder has already processed <code>I</code>, <code>love</code> and <code>LLMs</code>, so each decoder Query can read all three rows of \(\mathbf C\). Cross-attention does not use the target-side causal mask. A source padding mask excludes padding positions when present; <a href="./TTNN-Part8-Masks.html">Part 8</a> explains both masks.</p></blockquote>
+<p>On the decoder side, the &lt;start&gt; embedding has entered the first decoder block. It has passed through <b>masked self-attention, followed by residual addition and LayerNorm</b>—the first Add &amp; Norm. The resulting \(1\times4\) row vector is the input to cross-attention. We call this decoder state <b>\(\mathbf D\)</b>.</p>
+<p>\(\mathbf D\) is a \(1\times4\) row vector. The encoder memory \(\mathbf C\) stacks three \(1\times4\) row vectors, one per source position:</p>
+<table class="input-shapes"><thead><tr><th>Input</th><th>Rows represent</th><th>Shape on run 1</th></tr></thead><tbody>
+<tr><td>\(\mathbf C\): encoder memory</td><td>I, love, LLMs — three source positions</td><td>\(3\times4\)</td></tr>
+<tr><td>\(\mathbf D\): decoder state</td><td>&lt;start&gt; — one decoder position</td><td>\(1\times4\)</td></tr>
+</tbody></table>
+<p>These are contextual vectors, not token IDs. Cross-attention transforms them into three kinds of vector with different jobs.</p>
+<h3 id="s721"><span class="num">7.2.1</span>Give the vectors three different jobs</h3>
+<p>The decoder needs to use information from the encoder memory \(\mathbf C\) to update its current state \(\mathbf D\). Cross-attention uses the same three kinds of vector introduced in Part 1—<b>Queries, Keys and Values</b>—but draws them from two different inputs, \(\mathbf D\) and \(\mathbf C\):</p>
+<ul>
+<li><b>Query:</b> transform the decoder state \(\mathbf D\) into a vector used for comparison. On this run there is one Query, for &lt;start&gt;.</li>
+<li><b>Keys:</b> transform each encoder output vector in \(\mathbf C\) into a vector that the Query can be compared with. There are three Keys, one for each source position.</li>
+<li><b>Values:</b> transform those same encoder output vectors into the information that will be combined. There are three Values, in the same source order.</li>
+</ul>
+<p>Each transformation is a matrix multiplication, called a <b>projection</b>. The three learned projection matrices are written \(\mathbf W^Q_{\text{cross}}\), \(\mathbf W^K_{\text{cross}}\) and \(\mathbf W^V_{\text{cross}}\). The superscript identifies the projection’s result—\(\mathbf Q_{\text{cross}}\), \(\mathbf K_{\text{cross}}\) or \(\mathbf V_{\text{cross}}\); “cross” distinguishes them from the self-attention projections.</p>
+<p>Call the resulting matrices \(\mathbf Q_{\text{cross}}\), \(\mathbf K_{\text{cross}}\) and \(\mathbf V_{\text{cross}}\), shortened to \(\mathbf Q\), \(\mathbf K\) and \(\mathbf V\) in the figures. Figure 3 shows their sources and shapes; each projection matrix is \(4\times4\) in this example.</p>
+<figure id="fig-qkv-sources"><div class="plate learning-figure"><p class="fig-title">Build three kinds of vector from two inputs</p>
+<p class="fig-note">Run 1: \(\mathbf D\) has one decoder position; \(\mathbf C\) has three source positions.</p>
+<div class="projection-header" aria-hidden="true"><span>Input</span><span>Multiply by</span><span>Result</span></div><div class="projection-row"><div class="tensor-block"><strong>\(\mathbf D\)</strong><span class="mini-matrix target" style="--cols:4" role="img" aria-label="1 by 4 matrix"><span></span><span></span><span></span><span></span></span><span>1 × 4</span></div><div class="projection-operation"><span aria-hidden="true">×</span><span>\(\mathbf{W}^{Q}_{\text{cross}}\)<small>4 × 4</small></span><span aria-hidden="true">→</span></div><div class="tensor-block"><strong>\(\mathbf Q\) · one Query</strong><span class="mini-matrix target" style="--cols:4" role="img" aria-label="1 by 4 matrix"><span></span><span></span><span></span><span></span></span><span>1 × 4</span></div></div><div class="projection-row"><div class="tensor-block"><strong>\(\mathbf C\)</strong><span class="mini-matrix source" style="--cols:4" role="img" aria-label="3 by 4 matrix"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span><span>3 × 4</span></div><div class="projection-operation"><span aria-hidden="true">×</span><span>\(\mathbf{W}^{K}_{\text{cross}}\)<small>4 × 4</small></span><span aria-hidden="true">→</span></div><div class="tensor-block"><strong>\(\mathbf K\) · three Keys</strong><span class="mini-matrix source" style="--cols:4" role="img" aria-label="3 by 4 matrix"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span><span>3 × 4</span></div></div><div class="projection-row"><div class="tensor-block"><strong>\(\mathbf C\)</strong><span class="mini-matrix source" style="--cols:4" role="img" aria-label="3 by 4 matrix"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span><span>3 × 4</span></div><div class="projection-operation"><span aria-hidden="true">×</span><span>\(\mathbf{W}^{V}_{\text{cross}}\)<small>4 × 4</small></span><span aria-hidden="true">→</span></div><div class="tensor-block"><strong>\(\mathbf V\) · three Values</strong><span class="mini-matrix source" style="--cols:4" role="img" aria-label="3 by 4 matrix"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span><span>3 × 4</span></div></div><p class="fig-note">Each small square is one vector component, not a token. Each row is one token position.</p></div><figcaption><b>Figure 3.</b> \(\mathbf D\) is the decoder state after masked self-attention and Add &amp; Norm; \(\mathbf C\) is the encoder memory. \(\mathbf D\) supplies \(\mathbf Q\). \(\mathbf C\) is used twice, with different projection matrices, to supply \(\mathbf K\) and \(\mathbf V\). The square grids show the matrix shapes. Section 7.4 calculates the numerical entries of \(\mathbf Q\), \(\mathbf K\) and \(\mathbf V\).</figcaption></figure>
+\[ \mathbf Q_{\text{cross}}=\mathbf D\mathbf W^Q_{\text{cross}}. \]
+\[ \mathbf K_{\text{cross}}=\mathbf C\mathbf W^K_{\text{cross}},\qquad
+\mathbf V_{\text{cross}}=\mathbf C\mathbf W^V_{\text{cross}}. \]
+<p>\(\mathbf C\) is used twice because comparison and information gathering have different jobs. A source position’s Key is used to calculate an attention score. Softmax converts the scores into attention weights; each weight multiplies the Value from the same source position.</p>
+<p>In <b>self-attention</b>, all three projections read the same sequence of vectors. In <b>cross-attention</b>, the Query comes from the decoder state, while the Keys and Values come from encoder memory. The score-and-weight calculation itself is the same.</p>
+<h3 id="s722"><span class="num">7.2.2</span>Compare, weight, and combine</h3>
+<p>We now follow the Query for &lt;start&gt; through <b>scaled dot-product attention</b>: compare it with the three Keys, turn the scores into weights, and combine the Values. These are the same operations used in Part 1.</p>
+<ol>
+<li><b>Compare the Query with each Key.</b> Each dot product produces a score. There are three Keys, so we obtain three scores in the order I, love, LLMs. Divide each score by \(\sqrt{d_k}\), where \(d_k\) is the number of components in a Key. Here \(d_k=4\), so the divisor is 2. This scaling controls how the score size grows with vector width.</li>
+<li><b>Turn the scores into attention weights.</b> Softmax produces three weights that sum to 1 before rounding. We collect them in a row called \(\mathbf A_{\text{cross}}\). Each weight specifies how much of the corresponding Value to include.</li>
+<li><b>Combine the Values.</b> Multiply each Value by its attention weight and add the three weighted vectors component by component. Call the result \(\mathbf Z_{\text{cross}}\), the cross-attention output.</li>
+</ol>
+<figure id="fig-attention-steps"><div class="plate learning-figure"><p class="fig-title">One Query produces \(\mathbf Z_{\text{cross}}\)</p>
+<div class="attention-stage" data-attention-stage="1"><div class="stage-heading"><b>1 · Compare</b><span>One score for each source position</span></div><div class="stage-equation">\(\underbrace{\mathbf Q_{\text{cross}}}_{1\times4}\;\underbrace{\mathbf K_{\text{cross}}^{\top}}_{4\times3}\,/\,2\quad\longrightarrow\quad\underbrace{\text{scores}}_{1\times3}\)</div><p>Columns: I · love · LLMs</p></div>
+<div class="attention-stage" data-attention-stage="2"><div class="stage-heading"><b>2 · Weight</b><span>Turn the scores into attention weights</span></div><div class="stage-equation">\(\underbrace{\text{scores}}_{1\times3}\quad\xrightarrow{\text{softmax}}\quad\underbrace{\mathbf A_{\text{cross}}}_{1\times3}\)</div><p>One weight for I, one for love, one for LLMs</p></div>
+<div class="attention-stage" data-attention-stage="3"><div class="stage-heading"><b>3 · Combine</b><span>Weight the three Values and add them</span></div><div class="stage-equation">\(\underbrace{\mathbf A_{\text{cross}}}_{1\times3}\;\underbrace{\mathbf V_{\text{cross}}}_{3\times4}\quad\longrightarrow\quad\underbrace{\mathbf Z_{\text{cross}}}_{1\times4}\)</div><p>\(\mathbf Z_{\text{cross}}\) · information from the Values, used to update \(\mathbf D\).</p></div>
+<div class="run-controls attention-controls" role="group" aria-label="Highlight an attention step"><button type="button" data-attention-step="0" aria-pressed="true">All steps</button><button type="button" data-attention-step="1" aria-pressed="false">1 · Compare</button><button type="button" data-attention-step="2" aria-pressed="false">2 · Weight</button><button type="button" data-attention-step="3" aria-pressed="false">3 · Combine</button></div>
+<p class="step-explanation" aria-live="polite">Follow one decoder position through the three operations. Use the buttons to focus on a step.</p>
+</div><figcaption><b>Figure 4.</b> The source length determines how many scores and weights the Query needs. The Query count determines how many output vectors are produced. Here the three source positions contribute to one decoder position.</figcaption></figure>
+<p>Written as two expressions, those operations are:</p>
+\[ \mathbf A_{\text{cross}}=\operatorname{softmax}\!\left(\frac{\mathbf Q_{\text{cross}}\mathbf K_{\text{cross}}^{\top}}{\sqrt{d_k}}\right),
+\qquad \mathbf Z_{\text{cross}}=\mathbf A_{\text{cross}}\mathbf V_{\text{cross}}. \]
+<p>Transposing \(\mathbf K_{\text{cross}}\) puts one Key in each column, so \(\mathbf Q_{\text{cross}}\mathbf K_{\text{cross}}^{\top}\) compares the Query with all three Keys at once. \(\mathbf A_{\text{cross}}\) has shape \(1\times3\). Multiplying \(\mathbf A_{\text{cross}}\) by \(\mathbf V_{\text{cross}}\), which has shape \(3\times4\), sums over the three source positions and returns the \(1\times4\) row vector \(\mathbf Z_{\text{cross}}\).</p>
+<blockquote class="think"><b>Think for a moment</b> We read the three encoder output vectors in \(\mathbf C\). Why does \(\mathbf Z_{\text{cross}}\) have shape \(1\times4\) here?</blockquote>
+<p>Because we asked it to update <b>one decoder position</b>. All three rows of \(\mathbf C\) contribute to \(\mathbf Z_{\text{cross}}\). With two decoder Queries, the same operation would produce two output vectors, one per Query.</p>
+<p>The weighted sum \(\mathbf Z_{\text{cross}}\) combines information from the three Values derived from encoder memory \(\mathbf C\). This information is used to update the decoder state \(\mathbf D\) that produced the Query. On this run, \(\mathbf D\) is the state for the only input token, <code>&lt;start&gt;</code>. Section 7.5 shows how this update is applied.</p>
+<blockquote class="key-point " id="key-two-weights"><b class="key-point-title">Projection weights and attention weights</b><p>The projection matrices \(\mathbf W\) are model parameters that stay fixed during inference. The attention weights \(\mathbf A_{\text{cross}}\) are calculated from \(\mathbf Q_{\text{cross}}\) and \(\mathbf K_{\text{cross}}\), so they can change with the source sentence or decoder state \(\mathbf D\). The entries of \(\mathbf A_{\text{cross}}\) weight the source Values; they are not next-token probabilities.</p></blockquote>
+<h3 id="s723"><span class="num">7.2.3</span>Prepare for the numerical example</h3>
+<p>We will calculate cross-attention by hand using one head. Each token position is represented by a \(1\times4\) row vector, so the two inputs have shapes \(\mathbf C:3\times4\) and \(\mathbf D:1\times4\).</p>
+<p>The projection matrices are hand-picked to demonstrate the calculation; they have not been trained to produce the illustrated French translation. This numerical example is separate from Part 6’s output-head calculation.</p>
+
+<p>Use these settings throughout the hand calculation:</p>
+<ul>
+<li>We omit positional encoding and embedding scaling from the arithmetic. Figure 10 marks where positional information is added in the full architecture.</li>
+<li>For both attention sublayers, set \(\mathbf W^O=\mathbf I_4\), the \(4\times4\) identity matrix, and use no projection biases. The weighted sum can therefore go directly into the residual addition.</li>
+<li>For every LayerNorm, use \(\varepsilon=10^{-5}\), \(\boldsymbol\gamma=(1,1,1,1)\) and \(\boldsymbol\beta=(0,0,0,0)\), as in Part 5.</li>
+</ul>
+<details class="supplement"><summary>How this extends to multi-head attention</summary>
+<p>The full multi-head version performs this calculation separately in each head, concatenates the head outputs, then applies a learned \(\mathbf{W}^{O}\), as in Part 2. In each head, \(\mathbf Q_{\text{cross}}\) comes from \(\mathbf D\), while \(\mathbf K_{\text{cross}}\) and \(\mathbf V_{\text{cross}}\) come from \(\mathbf C\).</p>
+</details>
+
+<h2 id="s73"><span class="num">7.3</span>Put numbers into the two inputs</h2>
+<p>Figure 5 locates the symbols used in the calculation. Follow the &lt;start&gt; input upward, and trace \(\mathbf C\) from the encoder into the cross-attention projections.</p>
+<figure id="fig-symbol-map"><div class="plate"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 842" role="img" aria-labelledby="f5d-title f5d-description"><title id="f5d-title">Where the mathematical symbols belong in the first decoder block</title><desc id="f5d-description">Read the decoder upward: X dec enters masked self-attention with separate Query, Key and Value projection matrices. Add and Norm gives D. The cross-attention Query is projected from D; Keys and Values are projected from the fixed encoder memory C. The attention weights A combine the Values into Z. Add and Norm produces H, then feed-forward and a final Add and Norm complete this block. Dashed paths carry X dec, D and H for residual addition.</desc><defs><marker id="f5d-b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="var(--h1c)" stroke-width="1.4"/></marker><marker id="f5d-g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="var(--h2c)" stroke-width="1.4"/></marker><marker id="f5d-p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="var(--accent)" stroke-width="1.4"/></marker><marker id="f5d-s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="var(--fig-soft)" stroke-width="1.4"/></marker></defs><g font-family="Segoe UI, Arial, sans-serif"><text x="88" y="30" font-size="22" fill="var(--fig-line)" text-anchor="start" font-weight="600">Where the symbols live</text><text x="1072" y="29" font-size="11.5" fill="var(--fig-soft)" text-anchor="end" font-weight="500">FIRST DECODER BLOCK  ·  RUN 1</text><text x="408" y="63" font-size="12" fill="var(--fig-soft)" text-anchor="middle" font-weight="400">To decoder block 2</text><rect x="88" y="80" width="640" height="122" rx="12" stroke="var(--rule)" stroke-width="1" fill="var(--panel)"/><circle cx="120" cy="99" r="12" fill="var(--fig-soft)" fill-opacity=".1"/><text x="120" y="103" font-size="11" fill="var(--fig-soft)" text-anchor="middle" font-weight="600">03</text><text x="144" y="104" font-size="15" fill="var(--fig-soft)" text-anchor="start" font-weight="600">Finish the block</text><rect x="220" y="118" width="376" height="28" rx="6" stroke="var(--rule)" stroke-width="1" fill="var(--fig-fill)"/><text x="408" y="137" font-size="13" fill="var(--fig-line)" text-anchor="middle" font-weight="400">Add &amp; Norm</text><rect x="220" y="164" width="376" height="28" rx="6" stroke="var(--rule)" stroke-width="1" fill="var(--fig-fill)"/><text x="408" y="183" font-size="14" fill="var(--fig-line)" text-anchor="middle" font-weight="400">Feed-forward  ·  FFN(<tspan class="math-symbol">H</tspan>)</text><path d="M408 164 V146" fill="none" stroke="var(--h1c)" stroke-width="1.5" marker-end="url(#f5d-b)"/><path d="M408 118 V70" fill="none" stroke="var(--h1c)" stroke-width="1.5" marker-end="url(#f5d-b)"/><rect x="288" y="211" width="240" height="32" rx="16" stroke="var(--accent)" stroke-width="1" fill="var(--fig-fill)"/><text x="408" y="232" font-size="15" fill="var(--accent)" text-anchor="middle" font-weight="400"><tspan class="math-symbol">H</tspan>  ·  1 × 4</text><path d="M408 211 V192" fill="none" stroke="var(--h1c)" stroke-width="1.5" marker-end="url(#f5d-b)"/><rect x="220" y="257" width="376" height="30" rx="6" stroke="var(--rule)" stroke-width="1" fill="var(--fig-fill)"/><text x="408" y="277" font-size="14" fill="var(--fig-line)" text-anchor="middle" font-weight="400">Add &amp; Norm  ·  <tspan class="math-symbol">D</tspan> + <tspan class="math-symbol">Z</tspan><tspan baseline-shift="sub" font-size="10">cross</tspan></text><path d="M408 257 V243" fill="none" stroke="var(--h1c)" stroke-width="1.5" marker-end="url(#f5d-b)"/><rect x="238" y="303" width="340" height="32" rx="16" stroke="var(--h1c)" stroke-width="1" fill="var(--fig-fill)"/><text x="408" y="324" font-size="15" fill="var(--h1c)" text-anchor="middle" font-weight="400"><tspan class="math-symbol">Z</tspan><tspan baseline-shift="sub" font-size="10">cross</tspan> = <tspan class="math-symbol">A</tspan><tspan baseline-shift="sub" font-size="10">cross</tspan><tspan class="math-symbol">V</tspan><tspan baseline-shift="sub" font-size="10">cross</tspan>  ·  1 × 4</text><path d="M408 303 V287" fill="none" stroke="var(--h1c)" stroke-width="1.5" marker-end="url(#f5d-b)"/><rect x="88" y="351" width="640" height="162" rx="12" stroke="var(--h1c)" stroke-width="1" fill="var(--panel)"/><circle cx="120" cy="372" r="12" fill="var(--h1c)" fill-opacity=".1"/><text x="120" y="376" font-size="11" fill="var(--h1c)" text-anchor="middle" font-weight="600">02</text><text x="144" y="377" font-size="15" fill="var(--h1c)" text-anchor="start" font-weight="600">Cross-attention</text><text x="408" y="408" font-size="16" fill="var(--fig-line)" text-anchor="middle" font-weight="400"><tspan class="math-symbol">A</tspan><tspan baseline-shift="sub" font-size="10">cross</tspan> = softmax(<tspan class="math-symbol">Q</tspan><tspan baseline-shift="sub" font-size="10">cross</tspan><tspan class="math-symbol">K</tspan><tspan baseline-shift="super" font-size="10">T</tspan><tspan baseline-shift="sub" font-size="10">cross</tspan> / 2)  ·  1 × 3</text><path d="M110 424 H706 M398 438 V495" stroke="var(--rule)" stroke-width="1"/><text x="248" y="450" font-size="10.5" fill="var(--accent)" text-anchor="middle" font-weight="600">QUERY FROM THE DECODER · 1 × 4</text><text x="248" y="480" font-size="17" fill="var(--fig-line)" text-anchor="middle" font-weight="400"><tspan class="math-symbol">Q</tspan><tspan baseline-shift="sub" font-size="10">cross</tspan> = <tspan class="math-symbol">D</tspan><tspan class="math-symbol">W</tspan><tspan baseline-shift="super" font-size="10">Q</tspan><tspan baseline-shift="sub" font-size="10">cross</tspan></text><text x="561" y="447" font-size="16" fill="var(--fig-line)" text-anchor="middle" font-weight="400"><tspan class="math-symbol">K</tspan><tspan baseline-shift="sub" font-size="10">cross</tspan> = <tspan class="math-symbol">C</tspan><tspan class="math-symbol">W</tspan><tspan baseline-shift="super" font-size="10">K</tspan><tspan baseline-shift="sub" font-size="10">cross</tspan>  ·  3 × 4</text><text x="561" y="481" font-size="16" fill="var(--fig-line)" text-anchor="middle" font-weight="400"><tspan class="math-symbol">V</tspan><tspan baseline-shift="sub" font-size="10">cross</tspan> = <tspan class="math-symbol">C</tspan><tspan class="math-symbol">W</tspan><tspan baseline-shift="super" font-size="10">V</tspan><tspan baseline-shift="sub" font-size="10">cross</tspan>  ·  3 × 4</text><path d="M408 351 V335" fill="none" stroke="var(--h1c)" stroke-width="1.5" marker-end="url(#f5d-b)"/><rect x="288" y="548" width="240" height="32" rx="16" stroke="var(--accent)" stroke-width="1" fill="var(--fig-fill)"/><text x="408" y="569" font-size="15" fill="var(--accent)" text-anchor="middle" font-weight="400"><tspan class="math-symbol">D</tspan>  ·  1 × 4</text><path d="M408 548 V531 H248 V513" fill="none" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#f5d-p)"/><rect x="220" y="596" width="376" height="30" rx="6" stroke="var(--rule)" stroke-width="1" fill="var(--fig-fill)"/><text x="408" y="616" font-size="13" fill="var(--fig-line)" text-anchor="middle" font-weight="400">Add &amp; Norm</text><path d="M408 596 V580" fill="none" stroke="var(--h1c)" stroke-width="1.5" marker-end="url(#f5d-b)"/><rect x="88" y="644" width="640" height="112" rx="12" stroke="var(--h1c)" stroke-width="1" fill="var(--panel)"/><circle cx="120" cy="666" r="12" fill="var(--h1c)" fill-opacity=".1"/><text x="120" y="670" font-size="11" fill="var(--h1c)" text-anchor="middle" font-weight="600">01</text><text x="144" y="671" font-size="15" fill="var(--h1c)" text-anchor="start" font-weight="600">Masked self-attention</text><path d="M299 689 V736 M517 689 V736" stroke="var(--rule)" stroke-width="1"/><text x="193" y="710" font-size="15" fill="var(--fig-line)" text-anchor="middle" font-weight="400"><tspan class="math-symbol">Q</tspan><tspan baseline-shift="sub" font-size="10">dec-self</tspan> = <tspan class="math-symbol">X</tspan><tspan baseline-shift="sub" font-size="10">dec</tspan><tspan class="math-symbol">W</tspan><tspan baseline-shift="super" font-size="10">Q</tspan><tspan baseline-shift="sub" font-size="10">dec-self</tspan></text><text x="193" y="734" font-size="11.5" fill="var(--fig-soft)" text-anchor="middle" font-weight="400">1 × 4</text><text x="408" y="710" font-size="15" fill="var(--fig-line)" text-anchor="middle" font-weight="400"><tspan class="math-symbol">K</tspan><tspan baseline-shift="sub" font-size="10">dec-self</tspan> = <tspan class="math-symbol">X</tspan><tspan baseline-shift="sub" font-size="10">dec</tspan><tspan class="math-symbol">W</tspan><tspan baseline-shift="super" font-size="10">K</tspan><tspan baseline-shift="sub" font-size="10">dec-self</tspan></text><text x="408" y="734" font-size="11.5" fill="var(--fig-soft)" text-anchor="middle" font-weight="400">1 × 4</text><text x="623" y="710" font-size="15" fill="var(--fig-line)" text-anchor="middle" font-weight="400"><tspan class="math-symbol">V</tspan><tspan baseline-shift="sub" font-size="10">dec-self</tspan> = <tspan class="math-symbol">X</tspan><tspan baseline-shift="sub" font-size="10">dec</tspan><tspan class="math-symbol">W</tspan><tspan baseline-shift="super" font-size="10">V</tspan><tspan baseline-shift="sub" font-size="10">dec-self</tspan></text><text x="623" y="734" font-size="11.5" fill="var(--fig-soft)" text-anchor="middle" font-weight="400">1 × 4</text><path d="M408 644 V626" fill="none" stroke="var(--h1c)" stroke-width="1.5" marker-end="url(#f5d-b)"/><rect x="243" y="788" width="330" height="32" rx="16" stroke="var(--accent)" stroke-width="1" fill="var(--fig-fill)"/><text x="408" y="809" font-size="15" fill="var(--accent)" text-anchor="middle" font-weight="400"><tspan class="math-symbol">X</tspan><tspan baseline-shift="sub" font-size="10">dec</tspan>  ·  1 × 4  ·  &lt;start&gt;</text><path d="M408 788 V756" fill="none" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#f5d-p)"/><path d="M408 772 H58 V611 H220" fill="none" stroke="var(--accent)" stroke-width="1.15" stroke-dasharray="4 5" opacity=".7" marker-end="url(#f5d-p)"/><text x="40" y="697" font-size="12" fill="var(--accent)" text-anchor="end" font-weight="400"><tspan class="math-symbol">X</tspan><tspan baseline-shift="sub" font-size="10">dec</tspan></text><path d="M408 539 H58 V272 H220" fill="none" stroke="var(--accent)" stroke-width="1.15" stroke-dasharray="4 5" opacity=".7" marker-end="url(#f5d-p)"/><text x="40" y="433" font-size="13" fill="var(--accent)" text-anchor="end" font-weight="400"><tspan class="math-symbol">D</tspan></text><path d="M408 204 H58 V132 H220" fill="none" stroke="var(--accent)" stroke-width="1.15" stroke-dasharray="4 5" opacity=".7" marker-end="url(#f5d-p)"/><text x="40" y="177" font-size="13" fill="var(--accent)" text-anchor="end" font-weight="400"><tspan class="math-symbol">H</tspan></text><circle cx="408" cy="204" r="2.5" fill="var(--accent)"/><circle cx="408" cy="539" r="2.5" fill="var(--accent)"/><circle cx="408" cy="772" r="2.5" fill="var(--accent)"/><circle cx="820" cy="374" r="12" fill="var(--h2c)" fill-opacity=".1"/><text x="820" y="378" font-size="11" fill="var(--h2c)" text-anchor="middle" font-weight="600"></text><text x="844" y="379" font-size="15" fill="var(--h2c)" text-anchor="start" font-weight="600">Source memory</text><rect x="808" y="403" width="264" height="102" rx="12" stroke="var(--h2c)" stroke-width="1" fill="var(--fig-fill)"/><text x="832" y="435" font-size="28" fill="var(--h2c)" text-anchor="start" font-weight="400"><tspan class="math-symbol">C</tspan></text><text x="1048" y="431" font-size="12" fill="var(--h2c)" text-anchor="end" font-weight="400">3 × 4</text><text x="832" y="462" font-size="15" fill="var(--fig-line)" text-anchor="start" font-weight="500">Final encoder output</text><text x="832" y="485" font-size="12" fill="var(--fig-soft)" text-anchor="start" font-weight="400">Fixed throughout decoding</text><path d="M808 463 H740 V462 H728" fill="none" stroke="var(--h2c)" stroke-width="1.5" marker-end="url(#f5d-g)"/><rect x="838" y="559" width="204" height="42" rx="8" stroke="var(--rule)" stroke-width="1" fill="var(--fig-fill)"/><text x="940" y="586" font-size="14" fill="var(--fig-line)" text-anchor="middle" font-weight="400">Encoder stack</text><path d="M940 559 V505" fill="none" stroke="var(--h2c)" stroke-width="1.5" marker-end="url(#f5d-g)"/><text x="940" y="657" font-size="16" fill="var(--fig-line)" text-anchor="middle" font-weight="400">I love LLMs</text><path d="M940 637 V601" fill="none" stroke="var(--h2c)" stroke-width="1.5" marker-end="url(#f5d-g)"/><rect x="808" y="112" width="264" height="168" rx="10" stroke="var(--rule)" stroke-width="1" fill="var(--fig-fill)"/><text x="830" y="140" font-size="11.5" fill="var(--fig-soft)" text-anchor="start" font-weight="600">PROJECTION MATRICES</text><text x="830" y="174" font-size="21" fill="var(--fig-line)" text-anchor="start" font-weight="400"><tspan class="math-symbol">W</tspan>  ·  4 × 4</text><text x="830" y="205" font-size="12.5" fill="var(--fig-soft)" text-anchor="start" font-weight="400">dec-self and cross identify</text><text x="830" y="225" font-size="12.5" fill="var(--fig-soft)" text-anchor="start" font-weight="400">separate parameter sets.</text><text x="830" y="254" font-size="12.5" fill="var(--fig-soft)" text-anchor="start" font-weight="400">Weights stay fixed in inference.</text><text x="808" y="724" font-size="13" fill="var(--fig-soft)" text-anchor="start" font-weight="500">Read the decoder upward.</text><path d="M808 754 H845" fill="none" stroke="var(--h1c)" stroke-width="1.5" marker-end="url(#f5d-b)"/><text x="858" y="759" font-size="12" fill="var(--fig-soft)" text-anchor="start" font-weight="400">Data flow</text><path d="M808 787 H845" fill="none" stroke="var(--accent)" stroke-width="1.15" stroke-dasharray="4 5" opacity=".7" marker-end="url(#f5d-p)"/><text x="858" y="792" font-size="12" fill="var(--fig-soft)" text-anchor="start" font-weight="400">Residual path</text></g></svg></div><figcaption><b>Figure 5.</b> Locate the symbols before starting the calculation. The dec-self projection matrices act on \(\mathbf X_{\text{dec}}\). The cross-attention projection matrices act on \(\mathbf D\) for the Query and on \(\mathbf C\) for the Keys and Values. Solid arrows carry intermediate results; dashed arrows carry the inputs used in residual addition. As specified in Section 7.2.3, both attention output projections are \(\mathbf W^O=\mathbf I_4\). Section 7.5 follows the path through \(\mathbf H\) and the feed-forward network.</figcaption></figure>
+<p>Sections 7.3 and 7.4 revisit calculations you have already learned. Use the supplied inputs and projection matrices to try each calculation before reading its result. Then compare your work with the steps shown below, checking both the numbers and where each input came from.</p>
+<p>We now give the encoder memory \(\mathbf C\) and decoder state \(\mathbf D\) numerical values.</p>
+<p><b>Encoder memory: \(\mathbf C\).</b> Read these rows from top to bottom as <code>I</code>, <code>love</code> and <code>LLMs</code>:</p>
+\[ \mathbf{C} \;=\;
+        \begin{pmatrix}
+          1.13 &amp; -1.48 &amp; -0.30 &amp; 0.66 \\
+          0.73 &amp; -1.24 &amp; -0.69 &amp; 1.20 \\
+          1.57 &amp; -1.21 &amp; -0.24 &amp; -0.13
+        \end{pmatrix} \]
+
+<p>We reuse all three output rows from Part 5’s Figure 10 as the encoder memory \(\mathbf C\), in source order: <code>I</code>, <code>love</code>, <code>LLMs</code>. For this worked example, we use this \(3\times4\) matrix directly instead of calculating all six encoder blocks. \(\mathbf C\) stays fixed throughout decoding.</p>
+<p><b>Decoder state: \(\mathbf D\).</b> The only token in the current prefix is <code>&lt;start&gt;</code>. For this exercise, we set its embedding to \((1,0,0,0)\). Because our hand calculation omits positional encoding and embedding scaling, that vector is also the input to the first decoder block. We name it \(\mathbf X_{\text{dec}}\).</p>
+<p>To obtain \(\mathbf D\), we apply masked self-attention to \(\mathbf X_{\text{dec}}\), then Add &amp; Norm. Here is the calculation.</p>
+<p><b>1. Project the block input.</b> These are the three projection matrices supplied for masked self-attention in this example. The subscript “dec-self” identifies the decoder’s masked self-attention. These matrices are separate from the cross-attention matrices that we will use later:</p>
+\[ \mathbf{W}^{Q}_{\text{dec-self}} = \begin{pmatrix} -1 &amp; 0 &amp; -1 &amp; 1 \\ 0 &amp; 0 &amp; -1 &amp; -1 \\
+        -1 &amp; -1 &amp; 0 &amp; 1 \\ 0 &amp; -1 &amp; -1 &amp; 1 \end{pmatrix} \]
+\[ \mathbf{W}^{K}_{\text{dec-self}} = \begin{pmatrix} 1 &amp; 0 &amp; 0 &amp; -1 \\ -1 &amp; 0 &amp; -1 &amp; -1 \\
+        1 &amp; 0 &amp; 0 &amp; -1 \\ -1 &amp; 0 &amp; 0 &amp; 1 \end{pmatrix} \]
+\[ \mathbf{W}^{V}_{\text{dec-self}} = \begin{pmatrix} 1 &amp; 0 &amp; -1 &amp; 1 \\ 0 &amp; 1 &amp; 0 &amp; 1 \\
+        -1 &amp; -1 &amp; -1 &amp; 0 \\ 0 &amp; -1 &amp; 1 &amp; 0 \end{pmatrix} \]
+
+<p>Multiplying \(\mathbf X_{\text{dec}}=(1,0,0,0)\) by each projection matrix selects that matrix’s first row. Therefore:</p>
+\[ \mathbf Q_{\text{dec-self}}=(-1,0,-1,1),\qquad
+\mathbf K_{\text{dec-self}}=(1,0,0,-1), \]
+\[ \mathbf V_{\text{dec-self}}=(1,0,-1,1). \]
+<p><b>2. Compute the self-attention output.</b> On run 1 there is only one position to attend to, <code>&lt;start&gt;</code> itself. \(\mathbf Q_{\text{dec-self}}=(-1,0,-1,1)\) and \(\mathbf K_{\text{dec-self}}=(1,0,0,-1)\) give one scaled score:</p>
+\[ \frac{(-1)(1)+(0)(0)+(-1)(0)+(1)(-1)}{\sqrt4}=-1. \]
+<blockquote class="key-point mask-key-point" id="key-run1-mask"><b class="key-point-title">What does the mask do on run 1?</b><p>With only <code>&lt;start&gt;</code> in the prefix, the additive causal mask is \(\mathbf M=[0]\). It blocks no positions, so the score remains \(-1+0=-1\). <a href="./TTNN-Part8-Masks.html">Part 8</a> shows how the causal mask blocks later positions in a longer prefix.</p></blockquote>
+<p>Softmax over that single score gives \(e^{-1}/e^{-1}=1\). The weighted output is therefore \(1\times(1,0,-1,1)=(1,0,-1,1)\). Our identity output projection leaves it unchanged.</p>
+<p><b>3. Add the original block input.</b> The residual addition combines \(\mathbf X_{\text{dec}}\) with the self-attention output:</p>
+\[ (1,0,0,0)+(1,0,-1,1)=(2,0,-1,1). \]
+<p><b>4. Apply LayerNorm to obtain \(\mathbf D\).</b> The residual sum \((2,0,-1,1)\) has mean \(0.5\) and variance \(1.25\). Using the LayerNorm settings from Section 7.2.3:</p>
+\[ \mathbf D=\frac{(2,0,-1,1)-0.5}{\sqrt{1.25+10^{-5}}}
+\approx(1.34,-0.45,-1.34,0.45). \]
+<p>Carry \(\mathbf D=(1.34,-0.45,-1.34,0.45)\) into Section 7.4. This is the decoder state that enters cross-attention.</p>
+<figure id="fig-decoder-row"><div class="plate"><svg viewBox="0 0 860 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The start token is looked up as Xdec equal to 1,0,0,0. Masked self-attention and Add &amp; Norm produce D equal to 1.34,-0.45,-1.34,0.45, the input to cross-attention."><g font-family="IBM Plex Mono, monospace" fill="var(--fig-line,#16202B)">
+<text x="24" y="28" font-size="14">THE DECODER ROW ON RUN 1</text>
+<text x="24" y="65" font-size="13">&lt;start&gt; lookup</text><text x="24" y="87" font-size="12" fill="var(--fig-soft,#5A6B7A)"><tspan class="math-symbol">X</tspan><tspan dy="3" font-size="12">dec</tspan><tspan dy="-3"> · block input</tspan></text>
+<path d="M230 120 H284 M278 114 L284 120 L278 126 M548 120 H601 M595 114 L601 120 L595 126" fill="none" stroke="var(--h1c,#2E6F8E)" stroke-width="1.6"/>
+<rect x="296" y="92" width="240" height="56" rx="4" fill="var(--panel,#F2F5F8)" stroke="var(--rule,#D6DEE5)"/>
+<text x="416" y="115" text-anchor="middle" font-size="12">masked self-attention</text><text x="416" y="135" text-anchor="middle" font-size="12">then Add &amp; Norm</text>
+<text x="620" y="65" font-size="13"><tspan class="math-symbol">D</tspan> · input to cross-attention</text>
+<text x="24" y="190" font-size="12" fill="var(--fig-soft,#5A6B7A)">One input position remains one position. Its four numbers have changed.</text>
+<rect x="24" y="101" width="40" height="40" rx="3" fill="var(--panel,#F2F5F8)" stroke="var(--h1c,#2E6F8E)"/><text x="44" y="126" text-anchor="middle" font-size="12">1</text><rect x="70" y="101" width="40" height="40" rx="3" fill="var(--panel,#F2F5F8)" stroke="var(--h1c,#2E6F8E)"/><text x="90" y="126" text-anchor="middle" font-size="12">0</text><rect x="116" y="101" width="40" height="40" rx="3" fill="var(--panel,#F2F5F8)" stroke="var(--h1c,#2E6F8E)"/><text x="136" y="126" text-anchor="middle" font-size="12">0</text><rect x="162" y="101" width="40" height="40" rx="3" fill="var(--panel,#F2F5F8)" stroke="var(--h1c,#2E6F8E)"/><text x="182" y="126" text-anchor="middle" font-size="12">0</text><rect x="620" y="101" width="40" height="40" rx="3" fill="var(--panel,#F2F5F8)" stroke="var(--accent,#7D4A72)"/><text x="640" y="126" text-anchor="middle" font-size="12">1.34</text><rect x="666" y="101" width="40" height="40" rx="3" fill="var(--panel,#F2F5F8)" stroke="var(--accent,#7D4A72)"/><text x="686" y="126" text-anchor="middle" font-size="12">−0.45</text><rect x="712" y="101" width="40" height="40" rx="3" fill="var(--panel,#F2F5F8)" stroke="var(--accent,#7D4A72)"/><text x="732" y="126" text-anchor="middle" font-size="12">−1.34</text><rect x="758" y="101" width="40" height="40" rx="3" fill="var(--panel,#F2F5F8)" stroke="var(--accent,#7D4A72)"/><text x="778" y="126" text-anchor="middle" font-size="12">0.45</text></g></svg></div><figcaption><b>Figure 6.</b> In this simplified example, the &lt;start&gt; embedding is the input to the first decoder block. \(\mathbf D\) is the updated vector that reaches cross-attention. They refer to the same input position at different stages.</figcaption></figure>
+<p>We can now start cross-attention: \(\mathbf D\) will supply its Query, while \(\mathbf C\) will supply its Keys and Values.</p>
+<h2 id="s74"><span class="num">7.4</span>Calculate one cross-attention output</h2>
+<p>Our task is to use \(\mathbf D\) to retrieve information from the three rows of \(\mathbf C\). The output \(\mathbf Z_{\text{cross}}\) will be a \(1\times4\) row vector for the &lt;start&gt; position.</p>
+<p>We are inside one decoder block on run 1 of the loop from <a href="./TTNN-Part6-Decoder-Inference.html#s64">Part 6, Section 6.4</a>. The prefix contains &lt;start&gt; only. The decoder stack must finish before the output head and selection rule choose the first French token.</p>
+<figure id="fig7-loop"><div class="plate polished-plate"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 350" role="img" aria-labelledby="polish-6-title" ><title id="polish-6-title">Choose a decoder run: fixed source memory, current prefix, and newly selected token.</title><defs><marker id="arr-6-b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="var(--h1c)" stroke-width="1.4"/></marker><marker id="arr-6-g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="var(--h2c)" stroke-width="1.4"/></marker><marker id="arr-6-p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="var(--accent)" stroke-width="1.4"/></marker></defs><g font-family="IBM Plex Mono, monospace" fill="var(--fig-line)"><text x="20" y="25" font-size="12" fill="var(--h2c)" text-anchor="start" >FIXED SOURCE MEMORY</text><rect x="20" y="66" width="188" height="74" rx="5" fill="var(--panel)" stroke="var(--h2c)" stroke-width="1"/><text x="114" y="92" font-size="13" fill="var(--fig-line)" text-anchor="middle" ><tspan class="math-symbol">C</tspan> · 3 source rows</text><text x="114" y="116" font-size="12" fill="var(--fig-soft)" text-anchor="middle" >I / love / LLMs</text><text x="288" y="25" font-size="12" fill="var(--h1c)" text-anchor="start" >DECODER</text><rect x="288" y="66" width="218" height="152" rx="5" fill="var(--panel)" stroke="var(--h1c)" stroke-width="1"/><text x="397" y="92" font-size="14" fill="var(--fig-line)" text-anchor="middle" >six decoder blocks</text><text x="397" y="120" font-size="12" fill="var(--fig-soft)" text-anchor="middle" >masked self-attention</text><text x="397" y="145" font-size="13" fill="var(--h1c)" text-anchor="middle" >cross-attention</text><text x="397" y="170" font-size="12" fill="var(--fig-soft)" text-anchor="middle" >feed-forward</text><text x="397" y="197" font-size="11.5" fill="var(--fig-soft)" text-anchor="middle" >Add &amp; Norm after each</text><path d="M208 103 H246 V142 H288" fill="none" stroke="var(--h2c)" stroke-width="1.3" marker-end="url(#arr-6-g)"/><text x="20" y="163" font-size="12" fill="var(--fig-soft)" text-anchor="start" >Same <tspan class="math-symbol">C</tspan> in every run</text><text x="20" y="185" font-size="11.5" fill="var(--fig-soft)" text-anchor="start" >Each block builds its <tspan class="math-symbol">K</tspan>, <tspan class="math-symbol">V</tspan></text><path d="M506 103 H555" fill="none" stroke="var(--fig-line)" stroke-width="1.3" marker-end="url(#arr-6-b)"/><text x="555" y="77" font-size="12" fill="var(--fig-soft)" text-anchor="start" data-loop="rows">1 final hidden-state row</text><text x="555" y="99" font-size="12" fill="var(--accent)" text-anchor="start" >use only the last row</text><rect x="555" y="117" width="220" height="28" rx="5" fill="var(--fig-fill)" stroke="var(--h2c)" stroke-width="1"/><text x="665" y="135" font-size="13" fill="var(--fig-line)" text-anchor="middle" >output head → select</text><text x="555" y="179" font-size="11.5" fill="var(--fig-soft)" text-anchor="start" >NEW SELECTION</text><text x="555" y="207" font-size="19" fill="var(--accent)" text-anchor="start" data-loop="selection">J’aime</text><text x="555" y="235" font-size="12" fill="var(--fig-soft)" text-anchor="start" data-loop="action">Append it for run 2.</text><path d="M397 278 V218" fill="none" stroke="var(--accent)" stroke-width="1.3" marker-end="url(#arr-6-p)"/><text x="20" y="277" font-size="12" fill="var(--fig-soft)" text-anchor="start" data-loop="run">RUN 1 · decoder input</text><rect x="20" y="290" width="755" height="42" rx="5" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/><text x="36" y="317" font-size="14" fill="var(--fig-line)" text-anchor="start" data-loop="prefix">&lt;start&gt;</text></g></svg></div><div class="run-controls" role="group" aria-label="Select a decoder run">
+<button type="button" data-run="1" aria-pressed="true">Run 1</button><button type="button" data-run="2" aria-pressed="false">Run 2</button><button type="button" data-run="3" aria-pressed="false">Run 3</button><button type="button" data-run="4" aria-pressed="false">Run 4</button><button type="button" data-run="5" aria-pressed="false">Run 5</button></div>
+<p class="loop-status" aria-live="polite">Run 1: input &lt;start&gt;; one final hidden-state row; select J’aime.</p>
+<figcaption><b>Figure 7.</b> Select a run to follow the full prefix. The new selection is appended only after this run finishes. Run 1 therefore has one input row; run 2 has two. The token choices illustrate Part 6’s generation loop.</figcaption></figure>
+<p>Follow the calculation in four steps: <a href="#s741">Query</a>, <a href="#s742">Keys</a>, <a href="#s743">attention weights</a>, then <a href="#s744">Values and output</a>. Each projection matrix is shown where it is used.</p>
+<p>For this hand calculation, use the displayed rounded results in the next step; keeping full precision may give slightly different final decimals.</p>
+
+
+<h3 id="s741"><span class="num">7.4.1</span>Step 1 — build the Query from \(\mathbf D\)</h3>
+<p>Start with \(\mathbf D=(1.34,-0.45,-1.34,0.45)\). \(\mathbf D\) is the decoder state produced by masked self-attention and the first Add &amp; Norm. We now apply the <b>cross-attention Query projection</b>:</p>
+\[ \mathbf{W}^{Q}_{\text{cross}} = \begin{pmatrix} -1 &amp; -1 &amp; 1 &amp; 0 \\
+        -1 &amp; 0 &amp; 1 &amp; 0 \\ 1 &amp; 1 &amp; 0 &amp; -1 \\ 0 &amp; 0 &amp; 1 &amp; 0
+        \end{pmatrix} \]
+
+<p>A row vector times a matrix produces one output component per <b>column</b> of that matrix. For the first component of \(\mathbf Q_{\text{cross}}\), take the dot product of \(\mathbf D\) with column 1 of \(\mathbf W^Q_{\text{cross}}\), \((-1,-1,1,0)^{\top}\):</p>
+\[ 1.34(-1)+(-0.45)(-1)+(-1.34)(1)+0.45(0)=-2.23. \]
+<p>Taking the dot product of \(\mathbf D\) with columns 2, 3 and 4 of \(\mathbf W^Q_{\text{cross}}\) gives the remaining Query components:</p>
+\[ \mathbf Q_{\text{cross}}=\mathbf D\mathbf W^Q_{\text{cross}}
+=(-2.23,-2.68,1.34,1.34). \]
+<p>\(\mathbf Q_{\text{cross}}\) is the \(1\times4\) Query row vector for the &lt;start&gt; position. Next we build \(\mathbf K_{\text{cross}}\), whose three Key rows will each be compared with \(\mathbf Q_{\text{cross}}\).</p>
+<h3 id="s742"><span class="num">7.4.2</span>Step 2 — build the three Keys from \(\mathbf C\)</h3>
+<p>Multiply each row of the encoder memory \(\mathbf C\) from Section 7.3 by the Key projection matrix \(\mathbf W^K_{\text{cross}}\):</p>
+\[ \mathbf{W}^{K}_{\text{cross}} = \begin{pmatrix} 0 &amp; 0 &amp; 0 &amp; 1 \\
+        1 &amp; -1 &amp; 1 &amp; 0 \\ -1 &amp; 0 &amp; -1 &amp; -1 \\ 0 &amp; -1 &amp; 1 &amp; -1
+        \end{pmatrix} \]
+
+<p>For <code>I</code>, use row 1 of \(\mathbf C\), \((1.13,-1.48,-0.30,0.66)\). Column 1 of \(\mathbf W^K_{\text{cross}}\) is \((0,1,-1,0)^{\top}\), so the first component of the Key for <code>I</code> is:</p>
+\[ 1.13(0)+(-1.48)(1)+(-0.30)(-1)+0.66(0)=-1.18. \]
+<p>Use all four columns of \(\mathbf W^K_{\text{cross}}\) for row 1 of \(\mathbf C\), then repeat for rows 2 and 3 (<code>love</code> and <code>LLMs</code>). The rows of \(\mathbf K_{\text{cross}}\) keep this source order:</p>
+\[ \mathbf{K}_{\text{cross}} \;=\; \mathbf{C}\,\mathbf{W}^{K}_{\text{cross}}
+        \;=\;
+        \begin{pmatrix}
+          -1.18 &amp; 0.82 &amp; -0.52 &amp; 0.77 \\
+          -0.55 &amp; 0.04 &amp; 0.65 &amp; 0.22 \\
+          -0.97 &amp; 1.34 &amp; -1.10 &amp; 1.94
+        \end{pmatrix} \]
+
+<p>We now have one Query and three Keys. Each Key belongs to a source position.</p>
+<blockquote class="think"><b>Check one component</b> Why is the first component of the Key for <code>love</code> −0.55?</blockquote>
+<details class="supplement"><summary>Check your calculation</summary><p>Take the dot product of row 2 of \(\mathbf C\), \((0.73,-1.24,-0.69,1.20)\), with column 1 of \(\mathbf W^K_{\text{cross}}\), \((0,1,-1,0)^{\top}\):</p>
+\[ 0.73(0)+(-1.24)(1)+(-0.69)(-1)+1.20(0)=-0.55. \]
+<p>The same projection matrix is applied to every row of \(\mathbf C\); each row contains a different encoder output vector.</p></details>
+<h3 id="s743"><span class="num">7.4.3</span>Step 3 — turn the comparisons into attention weights</h3>
+<p>In the projection \(\mathbf D\mathbf W^Q_{\text{cross}}\), each dot product with a column of \(\mathbf W^Q_{\text{cross}}\) produced one Query component. Now each dot product of the Query with a Key produces one attention score.</p>
+<p>Write \(\mathbf q=(-2.23,-2.68,1.34,1.34)\) for the only row of \(\mathbf Q_{\text{cross}}\), and \(\mathbf k_I=(-1.18,0.82,-0.52,0.77)\) for row 1 of \(\mathbf K_{\text{cross}}\), the Key for <code>I</code>. Their dot product is:</p>
+\[ \begin{aligned}
+\mathbf q\cdot\mathbf k_I
+&amp;=(-2.23)(-1.18)+(-2.68)(0.82)\\
+&amp;\quad +(1.34)(-0.52)+(1.34)(0.77)\\
+&amp;=0.7688\approx0.77.
+\end{aligned} \]
+<p>Repeat \(\mathbf q\cdot\mathbf k\) for rows 2 and 3 of \(\mathbf K_{\text{cross}}\), the Keys for <code>love</code> and <code>LLMs</code>. Divide each dot product by \(\sqrt{d_k}=2\):</p>
+<table class="numeric-trace"><thead><tr><th>Source position</th><th>Dot product, rounded</th><th>Score after ÷ 2, rounded</th></tr></thead><tbody>
+<tr><td>I</td><td>0.77</td><td>0.39</td></tr>
+<tr><td>love</td><td>2.29</td><td>1.15</td></tr>
+<tr><td>LLMs</td><td>−0.30</td><td>−0.15</td></tr>
+</tbody></table>
+<p>The scaled score row is \((0.39,1.15,-0.15)\), in the order <code>I</code>, <code>love</code>, <code>LLMs</code>. Apply softmax across this row to obtain the attention weights.</p>
+<p>First exponentiate the scores and round to two decimals:</p>
+\[ \left(e^{0.39},e^{1.15},e^{-0.15}\right)\approx(1.48,3.16,0.86). \]
+<p>The total is \(1.48+3.16+0.86=5.50\). Divide every entry by that same total:</p>
+\[ \mathbf A_{\text{cross}}=\operatorname{softmax}(0.39,1.15,-0.15)
+\approx\left(\frac{1.48}{5.50},\frac{3.16}{5.50},\frac{0.86}{5.50}\right)
+\approx(0.27,0.57,0.16). \]
+<p>The entries of \(\mathbf A_{\text{cross}}=(0.27,0.57,0.16)\) multiply the Values for <code>I</code>, <code>love</code> and <code>LLMs</code>, respectively. These are <b>attention weights over source positions</b>. Part 6 applied softmax to output-head scores to obtain probabilities over possible next tokens; here softmax weights the source Values.</p>
+<p>The largest weight is on love, but all three Values contribute to the output.</p>
+<h3 id="s744"><span class="num">7.4.4</span>Step 4 — combine the Values into one output</h3>
+<p>We have \(\mathbf A_{\text{cross}}=(0.27,0.57,0.16)\). Now build the three <b>Values</b> that these weights will multiply, using \(\mathbf W^V_{\text{cross}}\) to project \(\mathbf C\):</p>
+\[ \mathbf{W}^{V}_{\text{cross}} = \begin{pmatrix} -1 &amp; -1 &amp; -1 &amp; 0 \\
+        0 &amp; 0 &amp; -1 &amp; -1 \\ -1 &amp; 1 &amp; 1 &amp; 0 \\ 1 &amp; 0 &amp; 1 &amp; 0
+        \end{pmatrix} \]
+
+<p>For the first component of the Value for <code>I</code>, take the dot product of row 1 of \(\mathbf C\), \((1.13,-1.48,-0.30,0.66)\), with column 1 of \(\mathbf W^V_{\text{cross}}\), \((-1,0,-1,1)^{\top}\):</p>
+\[ 1.13(-1)+(-1.48)(0)+(-0.30)(-1)+0.66(1)=-0.17. \]
+<p>Apply all four columns of \(\mathbf W^V_{\text{cross}}\) to all three rows of \(\mathbf C\):</p>
+\[ \mathbf{V}_{\text{cross}} \;=\; \mathbf{C}\,\mathbf{W}^{V}_{\text{cross}} \;=\;
+        \begin{pmatrix}
+          -0.17 &amp; -1.43 &amp; 0.71 &amp; 1.48 \\
+          1.16 &amp; -1.42 &amp; 1.02 &amp; 1.24 \\
+          -1.46 &amp; -1.81 &amp; -0.73 &amp; 1.21
+        \end{pmatrix} \]
+
+<p>In \(\mathbf V_{\text{cross}}\), row 1 is the Value for <code>I</code>, row 2 for <code>love</code>, and row 3 for <code>LLMs</code>. Multiply <b>every component</b> of row 1 by \(0.27\), row 2 by \(0.57\), and row 3 by \(0.16\).</p>
+<p>The table shows the three weighted contributions. Round each contribution to two decimals, then sum each column:</p>
+<div class="table-scroll"><table class="numeric-trace weighted-values"><thead><tr><th scope="col" rowspan="2">Source position</th><th scope="col" rowspan="2">Weight</th><th scope="colgroup" colspan="4">Weighted Value components</th></tr><tr><th scope="col">1</th><th scope="col">2</th><th scope="col">3</th><th scope="col">4</th></tr></thead><tbody>
+<tr><td>I</td><td>0.27</td><td>−0.05</td><td>−0.39</td><td>0.19</td><td>0.40</td></tr>
+<tr><td>love</td><td>0.57</td><td>0.66</td><td>−0.81</td><td>0.58</td><td>0.71</td></tr>
+<tr><td>LLMs</td><td>0.16</td><td>−0.23</td><td>−0.29</td><td>−0.12</td><td>0.19</td></tr>
+</tbody><tfoot><tr><th colspan="2">Sum → \(\mathbf Z_{\text{cross}}\)</th><td>0.38</td><td>−1.49</td><td>0.65</td><td>1.30</td></tr></tfoot></table></div>
+<p>For component 3, the contributions are \(0.27(0.71)\approx0.19\), \(0.57(1.02)\approx0.58\), and \(0.16(-0.73)\approx-0.12\). Their sum is \(0.19+0.58-0.12=0.65\). The four column sums form the \(1\times4\) row vector \(\mathbf Z_{\text{cross}}\):</p>
+\[ \mathbf Z_{\text{cross}}=\mathbf A_{\text{cross}}\mathbf V_{\text{cross}}
+\approx(0.38,-1.49,0.65,1.30). \]
+
+
+<p>Attention applies an output projection before the residual addition. Here \(\mathbf W^O=\mathbf I_4\), so \(\mathbf Z_{\text{cross}}\mathbf W^O=\mathbf Z_{\text{cross}}\). We can add \(\mathbf Z_{\text{cross}}=(0.38,-1.49,0.65,1.30)\) directly to \(\mathbf D\).</p>
+<figure id="fig-polished-7">
+        <div class="plate polished-plate"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 770 516" role="img" aria-labelledby="polish-7-title" data-steps="cross"><title id="polish-7-title">Cross-attention: Query and Keys, scores, weights, weighted Values and output.</title><defs><marker id="arr-7-b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="var(--h1c)" stroke-width="1.4"/></marker><marker id="arr-7-g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="var(--h2c)" stroke-width="1.4"/></marker><marker id="arr-7-p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="var(--accent)" stroke-width="1.4"/></marker></defs><g font-family="IBM Plex Mono, monospace" fill="var(--fig-line)"><g data-reveal="1"><text x="20" y="25" font-size="12" fill="var(--fig-soft)" text-anchor="start" >01  QUERY &amp; KEYS</text><text x="20" y="54" font-size="13" fill="var(--accent)" text-anchor="start" ><tspan class="math-symbol">Q</tspan><tspan baseline-shift="sub" font-size="9">cross</tspan> · from <tspan class="math-symbol">D</tspan></text><rect x="20" y="67" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/><g data-detail="true"><text x="44" y="84.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >−2.23</text></g><rect x="71" y="67" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/><g data-detail="true"><text x="95" y="84.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >−2.68</text></g><rect x="122" y="67" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/><g data-detail="true"><text x="146" y="84.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >1.34</text></g><rect x="173" y="67" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/><g data-detail="true"><text x="197" y="84.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >1.34</text></g><text x="286" y="54" font-size="13" fill="var(--h2c)" text-anchor="start" ><tspan class="math-symbol">K</tspan><tspan baseline-shift="sub" font-size="9">cross</tspan> · from <tspan class="math-symbol">C</tspan></text></g><g data-reveal="1"><text x="274" y="85" font-size="12" fill="var(--fig-soft)" text-anchor="end" >I</text><rect x="286" y="67" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h2c)" stroke-width="1"/><g data-detail="true"><text x="310" y="84.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >−1.18</text></g><rect x="337" y="67" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h2c)" stroke-width="1"/><g data-detail="true"><text x="361" y="84.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >0.82</text></g><rect x="388" y="67" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h2c)" stroke-width="1"/><g data-detail="true"><text x="412" y="84.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >−0.52</text></g><rect x="439" y="67" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h2c)" stroke-width="1"/><g data-detail="true"><text x="463" y="84.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >0.77</text></g></g><g data-reveal="1"><text x="274" y="120" font-size="12" fill="var(--fig-soft)" text-anchor="end" >love</text><rect x="286" y="102" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h2c)" stroke-width="1"/><g data-detail="true"><text x="310" y="119.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >−0.55</text></g><rect x="337" y="102" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h2c)" stroke-width="1"/><g data-detail="true"><text x="361" y="119.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >0.04</text></g><rect x="388" y="102" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h2c)" stroke-width="1"/><g data-detail="true"><text x="412" y="119.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >0.65</text></g><rect x="439" y="102" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h2c)" stroke-width="1"/><g data-detail="true"><text x="463" y="119.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >0.22</text></g></g><g data-reveal="1"><text x="274" y="155" font-size="12" fill="var(--fig-soft)" text-anchor="end" >LLMs</text><rect x="286" y="137" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h2c)" stroke-width="1"/><g data-detail="true"><text x="310" y="154.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >−0.97</text></g><rect x="337" y="137" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h2c)" stroke-width="1"/><g data-detail="true"><text x="361" y="154.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >1.34</text></g><rect x="388" y="137" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h2c)" stroke-width="1"/><g data-detail="true"><text x="412" y="154.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >−1.10</text></g><rect x="439" y="137" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h2c)" stroke-width="1"/><g data-detail="true"><text x="463" y="154.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >1.94</text></g></g><g data-reveal="2"><text x="544" y="25" font-size="12" fill="var(--fig-soft)" text-anchor="start" >02  SCORES</text><text x="544" y="54" font-size="13" fill="var(--fig-line)" text-anchor="start" ><tspan class="math-symbol">q</tspan> · <tspan class="math-symbol">k</tspan> ÷ 2</text></g><g data-reveal="2"><path d="M497 81 H530" fill="none" stroke="var(--h2c)" stroke-width="1.3" marker-end="url(#arr-7-g)"/><g data-detail="true"><text x="550" y="85" font-size="13" fill="var(--fig-line)" text-anchor="start" >0.77</text><text x="618" y="85" font-size="13" fill="var(--fig-soft)" text-anchor="start" >→</text><text x="659" y="85" font-size="13" fill="var(--fig-line)" text-anchor="start" >0.39</text></g></g><g data-reveal="2"><path d="M497 116 H530" fill="none" stroke="var(--h2c)" stroke-width="1.3" marker-end="url(#arr-7-g)"/><g data-detail="true"><text x="550" y="120" font-size="13" fill="var(--fig-line)" text-anchor="start" >2.29</text><text x="618" y="120" font-size="13" fill="var(--fig-soft)" text-anchor="start" >→</text><text x="659" y="120" font-size="13" fill="var(--fig-line)" text-anchor="start" >1.15</text></g></g><g data-reveal="2"><path d="M497 151 H530" fill="none" stroke="var(--h2c)" stroke-width="1.3" marker-end="url(#arr-7-g)"/><g data-detail="true"><text x="550" y="155" font-size="13" fill="var(--fig-line)" text-anchor="start" >−0.30</text><text x="618" y="155" font-size="13" fill="var(--fig-soft)" text-anchor="start" >→</text><text x="659" y="155" font-size="13" fill="var(--fig-line)" text-anchor="start" >−0.15</text></g></g><g data-reveal="3"><text x="20" y="203" font-size="12" fill="var(--fig-soft)" text-anchor="start" >03  WEIGHTS</text><text x="190" y="203" font-size="13" fill="var(--h1c)" text-anchor="start" ><tspan class="math-symbol">A</tspan><tspan baseline-shift="sub" font-size="9">cross</tspan> = softmax(scores)</text></g><g data-reveal="3"><rect x="20" y="220" width="151.20000000000002" height="26" rx="3" fill="var(--h1c)" fill-opacity="0.14" stroke="var(--h1c)" stroke-width="1"/><g data-detail="true"><text x="95.60000000000001" y="238" font-size="13" fill="var(--fig-line)" text-anchor="middle" >0.27</text></g><text x="95.60000000000001" y="265" font-size="12" fill="var(--fig-soft)" text-anchor="middle" >I</text></g><g data-reveal="3"><rect x="171.20000000000002" y="220" width="319.2" height="26" rx="3" fill="var(--h1c)" fill-opacity="0.24" stroke="var(--h1c)" stroke-width="1"/><g data-detail="true"><text x="330.8" y="238" font-size="13" fill="var(--fig-line)" text-anchor="middle" >0.57</text></g><text x="330.8" y="265" font-size="12" fill="var(--fig-soft)" text-anchor="middle" >love</text></g><g data-reveal="3"><rect x="490.4" y="220" width="89.60000000000001" height="26" rx="3" fill="var(--h1c)" fill-opacity="0.1" stroke="var(--h1c)" stroke-width="1"/><g data-detail="true"><text x="535.1999999999999" y="238" font-size="13" fill="var(--fig-line)" text-anchor="middle" >0.16</text></g><text x="535.1999999999999" y="265" font-size="12" fill="var(--fig-soft)" text-anchor="middle" >LLMs</text></g><g data-reveal="3"><g data-detail="true"><text x="608" y="238" font-size="12" fill="var(--fig-soft)" text-anchor="start" >Σ weights = 1</text></g></g><g data-reveal="4"><text x="20" y="309" font-size="12" fill="var(--fig-soft)" text-anchor="start" >04  WEIGHTED VALUES</text><text x="112" y="336" font-size="13" fill="var(--h2c)" text-anchor="start" ><tspan class="math-symbol">V</tspan><tspan baseline-shift="sub" font-size="9">cross</tspan> · from <tspan class="math-symbol">C</tspan></text><text x="354" y="336" font-size="12" fill="var(--h1c)" text-anchor="start" >weight</text><text x="448" y="336" font-size="12" fill="var(--h1c)" text-anchor="start" >weighted vector</text></g><g data-reveal="4"><text x="92" y="367" font-size="12" fill="var(--fig-soft)" text-anchor="end" >I</text><rect x="112" y="349" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h2c)" stroke-width="1"/><g data-detail="true"><text x="136" y="366.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >−0.17</text></g><rect x="163" y="349" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h2c)" stroke-width="1"/><g data-detail="true"><text x="187" y="366.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >−1.43</text></g><rect x="214" y="349" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h2c)" stroke-width="1"/><g data-detail="true"><text x="238" y="366.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >0.71</text></g><rect x="265" y="349" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h2c)" stroke-width="1"/><g data-detail="true"><text x="289" y="366.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >1.48</text></g><g data-detail="true"><text x="354" y="367" font-size="13" fill="var(--h1c)" text-anchor="start" >× 0.27</text><text x="418" y="367" font-size="13" fill="var(--fig-soft)" text-anchor="start" >=</text></g><rect x="448" y="349" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h1c)" stroke-width="1"/><g data-detail="true"><text x="472" y="366.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >−0.05</text></g><rect x="499" y="349" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h1c)" stroke-width="1"/><g data-detail="true"><text x="523" y="366.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >−0.39</text></g><rect x="550" y="349" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h1c)" stroke-width="1"/><g data-detail="true"><text x="574" y="366.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >0.19</text></g><rect x="601" y="349" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h1c)" stroke-width="1"/><g data-detail="true"><text x="625" y="366.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >0.40</text></g></g><g data-reveal="4"><text x="92" y="403" font-size="12" fill="var(--fig-soft)" text-anchor="end" >love</text><rect x="112" y="385" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h2c)" stroke-width="1"/><g data-detail="true"><text x="136" y="402.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >1.16</text></g><rect x="163" y="385" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h2c)" stroke-width="1"/><g data-detail="true"><text x="187" y="402.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >−1.42</text></g><rect x="214" y="385" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h2c)" stroke-width="1"/><g data-detail="true"><text x="238" y="402.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >1.02</text></g><rect x="265" y="385" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h2c)" stroke-width="1"/><g data-detail="true"><text x="289" y="402.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >1.24</text></g><g data-detail="true"><text x="354" y="403" font-size="13" fill="var(--h1c)" text-anchor="start" >× 0.57</text><text x="418" y="403" font-size="13" fill="var(--fig-soft)" text-anchor="start" >=</text></g><rect x="448" y="385" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h1c)" stroke-width="1"/><g data-detail="true"><text x="472" y="402.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >0.66</text></g><rect x="499" y="385" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h1c)" stroke-width="1"/><g data-detail="true"><text x="523" y="402.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >−0.81</text></g><rect x="550" y="385" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h1c)" stroke-width="1"/><g data-detail="true"><text x="574" y="402.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >0.58</text></g><rect x="601" y="385" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h1c)" stroke-width="1"/><g data-detail="true"><text x="625" y="402.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >0.71</text></g></g><g data-reveal="4"><text x="92" y="439" font-size="12" fill="var(--fig-soft)" text-anchor="end" >LLMs</text><rect x="112" y="421" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h2c)" stroke-width="1"/><g data-detail="true"><text x="136" y="438.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >−1.46</text></g><rect x="163" y="421" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h2c)" stroke-width="1"/><g data-detail="true"><text x="187" y="438.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >−1.81</text></g><rect x="214" y="421" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h2c)" stroke-width="1"/><g data-detail="true"><text x="238" y="438.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >−0.73</text></g><rect x="265" y="421" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h2c)" stroke-width="1"/><g data-detail="true"><text x="289" y="438.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >1.21</text></g><g data-detail="true"><text x="354" y="439" font-size="13" fill="var(--h1c)" text-anchor="start" >× 0.16</text><text x="418" y="439" font-size="13" fill="var(--fig-soft)" text-anchor="start" >=</text></g><rect x="448" y="421" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h1c)" stroke-width="1"/><g data-detail="true"><text x="472" y="438.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >−0.23</text></g><rect x="499" y="421" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h1c)" stroke-width="1"/><g data-detail="true"><text x="523" y="438.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >−0.29</text></g><rect x="550" y="421" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h1c)" stroke-width="1"/><g data-detail="true"><text x="574" y="438.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >−0.12</text></g><rect x="601" y="421" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h1c)" stroke-width="1"/><g data-detail="true"><text x="625" y="438.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >0.19</text></g></g><g data-reveal="5"><g data-detail="true"><path d="M446 458 H650" stroke="var(--h1c)" stroke-width="1"/><text x="354" y="487" font-size="12" fill="var(--h1c)" text-anchor="start" >add ↓</text></g><rect x="448" y="469" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h1c)" stroke-width="1"/><g data-detail="true"><text x="472" y="486.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >0.38</text></g><rect x="499" y="469" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h1c)" stroke-width="1"/><g data-detail="true"><text x="523" y="486.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >−1.49</text></g><rect x="550" y="469" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h1c)" stroke-width="1"/><g data-detail="true"><text x="574" y="486.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >0.65</text></g><rect x="601" y="469" width="48" height="27" rx="5" fill="var(--fig-fill)" stroke="var(--h1c)" stroke-width="1"/><g data-detail="true"><text x="625" y="486.5" font-size="12.5" fill="var(--fig-line)" text-anchor="middle" >1.30</text></g><text x="20" y="487" font-size="12" fill="var(--fig-soft)" text-anchor="start" >05  OUTPUT</text><g data-detail="true"><text x="673" y="486" font-size="14" fill="var(--h1c)" text-anchor="start" ><tspan class="math-symbol">Z</tspan><tspan baseline-shift="sub" font-size="9">cross</tspan></text></g></g></g></svg></div>
+        <figcaption><b>Figure 8.</b> One Query scores three Keys. Softmax gives three attention weights, which scale the three Values. Add each column of weighted Values to obtain \(\mathbf Z_{\text{cross}}\). Use the step buttons to follow the calculation.</figcaption>
+      </figure>
+<blockquote class="key-point " id="key-current-position"><b class="key-point-title">Cross-attention updates the current decoder position</b><p>Here \(\mathbf Z_{\text{cross}}\) is a \(1\times4\) update for <code>&lt;start&gt;</code>. The next residual sum is \(\mathbf D+\mathbf Z_{\text{cross}}\). Cross-attention has not selected a French token; token selection happens after all six decoder blocks and the output head.</p></blockquote>
+
+<h2 id="s75"><span class="num">7.5</span>Follow the update through the rest of the block</h2>
+<p>We continue through the original Transformer’s decoder block: each sublayer is followed by residual addition and LayerNorm, or <b>Add &amp; Norm</b>.</p>
+<h3 id="s751"><span class="num">7.5.1</span>Add the update to \(\mathbf D\), then normalise</h3>
+<p><b>First, add.</b> The residual path carries the cross-attention input \(\mathbf D\) around the sublayer. \(\mathbf Q_{\text{cross}}\) is a projection made inside the sublayer, so the residual sum is \(\mathbf D+\mathbf Z_{\text{cross}}\):</p>
+\[ \underbrace{\mathbf D}_{(1.34,-0.45,-1.34,0.45)}+
+\underbrace{\mathbf Z_{\text{cross}}}_{(0.38,-1.49,0.65,1.30)}
+=(1.72,-1.94,-0.69,1.75). \]
+<p>The sum \(\mathbf D+\mathbf Z_{\text{cross}}\) still represents the &lt;start&gt; position. It combines the existing decoder state with the source-dependent update.</p>
+<p><b>Then, normalise.</b> Apply LayerNorm across the four columns of the \(1\times4\) row vector \(\mathbf D+\mathbf Z_{\text{cross}}\), using the settings from Section 7.2.3. This row has mean \(0.21\) and variance \(2.52105\).</p>
+
+
+<p>Call the normalised result <b>\(\mathbf H\)</b>. It is the input to this block’s feed-forward network:</p>
+\[ \mathbf H=\frac{(1.72,-1.94,-0.69,1.75)-0.21}{\sqrt{2.52105+10^{-5}}}
+\approx(0.95,-1.35,-0.57,0.97). \]
+
+
+<h3 id="s752"><span class="num">7.5.2</span>Finish this block, then enter the next one</h3>
+<p>We now finish the block shown in <a href="#fig-cross-attention-inputs">Figure 2</a>. The numerical trace below collects its input, intermediate states and output.</p>
+<p>To finish this block, we use the following <b>supplied feed-forward output</b>:</p>
+\[ \operatorname{FFN}(\mathbf H)=(-1.51,-0.15,-0.15,-0.39). \]
+<p>Add \(\operatorname{FFN}(\mathbf H)\) to its input \(\mathbf H\), then apply LayerNorm to the sum:</p>
+\[ \mathbf H+\operatorname{FFN}(\mathbf H)=(-0.56,-1.50,-0.72,0.58), \]
+\[ \operatorname{LayerNorm}(-0.56,-1.50,-0.72,0.58)
+\approx(-0.01,-1.28,-0.23,1.52). \]
+
+<div id="fig-decoder-block-trace" class="table-scroll"><table class="numeric-trace block-trace"><caption>Numerical trace · read this table from top to bottom</caption><thead><tr><th scope="col">Stage</th><th scope="col">Vector for the &lt;start&gt; position</th></tr></thead><tbody><tr><th scope="row">Block input \(\mathbf X_{\text{dec}}\)</th><td>(1, 0, 0, 0)</td></tr><tr><th scope="row">Self-attention output</th><td>(1, 0, −1, 1)</td></tr><tr><th scope="row">First Add &amp; Norm → \(\mathbf D\)</th><td>(1.34, −0.45, −1.34, 0.45)</td></tr><tr><th scope="row">Cross-attention output \(\mathbf Z_{\text{cross}}\)</th><td>(0.38, −1.49, 0.65, 1.30)</td></tr><tr><th scope="row">Second Add &amp; Norm → \(\mathbf H\)</th><td>(0.95, −1.35, −0.57, 0.97)</td></tr><tr><th scope="row">\(\operatorname{FFN}(\mathbf H)\) · supplied</th><td>(−1.51, −0.15, −0.15, −0.39)</td></tr><tr><th scope="row">Final Add &amp; Norm → block output</th><td>(−0.01, −1.28, −0.23, 1.52)</td></tr></tbody></table></div>
+<blockquote class="key-point " id="key-blocks-and-runs"><b class="key-point-title">All six decoder blocks belong to one run</b><p>The output of block 1 enters block 2, then block 3, and so on. On run 1, every block receives and returns one \(1\times4\) row for <code>&lt;start&gt;</code>. Each block has its own weights. The next run begins only after token selection extends the prefix.</p></blockquote><p><b>What changes in a higher block?</b> Before the first block’s cross-attention, \(\mathbf D\) comes only from the target-side input. In later blocks, the input has already passed through earlier cross-attention sublayers, so it can already contain source information. Each block forms its own \(\mathbf D\) and Query, then reads \(\mathbf C\) again to refine that position’s state.</p>
+<p>The \(1\times4\) row vector \((-0.01,-1.28,-0.23,1.52)\) is the output of the first decoder block in this example. We have not calculated the other five blocks. After the sixth block, each decoder position has a <b>final hidden-state vector</b>.</p>
+<blockquote class="key-point" id="key-last-row"><b class="key-point-title">Only the last row goes to the output head</b><p>To select the next token during inference, the <a href="./TTNN-Part6-Decoder-Inference.html#s63">output head</a> reads <b>only the last row of the sixth decoder block’s output</b>. On run 1, this is the row for <code>&lt;start&gt;</code>. On run 2, the prefix is <code>&lt;start&gt; J’aime</code>, so <b>row 2—the row for <code>J’aime</code>—enters the output head</b> to select the next token.</p></blockquote>
+
+<h3 id="s753"><span class="num">7.5.3</span>Review the three sublayers</h3>
+<p>With the numerical path complete, Figure 9 compares the decoder block with the encoder block from Part 5. The decoder has three sublayers:</p>
+<ul>
+<li><b>Masked self-attention</b> reads the allowed positions in the target prefix; its Add &amp; Norm produces \(\mathbf D\).</li>
+<li><b>Cross-attention</b> reads encoder memory using a Query from \(\mathbf D\); its Add &amp; Norm produces \(\mathbf H\).</li>
+<li><b>The feed-forward network</b> transforms \(\mathbf H\) separately at each position; its Add &amp; Norm produces the block output.</li>
+</ul>
+<figure id="fig-polished-8">
+        <div class="plate polished-plate"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 740 380" role="img" aria-labelledby="polish-8-title" data-steps="blocks"><title id="polish-8-title">Encoder and decoder blocks; the decoder adds cross-attention and its own Add &amp; Norm.</title><defs><marker id="arr-8-b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="var(--h1c)" stroke-width="1.4"/></marker><marker id="arr-8-g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="var(--h2c)" stroke-width="1.4"/></marker><marker id="arr-8-p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="var(--accent)" stroke-width="1.4"/></marker></defs><g font-family="IBM Plex Mono, monospace" fill="var(--fig-line)"><text x="85" y="25" font-size="12" fill="var(--h2c)" text-anchor="start" >ENCODER BLOCK</text><text x="430" y="25" font-size="12" fill="var(--h1c)" text-anchor="start" >DECODER BLOCK</text><text x="85" y="47" font-size="12" fill="var(--fig-soft)" text-anchor="start" >Part 5</text><text x="430" y="47" font-size="12" fill="var(--fig-soft)" text-anchor="start" >Read from bottom to top</text><g data-reveal="1"><rect x="85" y="70" width="220" height="28" rx="5" fill="var(--fig-fill)" stroke="var(--fig-line)" stroke-width="1"/><text x="195" y="88" font-size="13" fill="var(--fig-line)" text-anchor="middle" >Add &amp; Norm</text><rect x="85" y="112" width="220" height="28" rx="5" fill="var(--fig-fill)" stroke="var(--fig-line)" stroke-width="1"/><text x="195" y="130" font-size="13" fill="var(--fig-line)" text-anchor="middle" >feed-forward</text><rect x="85" y="254" width="220" height="28" rx="5" fill="var(--fig-fill)" stroke="var(--fig-line)" stroke-width="1"/><text x="195" y="272" font-size="13" fill="var(--fig-line)" text-anchor="middle" >Add &amp; Norm</text><rect x="85" y="296" width="220" height="28" rx="5" fill="var(--fig-fill)" stroke="var(--fig-line)" stroke-width="1"/><text x="195" y="314" font-size="13" fill="var(--fig-line)" text-anchor="middle" >self-attention</text><path d="M195 112 V98" fill="none" stroke="var(--fig-line)" stroke-width="1.3" marker-end="url(#arr-8-b)"/><path d="M195 296 V282" fill="none" stroke="var(--fig-line)" stroke-width="1.3" marker-end="url(#arr-8-b)"/></g><g data-reveal="1"><rect x="430" y="70" width="220" height="28" rx="5" fill="var(--fig-fill)" stroke="var(--fig-line)" stroke-width="1"/><text x="540" y="88" font-size="13" fill="var(--fig-line)" text-anchor="middle" >Add &amp; Norm</text><rect x="430" y="112" width="220" height="28" rx="5" fill="var(--fig-fill)" stroke="var(--fig-line)" stroke-width="1"/><text x="540" y="130" font-size="13" fill="var(--fig-line)" text-anchor="middle" >feed-forward</text><rect x="430" y="254" width="220" height="28" rx="5" fill="var(--fig-fill)" stroke="var(--fig-line)" stroke-width="1"/><text x="540" y="272" font-size="13" fill="var(--fig-line)" text-anchor="middle" >Add &amp; Norm</text><rect x="430" y="296" width="220" height="28" rx="5" fill="var(--fig-fill)" stroke="var(--fig-line)" stroke-width="1"/><text x="540" y="314" font-size="13" fill="var(--fig-line)" text-anchor="middle" >masked self-attention</text><path d="M540 112 V98" fill="none" stroke="var(--fig-line)" stroke-width="1.3" marker-end="url(#arr-8-b)"/><path d="M540 296 V282" fill="none" stroke="var(--fig-line)" stroke-width="1.3" marker-end="url(#arr-8-b)"/></g><g data-reveal="1"><path d="M195 254 V140" fill="none" stroke="var(--h2c)" stroke-width="1.3" marker-end="url(#arr-8-g)"/></g><g data-reveal="2"><rect x="430" y="160" width="220" height="28" rx="5" fill="var(--fig-fill)" stroke="var(--h1c)" stroke-width="1"/><text x="540" y="178" font-size="13" fill="var(--fig-line)" text-anchor="middle" >Add &amp; Norm</text><rect x="430" y="202" width="220" height="34" rx="5" fill="var(--panel)" stroke="var(--h1c)" stroke-width="1"/><text x="540" y="224" font-size="13" fill="var(--h1c)" text-anchor="middle" >cross-attention</text><path d="M540 254 V236" fill="none" stroke="var(--fig-line)" stroke-width="1.3" marker-end="url(#arr-8-b)"/><path d="M540 202 V188" fill="none" stroke="var(--fig-line)" stroke-width="1.3" marker-end="url(#arr-8-b)"/><path d="M540 160 V140" fill="none" stroke="var(--fig-line)" stroke-width="1.3" marker-end="url(#arr-8-b)"/><text x="315" y="217" font-size="15" fill="var(--h2c)" text-anchor="middle" ><tspan class="math-symbol">C</tspan></text><path d="M334 219 H425" fill="none" stroke="var(--h2c)" stroke-width="1.3" marker-end="url(#arr-8-g)"/></g><g data-reveal="3"><text x="85" y="359" font-size="13" fill="var(--h2c)" text-anchor="start" >2 sublayers</text><text x="430" y="359" font-size="13" fill="var(--h1c)" text-anchor="start" >3 sublayers</text></g></g></svg></div>
+        <figcaption><b>Figure 9.</b> The encoder block has two sublayers; the decoder block has three. In the decoder, masked self-attention is followed by cross-attention and then the feed-forward network. Each sublayer has its own residual addition and LayerNorm. Read the blocks from bottom to top. Press Play to watch the comparison, the added cross-attention sublayer, and the complete decoder block.</figcaption>
+      </figure>
+<h2 id="s76"><span class="num">7.6</span>Connect the block to the generation loop</h2>
+<p>We can now connect the encoder from Part 5, the decoder block from this part, and the token-selection loop from Part 6. Figure 10 shows how one completed decoder run leads to the next.</p>
+<figure id="fig-polished-9">
+        <div class="plate polished-plate"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 866 396" role="img" aria-labelledby="polish-9-title" data-steps="architecture"><title id="polish-9-title">Encoder–decoder generation loop with fixed source memory and a growing target prefix.</title><defs><marker id="arr-9-b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="var(--h1c)" stroke-width="1.4"/></marker><marker id="arr-9-g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="var(--h2c)" stroke-width="1.4"/></marker><marker id="arr-9-p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="var(--accent)" stroke-width="1.4"/></marker></defs><g font-family="IBM Plex Mono, monospace" fill="var(--fig-line)"><g data-reveal="1"><text x="28" y="26" font-size="12" fill="var(--h2c)" text-anchor="start" >ENCODER · once</text><rect x="28" y="264" width="178" height="28" rx="5" fill="var(--fig-fill)" stroke="var(--h2c)" stroke-width="1"/><text x="117" y="282" font-size="13" fill="var(--fig-line)" text-anchor="middle" >I love LLMs</text><rect x="28" y="117" width="178" height="112" rx="5" fill="var(--panel)" stroke="var(--h2c)" stroke-width="1"/><text x="117" y="161" font-size="14" fill="var(--fig-line)" text-anchor="middle" >six encoder</text><text x="117" y="183" font-size="14" fill="var(--fig-line)" text-anchor="middle" >blocks</text><rect x="28" y="61" width="178" height="28" rx="5" fill="var(--fig-fill)" stroke="var(--h2c)" stroke-width="1"/><text x="117" y="79" font-size="13" fill="var(--fig-line)" text-anchor="middle" ></text><text x="117" y="80" font-size="13" fill="var(--fig-line)" text-anchor="middle" ><tspan class="math-symbol">C</tspan> · three rows</text><path d="M117 117 V89" fill="none" stroke="var(--h2c)" stroke-width="1.3" marker-end="url(#arr-9-g)"/><path d="M117 264 V229" fill="none" stroke="var(--h2c)" stroke-width="1.3" marker-end="url(#arr-9-g)"/><text x="28" y="318" font-size="12" fill="var(--fig-soft)" text-anchor="start" >Embed + positions</text><text x="28" y="336" font-size="12" fill="var(--fig-soft)" text-anchor="start" >once</text></g><g data-reveal="2"><text x="365" y="26" font-size="12" fill="var(--h1c)" text-anchor="start" >DECODER · each run</text><rect x="365" y="117" width="226" height="112" rx="5" fill="var(--panel)" stroke="var(--h1c)" stroke-width="1"/><text x="478" y="147" font-size="14" fill="var(--fig-line)" text-anchor="middle" >six decoder blocks</text><text x="478" y="173" font-size="12" fill="var(--fig-soft)" text-anchor="middle" >masked self-attention</text><text x="478" y="194" font-size="13" fill="var(--h1c)" text-anchor="middle" >cross-attention</text><text x="478" y="215" font-size="12" fill="var(--fig-soft)" text-anchor="middle" >feed-forward</text><rect x="338" y="264" width="280" height="28" rx="5" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/><text x="478" y="282" font-size="13" fill="var(--fig-line)" text-anchor="middle" >&lt;start&gt; J’aime les …</text><path d="M478 264 V229" fill="none" stroke="var(--accent)" stroke-width="1.3" marker-end="url(#arr-9-p)"/><path d="M206 75 H264 V190 H365" fill="none" stroke="var(--h2c)" stroke-width="1.3" marker-end="url(#arr-9-g)"/><text x="278" y="172" font-size="12" fill="var(--h2c)" text-anchor="start" >same <tspan class="math-symbol">C</tspan></text><text x="278" y="208" font-size="11.5" fill="var(--fig-soft)" text-anchor="start" >each block</text><text x="365" y="318" font-size="12" fill="var(--fig-soft)" text-anchor="start" >Embed + positions</text><text x="365" y="336" font-size="12" fill="var(--fig-soft)" text-anchor="start" >current prefix</text></g><g data-reveal="3"><rect x="365" y="61" width="226" height="28" rx="5" fill="var(--fig-fill)" stroke="var(--h1c)" stroke-width="1"/><text x="478" y="79" font-size="13" fill="var(--fig-line)" text-anchor="middle" >output head</text><path d="M478 117 V89" fill="none" stroke="var(--fig-line)" stroke-width="1.3" marker-end="url(#arr-9-b)"/><text x="495" y="107" font-size="12" fill="var(--accent)" text-anchor="start" >last row</text><rect x="670" y="61" width="170" height="28" rx="5" fill="var(--fig-fill)" stroke="var(--fig-line)" stroke-width="1"/><text x="755" y="79" font-size="13" fill="var(--fig-line)" text-anchor="middle" >selected token</text><path d="M591 75 H670" fill="none" stroke="var(--fig-line)" stroke-width="1.3" marker-end="url(#arr-9-b)"/></g><g data-reveal="4"><path d="M755 89 V278 H618" fill="none" stroke="var(--accent)" stroke-width="1.3" stroke-dasharray="4 4" marker-end="url(#arr-9-p)"/><text x="665" y="306" font-size="12" fill="var(--accent)" text-anchor="start" >ordinary token:</text><text x="665" y="325" font-size="12" fill="var(--accent)" text-anchor="start" >append; next run</text><text x="670" y="46" font-size="12" fill="var(--fig-soft)" text-anchor="start" >&lt;end&gt;: stop</text></g><g data-reveal="5"><text x="28" y="378" font-size="13" fill="var(--fig-soft)" text-anchor="start" ><tspan class="math-symbol">C</tspan> stays fixed; the prefix grows by one token after each ordinary selection.</text></g></g></svg></div>
+        <figcaption><b>Figure 10.</b> The whole encoder–decoder Transformer. \(\mathbf C\) is computed once and read by every decoder block. After all six decoder blocks finish, the last position’s final hidden-state vector goes to the output head. A selected ordinary token extends the prefix; &lt;end&gt; stops the loop. Press Play to watch the full sequence automatically, or use Figure 7 to inspect the five runs individually.</figcaption>
+      </figure>
+<ol>
+<li><b>Encode the source once.</b> Look up the source-token embeddings, add positional information, and process the sequence through the encoder stack. Keep its output \(\mathbf C\) for the whole translation.</li>
+<li><b>Process the current target prefix.</b> On run 1 it contains only &lt;start&gt;. Embed the prefix, add positional information, and pass its vectors through all six decoder blocks. Every block reads the same \(\mathbf C\) through cross-attention.</li>
+<li><b>Select one new token.</b> Take <b>only the last row</b> of the sixth decoder block’s output. The output head converts that row into next-token scores and probabilities; a selection rule chooses one token.</li>
+<li><b>Extend the prefix or stop.</b> If the selected token is ordinary, append its token ID to the prefix. The next run embeds that enlarged prefix and processes it through the same decoder stack. If the selected token is &lt;end&gt;, stop.</li>
+</ol>
+<p>There are two different kinds of progress here. <b>Moving through blocks</b> changes the vectors within one run, while keeping the same positions. <b>Moving to the next run</b> adds the selected token to the input prefix. As in Part 6, we describe the full-prefix calculation.</p>
+<p>On run 1, the only final hidden-state vector is also the last one. On run 2, the prefix is <code>&lt;start&gt; J’aime</code>, so the decoder produces two final hidden-state rows: row 1 for <code>&lt;start&gt;</code> and row 2 for <code>J’aime</code>. Only row 2 enters the output head for the next-token selection. The illustrated translation has four ordinary tokens and requires one additional selection of &lt;end&gt;: five runs in total.</p>
+<p>On run 2, \(\mathbf D\) has two rows: row 1 represents <code>&lt;start&gt;</code>, and row 2 represents <code>J’aime</code>. Multiplying each row by \(\mathbf W^Q_{\text{cross}}\) produces its own Query, so \(\mathbf Q_{\text{cross}}\) also has two rows in that order.</p>
+<div class="plate learning-figure two-query-demo" role="group" aria-label="Two decoder Queries on run 2"><p class="fig-title">Run 2: two Queries read the same three source positions</p><div class="table-scroll"><table class="query-shape"><thead><tr><th scope="col">Query position</th><th scope="col">I</th><th scope="col">love</th><th scope="col">LLMs</th><th scope="col">Row total</th></tr></thead><tbody><tr><th scope="row">&lt;start&gt;</th><td><span class="weight-square" aria-label="One attention weight"></span></td><td><span class="weight-square" aria-label="One attention weight"></span></td><td><span class="weight-square" aria-label="One attention weight"></span></td><td>1</td></tr><tr><th scope="row">J’aime</th><td><span class="weight-square" aria-label="One attention weight"></span></td><td><span class="weight-square" aria-label="One attention weight"></span></td><td><span class="weight-square" aria-label="One attention weight"></span></td><td>1</td></tr></tbody></table></div><p class="fig-note">The six squares show the entries of \(\mathbf A_{\text{cross}}\), a \(2\times3\) matrix. Each row belongs to a decoder Query; each column belongs to a source position. The three weights in each row sum to 1.</p><ol><li><b>Compare:</b> two Queries against three Keys give a \(2\times3\) score matrix.</li><li><b>Weight:</b> apply softmax separately to each row of the score matrix to produce \(\mathbf A_{\text{cross}}\). Each row contains three weights that sum to 1.</li><li><b>Combine:</b> \(\mathbf A_{\text{cross}}\mathbf V_{\text{cross}}\) multiplies the \(2\times3\) weight matrix by the \(3\times4\) Value matrix, producing \(\mathbf Z_{\text{cross}}\) with shape \(2\times4\): one update per decoder position.</li></ol></div>
+<section class="fixed-memory"><blockquote class="key-point " id="key-fixed-memory"><b class="key-point-title">What stays fixed across runs?</b><p>The encoder memory \(\mathbf C\) stays fixed throughout translation, and all decoder blocks read the same \(\mathbf C\). Each block has its own \(\mathbf W^K_{\text{cross}}\) and \(\mathbf W^V_{\text{cross}}\). Therefore, \(\mathbf K_{\text{cross}}\) and \(\mathbf V_{\text{cross}}\) stay fixed across runs <b>within that block</b>, but generally differ between blocks.</p></blockquote>
+<p>The target prefix grows. The newly appended token adds a decoder position, which produces its own Query in each block and can combine the fixed Values differently.</p>
+<p>The causal mask prevents old positions from reading a newly appended token. Under the same inference conditions, their states stay unchanged. Part 10 explains how caching reuses this work.</p>
+</section>
+<details class="supplement"><summary>Where positional encoding and embedding scaling fit</summary>
+<p>The full architecture adds positional encodings at the bottoms of both stacks. The original Transformer scales token embeddings by \(\sqrt{d_{\text{model}}}\) before that addition. We omitted both operations from the hand calculation.</p>
+<p>\(\mathbf C\) is the encoder stack’s output, so its vectors already reflect source order. We do not add positional encodings again when \(\mathbf C\) is read by cross-attention.</p>
+</details>
+<blockquote class="think"><b>Try it</b> On run 4, the prefix is <code>&lt;start&gt; J’aime les grands</code>. What are the shapes of \(\mathbf C\), \(\mathbf D\), \(\mathbf A_{\text{cross}}\) and \(\mathbf Z_{\text{cross}}\)? Which position is used to select the next token after the decoder stack finishes?</blockquote>
+<details class="supplement"><summary>Check your answer</summary>
+<table><thead><tr><th>Matrix</th><th>Shape</th><th>Reason</th></tr></thead><tbody>
+<tr><td>\(\mathbf C\)</td><td>\(3\times4\)</td><td>The source still has three positions.</td></tr>
+<tr><td>\(\mathbf D\)</td><td>\(4\times4\)</td><td>The target prefix has four positions: &lt;start&gt;, J’aime, les, grands.</td></tr>
+<tr><td>\(\mathbf A_{\text{cross}}\)</td><td>\(4\times3\)</td><td>Each of four Queries compares with three Keys.</td></tr>
+<tr><td>\(\mathbf Z_{\text{cross}}\)</td><td>\(4\times4\)</td><td>Each Query produces one \(1\times4\) row of \(\mathbf Z_{\text{cross}}\).</td></tr>
+</tbody></table>
+<p>All four decoder positions receive source-dependent updates. After the final block, the final hidden-state vector for the last position, <code>grands</code>, is used to select the next token: <code>modèles</code> in the illustrated translation.</p></details>
+<h2 id="s77"><span class="num">7.7</span>Optional: the parameter count</h2>
+<details class="supplement"><summary>How many parameters does cross-attention add?</summary>
+<p>For the original Transformer’s base architecture, use \(d_{\text{model}}=512\) and \(d_{ff}=2048\), as in Part 5. This is the full architecture’s count, not our toy example with \(d_{\text{model}}=4\).</p>
+<p>Part 5’s encoder block has 3,150,336 parameters under the convention used here: count \(\mathbf W^Q\), \(\mathbf W^K\), \(\mathbf W^V\) and \(\mathbf W^O\) projection weights, feed-forward weights and biases, and LayerNorm scales and offsets. Omit attention projection biases; embeddings and the output head are outside the block count.</p>
+<p>A decoder block adds a cross-attention sublayer, with four projection matrices, and one more LayerNorm:</p>
+<table class="numeric-trace"><thead><tr><th>Added parameters</th><th>Calculation</th><th>Count</th></tr></thead><tbody>
+<tr><td>\(\mathbf W^Q\), \(\mathbf W^K\), \(\mathbf W^V\) and \(\mathbf W^O\) projection weights</td><td>\(4\times512\times512\)</td><td>1,048,576</td></tr>
+<tr><td>LayerNorm scale and offset</td><td>\(2\times512\)</td><td>1,024</td></tr>
+</tbody></table>
+\[ 3{,}150{,}336+1{,}048{,}576+1{,}024=4{,}199{,}936. \]
+<p>Six decoder blocks contain 25,199,616 parameters. Six encoder blocks contain 18,902,016. Together the two stacks contain 44,101,632, before counting embeddings and the output head. The four projections in cross-attention account for most of the extra parameters in each decoder block.</p>
+</details>
+<h2 id="s7next"><span class="num">Next</span>Control which positions a row can read</h2>
+<p>We have followed one decoder position from its decoder state \(\mathbf D\) to a cross-attention update, through Add &amp; Norm, and onward through the rest of a block. Cross-attention reads encoder memory and updates an existing decoder position.</p>
+<p>The next question appears when the decoder input has several positions. Suppose the prefix is <code>&lt;start&gt; J’aime les</code>. All three tokens are present, but the position for J’aime may read only &lt;start&gt; and J’aime during masked self-attention. How do we stop it from reading les while processing the whole prefix together?</p>
+<p><b><a href="./TTNN-Part8-Masks.html">Part 8</a> builds that causal mask.</b> It also introduces the padding mask, which excludes padding positions when sequences of different lengths are processed in a batch. These rules prepare us for training in Part 9, where many prediction positions are processed together.</p>
+<p><a href="./TTNN-Part10-Generation.html">Part 10</a> then returns to inference, including other token-selection methods and caching to avoid repeated calculations.</p>
+<footer>
+        The Transformer, Number by Number &nbsp;&#183;&nbsp; Part 7 of the series.<br>
+        Continues from Part 6, How the Decoder Writes.<br>
+        Figures 1&#8211;9 drawn from scratch for this page.<br>
+        The causal mask and the padding mask are Part 8. The loss and backpropagation are Part 9.
+        Sampling and the KV cache are Part 10.
+      </footer>
+    </main>
+  </div>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"
+    integrity="sha384-XjKyOOlGwcjNTAIQHIpgOno0Hl1YQqzUOEleOLALmuqehneUG+vnGctmUb0ZY0l8"
+    crossorigin="anonymous"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+    integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05"
+    crossorigin="anonymous"></script>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      if (window.renderMathInElement) {
+        renderMathInElement(document.body, {
+          delimiters: [
+            { left: "\\[", right: "\\]", display: true },
+            { left: "$$", right: "$$", display: true },
+            { left: "\\(", right: "\\)", display: false },
+            { left: "$", right: "$", display: false }
+          ],
+          ignoredTags: ["script", "noscript", "style", "textarea", "pre", "code", "option"],
+          throwOnError: false
+        });
+      }
+
+      var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+      var targets = links
+        .map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); })
+        .filter(Boolean);
+
+      // The current section is the last heading that has reached the top of the window
+      // (headings land 32px down, the scroll-padding). An observer that marked whichever
+      // heading entered the top 30% last picked 7.5.1 for 7.5 and 7.6 for 7.5.4, because
+      // those headings sit less than 30% of a window apart. At the end of the page, where
+      // the last heading cannot reach the top, the last visible heading is marked.
+      var pending = false;
+      function mark() {
+        pending = false;
+        var current = null;
+        var atEnd = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
+        targets.forEach(function (t) {
+          var top = t.getBoundingClientRect().top;
+          if (top <= 48 || (atEnd && top < window.innerHeight)) current = t;
+        });
+        links.forEach(function (a) {
+          a.classList.toggle("on", !!current && a.getAttribute("href") === "#" + current.id);
+        });
+      }
+      window.addEventListener("scroll", function () {
+        if (!pending) { pending = true; requestAnimationFrame(mark); }
+      }, { passive: true });
+      mark();
+    });
+  </script>
+
+  <script>
+    // Figures remain static until the reader explicitly presses a button.
+    (function () {
+      function setMathStatus(element, message) {
+        element.replaceChildren();
+        message.split(/(Z_cross|\b[ACDHQKVWZ]\b)/g).forEach(function (part) {
+          if (part === 'Z_cross' || /^[ACDHQKVWZ]$/.test(part)) {
+            var symbol = document.createElement('span');
+            symbol.className = 'math-symbol';
+            symbol.textContent = part === 'Z_cross' ? 'Z' : part;
+            element.appendChild(symbol);
+            if (part === 'Z_cross') { var sub = document.createElement('sub'); sub.textContent = 'cross'; element.appendChild(sub); }
+          } else {
+            element.appendChild(document.createTextNode(part));
+          }
+        });
+      }
+      document.querySelectorAll('.plate').forEach(function (plate) {
+        var svg = plate.querySelector('svg');
+        if (!svg || !svg.dataset.steps) return;
+        var clockId = {cross:'fig10clock',blocks:'fig11clock',architecture:'fig13clock'}[svg.dataset.steps];
+        var settings = {
+          fig10clock: [
+            [0.15, '1 · Query and Keys', 'One Query comes from D. The three Keys come from C, in source order.'],
+            [0.33, '2 · Scores', 'Compare the Query with each Key, then divide by 2: 0.39, 1.15 and −0.15, in source order.'],
+            [0.54, '3 · Weights', 'Softmax turns the three scores into attention weights: 0.27, 0.57 and 0.16.'],
+            [0.71, '4 · Weighted Values', 'Follow each row: I × 0.27, love × 0.57, LLMs × 0.16. Each weight multiplies all four Value components.'],
+            [1, '5 · Output', 'Add the three weighted rows column by column to obtain Z_cross, a 1 × 4 row vector for <start>.']
+          ],
+          fig11clock: [
+            [0.28, '1 · Compare blocks', 'Compare the aligned self-attention and feed-forward sublayers. Decoder self-attention is causal.'],
+            [0.74, '2 · Add cross-attention', 'Insert cross-attention between self-attention and feed-forward, with its own Add & Norm.'],
+            [1, '3 · Complete block', 'Each decoder block has three sublayers. Each preserves the number of decoder positions.']
+          ],
+          fig13clock: [
+            [0.17, '1 · Encode', 'Run the encoder once. Its final output C is the memory used throughout the translation.'],
+            [0.31, '2 · Decode', 'Process the current prefix. Every decoder block reads the same C using its own Key and Value projections.'],
+            [0.34, '3 · Select', 'After the decoder stack finishes, the last row goes to the output head to select one token.'],
+            [0.375, '4 · Continue or stop', 'An ordinary token extends the prefix for the next run. Selecting <end> stops the loop.'],
+            [1, '5 · Whole loop', 'C stays fixed while the prefix grows. Figure 7 lets you inspect the individual runs.']
+          ]
+        }[clockId];
+        if (!settings) return;
+        var records = Array.from(svg.querySelectorAll('[data-reveal]'));
+
+        // Figures 9 and 10 play through automatically after one press.
+        if (svg.dataset.steps === 'blocks' || svg.dataset.steps === 'architecture') {
+          var figureNumber = svg.dataset.steps === 'blocks' ? 9 : 10;
+          var durations = figureNumber === 9 ? [3000, 3600, 2800] : [2800, 3500, 3200, 3500, 2200];
+          var player = document.createElement('div'); player.className = 'figure-player run-controls';
+          var playButton = document.createElement('button'); playButton.type = 'button';
+          var playStatus = document.createElement('p'); playStatus.className = 'play-status';
+          playStatus.id = 'figure-' + figureNumber + '-play-status';
+          playStatus.setAttribute('aria-live', 'polite');
+          playButton.setAttribute('aria-describedby', playStatus.id);
+          var timer = null, playing = false, frame = -1, remaining = 0, startedAt = 0, finished = false;
+          svg.classList.add('automatic-flow');
+          function setButton(label) {
+            playButton.textContent = label;
+            playButton.setAttribute('aria-label', label + ' Figure ' + figureNumber + ' animation');
+          }
+          function showFrame(index) {
+            frame = index;
+            svg.querySelectorAll('.is-tracing').forEach(function (path) { path.classList.remove('is-tracing'); });
+            var complete = index < 0 || index === settings.length - 1;
+            records.forEach(function (node) {
+              var stage = Number(node.dataset.reveal) - 1;
+              var future = !complete && stage > index;
+              node.setAttribute('opacity', complete || stage === index ? '1' : future ? '.13' : '.62');
+              node.querySelectorAll('[data-detail]').forEach(function (label) { label.setAttribute('opacity', future ? '0' : '1'); });
+              if (!complete && stage === index) node.querySelectorAll('path[marker-end]').forEach(function (path) {
+                if (path.hasAttribute('stroke-dasharray') || typeof path.getTotalLength !== 'function') return;
+                var length = path.getTotalLength();
+                if (length > 0) { path.style.setProperty('--trace-length', String(length)); path.classList.add('is-tracing'); }
+              });
+            });
+            setMathStatus(playStatus, index < 0 ? 'Press Play to watch the sequence.' : settings[index][1] + ' — ' + settings[index][2]);
+            svg.dataset.playFrame = String(index);
+          }
+          function schedule() {
+            startedAt = Date.now();
+            timer = setTimeout(function () {
+              timer = null;
+              if (!playing) return;
+              if (frame + 1 < settings.length) {
+                showFrame(frame + 1); remaining = durations[frame]; schedule();
+              } else {
+                playing = false; finished = true; remaining = 0;
+                svg.dataset.playState = 'complete'; setButton('Replay');
+                setMathStatus(playStatus, 'Complete. Press Replay to watch again.');
+              }
+            }, remaining);
+          }
+          function pause() {
+            if (!playing) return;
+            clearTimeout(timer); timer = null;
+            remaining = Math.max(0, remaining - (Date.now() - startedAt));
+            playing = false; svg.dataset.playState = 'paused'; setButton('Play');
+          }
+          playButton.addEventListener('click', function () {
+            if (playing) { pause(); return; }
+            if (frame < 0 || finished) { finished = false; showFrame(0); remaining = durations[0]; }
+            playing = true; svg.dataset.playState = 'playing'; setButton('Pause'); schedule();
+          });
+          document.addEventListener('visibilitychange', function () { if (document.hidden) pause(); });
+          player.append(playButton, playStatus); plate.appendChild(player);
+          svg.dataset.playState = 'ready'; setButton('Play'); showFrame(-1);
+          return;
+        }
+
+        var controls = document.createElement('div'); controls.className = 'manual-steps';
+        var buttons = document.createElement('div'); buttons.className = 'run-controls step-tabs';
+        buttons.setAttribute('role', 'group'); buttons.setAttribute('aria-label', 'Diagram steps');
+        var status = document.createElement('p'); status.className = 'manual-status';
+        status.setAttribute('aria-live', 'polite');
+        var previous = document.createElement('button'); previous.type = 'button'; previous.textContent = 'Previous';
+        var next = document.createElement('button'); next.type = 'button'; next.textContent = 'Next';
+        var all = document.createElement('button'); all.type = 'button'; all.textContent = 'Show all';
+        var selected = -1, stepButtons = [];
+        function render(index) {
+          selected = index;
+
+          var complete = index < 0 || (index === settings.length - 1 && clockId !== 'fig10clock');
+          records.forEach(function (node) {
+            var step = Number(node.dataset.reveal) - 1;
+            var future = !complete && step > index;
+            node.setAttribute('opacity', complete || step === index ? '1' : future ? '.16' : '.66');
+            node.querySelectorAll('[data-detail]').forEach(function (label) {
+              label.setAttribute('opacity', future ? '0' : '1');
+            });
+          });
+          count.textContent = index < 0 ? 'Overview' : 'Step ' + (index + 1) + ' of ' + settings.length;
+          stepButtons.forEach(function (b, i) { b.setAttribute('aria-pressed', String(i === index)); });
+          all.setAttribute('aria-pressed', String(index < 0));
+          previous.disabled = index <= 0;
+          next.disabled = index === settings.length - 1;
+          next.textContent = index < 0 ? 'Start steps' : 'Next';
+          setMathStatus(status, index < 0 ? 'Choose a step to focus on its inputs and result. Advance at your own pace.'
+            : settings[index][1] + ' — ' + settings[index][2]);
+        }
+        previous.addEventListener('click', function () { if (selected > 0) render(selected - 1); });
+        next.addEventListener('click', function () { if (selected < settings.length - 1) render(selected + 1); });
+        all.addEventListener('click', function () { render(-1); });
+        var nav = document.createElement('div'); nav.className = 'run-controls step-nav';
+        var count = document.createElement('span'); count.className = 'step-count';
+        settings.forEach(function (step, index) {
+          var button = document.createElement('button'); button.type = 'button'; button.textContent = step[1];
+          button.addEventListener('click', function () { render(index); });
+          stepButtons.push(button); buttons.appendChild(button);
+        });
+        nav.append(count, previous, next, all);
+        controls.append(buttons, status, nav); plate.appendChild(controls);
+        render(-1);
+      });
+      var figure = document.getElementById('fig7-loop');
+      var prefixes = ['<start>', '<start> J’aime', '<start> J’aime les',
+        '<start> J’aime les grands', '<start> J’aime les grands modèles'];
+      var selections = ['J’aime', 'les', 'grands', 'modèles', '<end>'];
+      figure.querySelectorAll('[data-run]').forEach(function (button) {
+        button.addEventListener('click', function () {
+          var run = Number(button.dataset.run), i = run - 1;
+          figure.querySelector('[data-loop="rows"]').textContent = run + ' final hidden-state ' + (run === 1 ? 'row' : 'rows');
+          figure.querySelector('[data-loop="run"]').textContent = 'RUN ' + run + ' · decoder input';
+
+          var prefix = figure.querySelector('[data-loop="prefix"]');
+          prefix.replaceChildren();
+          prefixes[i].split(' ').forEach(function (token, j, tokens) {
+            var span = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+            span.textContent = token + (j < tokens.length - 1 ? ' ' : '');
+            if (j === tokens.length - 1) { span.setAttribute('fill', 'var(--accent)'); span.setAttribute('font-weight', '600'); }
+            prefix.appendChild(span);
+          });
+
+          figure.querySelector('[data-loop="selection"]').textContent = selections[i];
+          figure.querySelector('[data-loop="action"]').textContent = run === 5 ? 'Stop; do not append <end>.' : 'Append it for run ' + (run + 1) + '.';
+          figure.querySelectorAll('[data-run]').forEach(function (b) { b.setAttribute('aria-pressed', String(b === button)); });
+          figure.querySelector('.loop-status').textContent = 'Run ' + run + ': input ' + prefixes[i] + '; ' + run + ' final hidden-state ' + (run === 1 ? 'row' : 'rows') + '; select ' + selections[i] + (run === 5 ? ' and stop.' : '.');
+        });
+      });
+      figure.querySelector('[data-run="1"]').click();
+    })();
+  </script>
+
+  <script>
+    (function () {
+      var figure = document.getElementById('fig-attention-steps');
+      var explanations = [
+        'Follow one decoder position through the three operations. Use the buttons to focus on a step.',
+        'The Query for <start> is compared with all three Keys. Three Keys give three scores.',
+        'Softmax turns those scores into three attention weights. They sum to 1 before rounding.',
+        'Each weight multiplies the corresponding Value. Adding the three weighted rows gives Z_cross, a 1 × 4 row vector for <start>.'
+      ];
+      figure.querySelectorAll('[data-attention-step]').forEach(function (button) {
+        button.addEventListener('click', function () {
+          var step = Number(button.dataset.attentionStep);
+          figure.querySelectorAll('[data-attention-stage]').forEach(function (panel) {
+            panel.classList.toggle('is-current', Number(panel.dataset.attentionStage) === step);
+            panel.classList.toggle('is-muted', step > 0 && Number(panel.dataset.attentionStage) !== step);
+          });
+          figure.querySelectorAll('[data-attention-step]').forEach(function (b) {
+            b.setAttribute('aria-pressed', String(b === button));
+          });
+          var explanation = figure.querySelector('.step-explanation');
+          explanation.replaceChildren();
+          explanations[step].split(/(Z_cross)/g).forEach(function (part) {
+            if (part === 'Z_cross') {
+              var symbol = document.createElement('span'); symbol.className = 'math-symbol'; symbol.textContent = 'Z';
+              var sub = document.createElement('sub'); sub.textContent = 'cross';
+              explanation.append(symbol, sub);
+            } else { explanation.appendChild(document.createTextNode(part)); }
+          });
+        });
+      });
+    })();
+  </script>
+
+</body>
+
+</html>
