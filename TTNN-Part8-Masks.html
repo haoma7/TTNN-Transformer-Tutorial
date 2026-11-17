@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="author" content="Hao Ma">
+  <title>What a Row Is Not Allowed to See &#8212; part 8 &#8212; The Causal Mask and the Padding Mask</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"
+    integrity="sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV" crossorigin="anonymous">
+
+  <style>
+    :root {
+      --paper: #FBFCFD;
+      --panel: #F2F5F8;
+      --ink: #16202B;
+      --ink-soft: #5A6B7A;
+      --rule: #D6DEE5;
+      --chip-bg: #EAF0F4;
+      --h1c: #2E6F8E;
+      --h2c: #B07D1A;
+      --accent: #7D4A72;
+      --fig-fill: #FFFFFF;
+      --fig-line: #16202B;
+      --fig-soft: #5A6B7A;
+      --fig-grid: #E4EAEF;
+    }
+
+    @media (prefers-color-scheme:dark) {
+      :root {
+        --paper: #101720;
+        --panel: #18212C;
+        --ink: #E3E9EE;
+        --ink-soft: #93A3B1;
+        --rule: #2A3644;
+        --chip-bg: #1E2833;
+        --h1c: #6FB6D4;
+        --h2c: #D9AC4E;
+        --accent: #C08FB6;
+        --fig-fill: #18212C;
+        --fig-line: #E3E9EE;
+        --fig-soft: #93A3B1;
+        --fig-grid: #243040;
+      }
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 2rem
+    }
+
+    @media (prefers-reduced-motion:reduce) {
+      html {
+        scroll-behavior: auto
+      }
+    }
+
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: "Source Serif 4", Georgia, serif;
+      font-size: 18px;
+      line-height: 1.72;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ---------- layout ---------- */
+    .wrap {
+      display: grid;
+      grid-template-columns: 246px minmax(0, 1fr);
+      gap: 3rem;
+      max-width: 1500px;
+      margin: 0 auto;
+      padding: 0 1.5rem
+    }
+
+    .main {
+      max-width: 720px;
+      padding: 3.5rem 0 6rem
+    }
+
+    /* ---------- table of contents ---------- */
+    .toc {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      height: 100vh;
+      overflow-y: auto;
+      padding: 3.5rem 0 2rem;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12.5px
+    }
+
+    .toc-label {
+      text-transform: uppercase;
+      letter-spacing: .13em;
+      font-size: 10.5px;
+      color: var(--ink-soft);
+      margin-bottom: 1rem
+    }
+
+    .toc a {
+      display: block;
+      padding: .34rem 0 .34rem .8rem;
+      color: var(--ink-soft);
+      text-decoration: none;
+      border-left: 2px solid var(--rule);
+      line-height: 1.45
+    }
+
+    .toc a:hover {
+      color: var(--ink)
+    }
+
+    .toc a.lvl2 {
+      padding-left: 1.7rem
+    }
+
+    .toc a.on {
+      color: var(--h1c);
+      border-left-color: var(--h1c)
+    }
+
+    .toc a:focus-visible {
+      outline: 2px solid var(--h1c);
+      outline-offset: 2px
+    }
+
+    /* ---------- type ---------- */
+    .eyebrow {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11.5px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+      margin-bottom: 1.1rem
+    }
+
+    h1 {
+      font-family: Fraunces, serif;
+      font-weight: 600;
+      font-size: 2.55rem;
+      line-height: 1.14;
+      letter-spacing: -.015em;
+      margin: 0 0 .9rem
+    }
+
+    .standfirst {
+      color: var(--ink-soft);
+      font-size: 1.06rem;
+      margin: 0 0 2.4rem;
+      padding-bottom: 2.4rem;
+      border-bottom: 1px solid var(--rule)
+    }
+
+    h2 {
+      font-family: Fraunces, serif;
+      font-weight: 600;
+      font-size: 1.62rem;
+      letter-spacing: -.01em;
+      margin: 3.4rem 0 1rem
+    }
+
+    h3 {
+      font-family: Fraunces, serif;
+      font-weight: 400;
+      font-size: 1.2rem;
+      margin: 2.4rem 0 .7rem
+    }
+
+    h2 .num,
+    h3 .num {
+      font-family: "IBM Plex Mono", monospace;
+      font-weight: 400;
+      color: var(--h1c);
+      font-size: .72em;
+      margin-right: .6em
+    }
+
+    p {
+      margin: 0 0 1.15rem
+    }
+
+    a {
+      color: var(--h1c)
+    }
+
+    /* ---------- signature: tensor shape chips ---------- */
+    .shape {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: .78em;
+      white-space: nowrap;
+      background: var(--chip-bg);
+      color: var(--ink-soft);
+      border: 1px solid var(--rule);
+      border-radius: 3px;
+      padding: .1em .45em;
+      letter-spacing: .02em
+    }
+
+    /* ---------- paper quotes ---------- */
+    blockquote {
+      margin: 1.8rem 0;
+      padding: .15rem 0 .15rem 1.3rem;
+      border-left: 3px solid var(--accent);
+      color: var(--ink-soft);
+      font-style: italic
+    }
+
+    blockquote cite {
+      display: block;
+      margin-top: .5rem;
+      font-style: normal;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11.5px;
+      letter-spacing: .04em
+    }
+
+    /* ---------- figures ---------- */
+    figure {
+      margin: 2.6rem 0;
+      width: 100%
+    }
+
+
+    .replay {
+      display: block;
+      margin: .55rem auto 0;
+      font: inherit;
+      font-size: .82rem;
+      color: var(--ink-soft);
+      background: none;
+      border: 1px solid var(--rule);
+      border-radius: 4px;
+      padding: .22rem .75rem;
+      cursor: pointer
+    }
+
+    .replay:hover,
+    .replay:focus {
+      color: var(--ink);
+      border-color: var(--ink-soft)
+    }
+
+    .plate {
+      background: var(--fig-fill);
+      border: 1px solid var(--rule);
+      border-radius: 5px;
+      padding: 21px 20px;
+      background-image: linear-gradient(var(--fig-grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--fig-grid) 1px, transparent 1px);
+      background-size: 22px 22px
+    }
+
+    .plate svg {
+      display: block;
+      width: 100%;
+      height: auto
+    }
+
+    figcaption {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--ink-soft);
+      margin-top: .85rem
+    }
+
+    figcaption b {
+      color: var(--ink);
+      font-weight: 500
+    }
+
+    /* ---------- image slot for third-party figures ---------- */
+    .imgslot {
+      border: 1.5px dashed var(--rule);
+      border-radius: 5px;
+      background: var(--panel);
+      min-height: 210px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: .55rem;
+      padding: 2.2rem 1.5rem;
+      text-align: center
+    }
+
+    .imgslot .tag {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--accent)
+    }
+
+    .imgslot .what {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 13.5px;
+      color: var(--ink)
+    }
+
+    .imgslot .hint {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11.5px;
+      line-height: 1.7;
+      color: var(--ink-soft);
+      max-width: 46ch
+    }
+
+    /* ---------- placeholder ---------- */
+    .todo {
+      border-left: 3px solid var(--h2c);
+      border-radius: 0 4px 4px 0;
+      padding: 1rem 1.2rem;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12.5px;
+      line-height: 1.75;
+      color: var(--ink-soft);
+      background: var(--panel);
+      margin: 1.8rem 0
+    }
+
+    .todo b {
+      color: var(--h2c);
+      font-weight: 500;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      font-size: 11px;
+      display: block;
+      margin-bottom: .35rem
+    }
+
+    /* ---------- footer ---------- */
+    footer {
+      margin-top: 5rem;
+      padding-top: 1.6rem;
+      border-top: 1px solid var(--rule);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11.5px;
+      line-height: 1.9;
+      color: var(--ink-soft)
+    }
+
+    /* ---------- responsive ---------- */
+    @media (max-width:900px) {
+      .wrap {
+        grid-template-columns: 1fr;
+        gap: 0
+      }
+
+      .toc {
+        position: static;
+        height: auto;
+        padding: 2rem 0 0;
+        border-bottom: 1px solid var(--rule)
+      }
+
+      .toc-inner {
+        columns: 2;
+        column-gap: 1.2rem
+      }
+
+      .main {
+        padding-top: 2rem
+      }
+
+      h1 {
+        font-size: 2rem
+      }
+
+      body {
+        font-size: 17px
+      }
+    }
+
+    /* ---------- sub-headings and inline code ---------- */
+
+    h4 {
+      font-family: Fraunces, serif;
+      font-weight: 600;
+      font-size: 1.02rem;
+      letter-spacing: -.005em;
+      color: var(--ink);
+      margin: 2rem 0 .6rem;
+    }
+
+    code {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: .84em;
+      background: var(--chip-bg);
+      color: var(--ink);
+      border: 1px solid var(--rule);
+      border-radius: 3px;
+      padding: .1em .38em;
+      white-space: nowrap;
+    }
+
+    /* ---------- callout boxes: think / mistake / takeaway ---------- */
+
+    blockquote.think {
+      border-left-color: var(--h1c);
+      font-style: normal;
+    }
+
+    blockquote.mistake {
+      border-left-color: var(--h2c);
+      font-style: normal;
+    }
+
+    blockquote.takeaway {
+      border-left-color: var(--accent);
+      font-style: normal;
+      margin-bottom: .4rem;
+    }
+
+    blockquote.think b,
+    blockquote.mistake b,
+    blockquote.takeaway b {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+      display: block;
+      margin-bottom: .3rem;
+    }
+
+    blockquote.think b {
+      color: var(--h1c);
+    }
+
+    blockquote.mistake b {
+      color: var(--h2c);
+    }
+
+    blockquote.takeaway b {
+      color: var(--accent);
+    }
+
+
+    /* ---------- added: math and tables ---------- */
+    .katex-display {
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: .35rem 0
+    }
+
+    .katex {
+      font-size: 1.02em
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1.8rem 0;
+      font-size: .92em
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid var(--rule);
+      padding: .55rem .7rem;
+      text-align: left
+    }
+
+    th {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--ink-soft)
+    }
+
+
+  /* Prose and figures share one column, as in Parts 1 to 6: the prose is whatever the
+       column is. The shared stylesheet stops the page at 1500px, which throws away most
+       of a wide screen, so the wrap widens with the viewport and the column with it.
+
+       The column stops at 1167px. A prose line there holds 150 characters, and the
+       figure labels, which scale with the drawing, are at about 14px against the body
+       text's 16px. Both were measured on the rendered page. */
+    @media (min-width: 1260px) { .main { max-width: 846px } }
+    @media (min-width: 1380px) { .main { max-width: 929px } }
+    @media (min-width: 1480px) { .main { max-width: 994px } }
+    @media (min-width: 1560px) { .main { max-width: 1058px } }
+    @media (min-width: 1700px) { .wrap { max-width: 1760px } .main { max-width: 1167px } }
+    figure { width: 100% }
+
+    /* Most tables want the column; this one is four narrow columns and looks stranded
+       when stretched across it. */
+    table.runs { max-width: 34rem }
+
+    /* A margin note: it defines a word without stopping the sentence that uses it.
+       Below the width where a margin exists it is an inset block in the flow instead. */
+    .gloss {
+      font-size: 13.5px;
+      line-height: 1.55;
+      color: var(--ink-soft);
+      border-left: 2px solid var(--h2c);
+      background: var(--panel);
+      padding: 0.55rem 0.9rem;
+      margin: 0 0 1.5rem 2.5rem;
+      max-width: 38ch;
+    }
+    .gloss b { color: var(--ink); font-weight: 600 }
+    .gloss .runs { font-family: "IBM Plex Mono", monospace; font-size: 12px; line-height: 1.7 }
+
+    /* The note needs 192px plus a 32px gap to the right of the column, measured on the
+       rendered page. */
+    @media (min-width: 1780px) {
+      .main { position: relative }
+      /* float, not position:absolute. An absolutely positioned note takes no space, so it
+         cannot push anything down, and it will sit on top of a Common mistake note that
+         happens to land beside it — which is exactly what Part 8, Section 8.3.1 did. A float
+         may not overlap another float, so the two kinds now stack in one column. */
+      .gloss {
+        float: right;
+        clear: right;
+        margin: -0.4rem -14rem 1.5rem 0;
+        width: 12rem;
+        max-width: none;
+        padding: 0.5rem 0 0;
+        border-left: 0;
+        border-top: 2px solid var(--h2c);
+        background: transparent;
+      }
+    }
+
+
+    /* A Common mistake box in the margin. It carries the same mark and label as the
+       in-flow version, at the size of a margin note. float + clear:right is what keeps
+       two of them from landing on top of each other: floats are not allowed to overlap
+       other floats, so a second note is pushed below the first instead of over it.
+       The negative right margin puts the whole box outside the text column, so no line
+       of prose is shortened by it. Below the width where a margin exists, the box stays
+       in the flow and looks as it always did. */
+    @media (min-width: 1780px) {
+      blockquote.mistake.side {
+        float: right;
+        clear: right;
+        width: 12rem;
+        margin: -0.4rem -14rem 1.5rem 0;
+        padding: 0.5rem 0 0;
+        border-left: 0;
+        border-top: 2px solid var(--h2c);
+        background: transparent;
+        font-size: 13.5px;
+        line-height: 1.55;
+        color: var(--ink-soft);
+      }
+      blockquote.mistake.side b { display: block; margin-bottom: .3rem }
+      /* A figure must not sit beside a note; it needs the whole column. */
+      figure { clear: right }
+    }
+
+    /* ---------- home button and byline ---------- */
+    .homebar {
+      margin-bottom: 1.5rem
+    }
+
+    .homebar a {
+      display: inline-block;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11.5px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+      text-decoration: none;
+      background: var(--chip-bg);
+      border: 1px solid var(--rule);
+      border-radius: 999px;
+      padding: .36rem .9rem
+    }
+
+    .homebar a:hover {
+      color: var(--h1c);
+      border-color: var(--h1c)
+    }
+
+    .homebar a:focus-visible {
+      outline: 2px solid var(--h1c);
+      outline-offset: 2px
+    }
+
+    .byline {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12.5px;
+      line-height: 1.6;
+      color: var(--ink-soft);
+      margin: 0 0 1.4rem
+    }
+
+    .byline b {
+      color: var(--ink);
+      font-weight: 500
+    }
+
+    .byline a {
+      color: var(--h1c);
+      text-decoration: none;
+      border-bottom: 1px solid var(--rule)
+    }
+
+    .byline a:hover {
+      border-bottom-color: var(--h1c)
+    }
+
+/* Manual figures and tables follow the existing light/dark design tokens. */
+.supplement { margin:1.5rem 0; padding:.85rem 1.1rem; border:1px solid var(--rule); border-radius:5px; background:var(--panel); }
+.supplement summary { cursor:pointer; font-weight:600; }
+.supplement p, .supplement ul { margin-top:.8rem; }
+.table-scroll { max-width:100%; overflow-x:auto; margin:1rem 0; }
+.table-scroll table { margin:0; }
+table th { text-transform:none; letter-spacing:0; }
+tbody th { font-family:inherit; font-size:inherit; font-weight:400; color:var(--ink); }
+.numeric td:last-child { font-family:'IBM Plex Mono',monospace; white-space:nowrap; }
+.matrix { width:auto; min-width:72%; font-family:'IBM Plex Mono',monospace; font-size:13px; font-variant-numeric:tabular-nums; margin:0 auto!important; }
+.matrix th, .matrix td { padding:.7rem .75rem; text-align:center; min-width:58px; }
+.matrix th:first-child { text-align:left; min-width:120px; }
+.matrix td { border:1px solid var(--rule); background:var(--fig-fill); }
+.matrix td.blocked { border:1.5px dashed var(--h2c); background:var(--panel); color:var(--ink); }
+.plate h4 { margin:.2rem 0 1rem; color:var(--h1c); }
+.plate p { font-size:.9rem; line-height:1.6; }
+.figure-note { color:var(--ink-soft); margin:.9rem 0 0; }
+.dependency { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.8rem; }
+.dependency > div { border:1px solid var(--rule); background:var(--fig-fill); padding:1rem; border-radius:4px; }
+.dependency b { font-size:.94rem; color:var(--h1c); }
+.dependency p { margin:.55rem 0 0; }
+.step-controls { display:flex; flex-wrap:wrap; gap:.45rem; margin:1rem 0; }
+.step-controls button { font:12px/1.5 'IBM Plex Mono',monospace; border:1px solid var(--rule); border-radius:4px; padding:.45rem .65rem; background:var(--fig-fill); color:var(--ink); cursor:pointer; }
+.step-controls button[aria-pressed="true"] { border-color:var(--h1c); color:var(--h1c); box-shadow:inset 0 -2px var(--h1c); }
+.step-controls button:focus-visible { outline:2px solid var(--h1c); outline-offset:2px; }
+.step-controls button:disabled { opacity:.4; cursor:default; }
+.step-panel[hidden] { display:none; }
+.step-panel h4 { font-size:1rem; margin:1.2rem 0 .6rem; }
+.step-explanation { margin:1rem 0 0; }
+.step-status { font:11px/1.6 'IBM Plex Mono',monospace; color:var(--ink-soft); margin:.8rem 0 0; }
+@media(max-width:650px) { .dependency { grid-template-columns:1fr; } .plate { padding:14px 10px; } .matrix th,.matrix td { padding:.5rem .45rem; } }
+@media print { .toc,.step-controls,.step-status { display:none; } .step-panel[hidden] { display:block!important; } .wrap { display:block; } .main { max-width:none; } .plate { break-inside:avoid; } }
+
+
+/* New row and column in the manual causal-mask steps. */
+#fig6 .matrix td.new-position { box-shadow:inset 0 0 0 2px var(--h1c); }
+#fig6 .new-position-label { display:block; color:var(--h1c); font-size:10px; font-weight:600; text-transform:none; letter-spacing:0; }
+
+/* Track the padding column and the I query row in both manual steps. */
+#fig10 .matrix tbody td:last-child { box-shadow:inset 0 0 0 2px var(--h1c); }
+#fig10 .matrix thead th:last-child { color:var(--h1c); }
+#fig10 .matrix tbody tr:first-child { font-weight:700; }
+
+/* Track representative entries while combining masks. */
+#fig12 .matrix td.mask-focus { box-shadow:inset 0 0 0 2px var(--h1c); }
+#fig12 .matrix td.mask-added { box-shadow:inset 0 0 0 3px var(--accent); font-weight:700; }
+#fig12 .mask-coordinate { display:block; font-size:10px; line-height:1.5; color:var(--fig-soft); }
+
+/* Preserve readable SVG labels instead of shrinking the whole diagram. */
+.diagram-scroll { width:100%; max-width:100%; overflow-x:auto; }
+.diagram-scroll svg { min-width:1100px; }
+.diagram-scroll:focus-visible { outline:2px solid var(--h1c); outline-offset:3px; }
+.plate .diagram-scroll-hint { margin:.65rem 0 0; font:12px/1.5 'IBM Plex Mono',monospace; color:var(--ink-soft); }
+@media (min-width:1700px) { .diagram-scroll-hint { display:none; } }
+@media print {
+  .diagram-scroll { overflow:visible; }
+  .diagram-scroll svg { min-width:0; }
+  .diagram-scroll-hint { display:none; }
+}
+
+/* Reserve a right note rail on laptop-width screens. The left contents column
+   is compact so the main text retains at least 722px at the 1200px breakpoint. */
+@media screen and (min-width:1200px) {
+  .wrap {
+    max-width:1760px;
+    grid-template-columns:190px minmax(0,1fr);
+    gap:24px;
+    padding-inline:24px;
+  }
+  .main {
+    position:relative;
+    width:calc(100% - 216px);
+    max-width:1142px;
+  }
+  .gloss, blockquote.mistake.side {
+    float:right;
+    clear:right;
+    width:192px;
+    max-width:none;
+    margin:-.4rem -216px 1.5rem 0;
+    padding:.5rem 0 0;
+    border-left:0;
+    border-top:2px solid var(--h2c);
+    background:transparent;
+    font-size:13.5px;
+    line-height:1.55;
+  }
+  figure { clear:right; }
+}
+</style>
+</head>
+
+<body>
+  <div class="wrap">
+    <nav class="toc" aria-label="Contents"><div class="toc-inner"><div class="toc-label">Contents</div><a href="#s81">8.1 Two positions, four scores, one forbidden connection</a><a href="#s811" class="lvl2">8.1.1 First, calculate without a mask</a><a href="#s82">8.2 Where the mask enters the calculation</a><a href="#s83">8.3 Add the mask, then apply softmax</a><a href="#s831" class="lvl2">8.3.1 From four scores to four attention weights</a><a href="#s832" class="lvl2">8.3.2 Follow both rows through Add &amp; Norm</a><a href="#s84">8.4 Extend the causal mask to any prefix length</a><a href="#s841" class="lvl2">8.4.1 The triangle, run by run</a><a href="#s842" class="lvl2">8.4.2 Why earlier positions keep the same states</a><a href="#s843" class="lvl2">8.4.3 The same pattern in every head and block</a><a href="#s85">8.5 Exclude padding positions</a><a href="#s851" class="lvl2">8.5.1 Two sequence lengths in one batch</a><a href="#s852" class="lvl2">8.5.2 Why even a zero padding vector needs a mask</a><a href="#s86">8.6 Choose the mask for each attention sublayer</a><a href="#s8next">Next Use the masks during training</a><a href="./TTNN-Part9-Training.html">Part 9 · Training →</a></div></nav>
+
+    <main class="main">
+<div class="homebar"><a href="./index.html" aria-label="Back to the home page">&#8592; Home</a></div>
+<div class="eyebrow">The Transformer, Number by Number &nbsp;&#183;&nbsp; Part 8</div>
+<h1>What a Row Is Not Allowed to See</h1>
+<p class="byline">By <b>Hao Ma</b> &nbsp;&#183;&nbsp; <a href="https://haoma7.github.io" rel="author">haoma7.github.io</a></p>
+<p class="standfirst">Run 1 receives <code>&lt;start&gt;</code>. Run 2 receives <code>&lt;start&gt; J’aime</code>. How does adding <code>J’aime</code> affect the self-attention calculation?</p>
+<p>We continue with <em><code>I love LLMs</code></em> and the translation <em><code>J’aime les grands modèles</code></em>. Each displayed word counts as one token in this teaching example. The token choices illustrate the inference loop; they are not predictions calculated from our hand-picked parameters.</p>
+<aside class="gloss"><b>What does “read” mean?</b> When one position reads another, the other position’s Value vector can contribute to the reading position’s attention output.</aside>
+<p>Part 7 calculated the first decoder block on run 1. We now repeat its self-attention calculation with the two-token input on run 2. The <b>causal mask</b> controls which positions each Query may read. Later, we use a <b>padding mask</b> to exclude the extra positions added to shorter sentences.</p>
+<p>We use the attention calculation from Part 1, Add &amp; Norm from Part 5, and the distinction between a decoder run and a decoder block from <a href="./TTNN-Part7-Cross-Attention.html#s76">Part 7, Section 7.6</a>.</p>
+<aside class="gloss"><b>Words, positions and vectors.</b> A token occupies a position in a sequence. A matrix row holds the vector for that position. Its four entries are <em>vector components</em>, not four tokens.</aside>
+<details class="supplement"><summary>Numerical conventions inherited from Part 7</summary>
+<ul>
+<li>One attention head; each vector has shape <span class="shape">1 × 4</span>, so \(d_{\text{model}}=d_k=4\).</li>
+<li><b>Embedding scaling and positional encoding.</b> The original Transformer multiplies each token embedding by \(\sqrt{d_{\text{model}}}\) before adding positional encoding. We omit both operations and use the supplied embeddings directly. This input scaling is separate from dividing attention scores by \(\sqrt{d_k}\), which we still do.</li>
+<li><b>Attention output projection \(\mathbf W^O\).</b> After forming the weighted Value sum \(\mathbf Z=\mathbf A\mathbf V\), attention multiplies it by \(\mathbf W^O\) before the residual addition. As in <a href="./TTNN-Part7-Cross-Attention.html#s723">Part 7, Section 7.2.3</a>, we set \(\mathbf W^O=\mathbf I_4\), the \(4\times4\) identity matrix, so \(\mathbf Z\mathbf W^O=\mathbf Z\). We use this setting in each attention sublayer and set all projection biases to zero.</li>
+<li>LayerNorm uses \(\varepsilon=10^{-5}\), scale vector \(\boldsymbol\gamma=(1,1,1,1)\), and offset vector \(\boldsymbol\beta=(0,0,0,0)\).</li>
+<li><b>Rounding for this hand calculation.</b> As in Part 7, use the displayed rounded results in the next step, including the rounded exponentials and attention weights. Round to two decimals; a value exactly halfway rounds away from zero, so 0.385 becomes 0.39, as in <a href="./TTNN-Part7-Cross-Attention.html#s743">Part 7, Section 7.4.3</a>. Within LayerNorm, round only the output vector. This differs from Part 6, which keeps full precision within each calculation. Keeping full precision here can therefore give slightly different final entries.</li>
+</ul>
+</details>
+
+<h2 id="s81"><span class="num">8.1</span>Two positions, four scores, one forbidden connection</h2>
+<p>Run 1 starts with the special token <code>&lt;start&gt;</code>. After <code>J’aime</code> is selected, run 2 receives the prefix <code>&lt;start&gt; J’aime</code>. Figure 1 separates the input positions from the new token selected after a run finishes.</p>
+<figure id="fig1"><div class="plate"><h4>From one position to two</h4><div class="table-scroll"><table class=""><thead><tr><th scope="col">Run</th><th scope="col">Current target prefix</th><th scope="col">Final hidden-state vectors</th><th scope="col">Use the last vector to select</th></tr></thead><tbody><tr><th scope="row">1</th><td><code>&lt;start&gt;</code></td><td>One: for <code>&lt;start&gt;</code></td><td><code>J’aime</code></td></tr><tr><th scope="row">2</th><td><code>&lt;start&gt; J’aime</code></td><td>Two: for <code>&lt;start&gt;</code> and <code>J’aime</code></td><td><code>les</code></td></tr></tbody></table></div></div><figcaption><b>Figure 1.</b> A selected token extends the prefix for the next run. The decoder produces a final hidden-state vector for every input position; inference uses the last vector to select one new token.</figcaption></figure>
+<p>We number positions from 1 so that position \(i\) corresponds to row \(i\) of the score matrix and the mask. In zero-based notation, the same position would have index \(i-1\).</p>
+<p>In run 2, the decoder input is <code>&lt;start&gt; J’aime</code>. We use the <code>&lt;start&gt;</code> embedding from Part 7, \((1,0,0,0)\), and choose \((1,1,0,1)\) for <code>J’aime</code>. Stacking these embeddings as two rows gives the input to the <b>first decoder block</b>:</p>
+\[ \mathbf X_{\text{dec}}=\begin{pmatrix}1&amp;0&amp;0&amp;0\\1&amp;1&amp;0&amp;1\end{pmatrix}. \]
+<p>The first row represents <code>&lt;start&gt;</code>; the second represents <code>J’aime</code>. The input has shape <span class="shape">2 × 4</span>. To calculate self-attention, we turn these embeddings into Query, Key and Value vectors. Apply the three projection matrices supplied in <a href="./TTNN-Part7-Cross-Attention.html#s73">Part 7, Section 7.3</a>:</p>
+\[ \begin{aligned}
+\mathbf Q_{\text{dec-self}}&amp;=\mathbf X_{\text{dec}}\mathbf W^Q_{\text{dec-self}}=\begin{pmatrix}-1&amp;0&amp;-1&amp;1\\-1&amp;-1&amp;-3&amp;1\end{pmatrix},\\
+\mathbf K_{\text{dec-self}}&amp;=\mathbf X_{\text{dec}}\mathbf W^K_{\text{dec-self}}=\begin{pmatrix}1&amp;0&amp;0&amp;-1\\-1&amp;0&amp;-1&amp;-1\end{pmatrix},\\
+\mathbf V_{\text{dec-self}}&amp;=\mathbf X_{\text{dec}}\mathbf W^V_{\text{dec-self}}=\begin{pmatrix}1&amp;0&amp;-1&amp;1\\1&amp;0&amp;0&amp;2\end{pmatrix}.
+\end{aligned} \]
+<p>The first row of each of \(\mathbf Q_{\text{dec-self}}\), \(\mathbf K_{\text{dec-self}}\) and \(\mathbf V_{\text{dec-self}}\) matches Part 7’s calculation for <code>&lt;start&gt;</code>. To check the <code>J’aime</code> Query, multiply \((1,1,0,1)\) by \(\mathbf W^Q_{\text{dec-self}}\). The three 1s select rows 1, 2 and 4 of that projection matrix:</p>
+\[ \underbrace{(-1,0,-1,1)}_{\text{row 1}}+
+\underbrace{(0,0,-1,-1)}_{\text{row 2}}+
+\underbrace{(0,-1,-1,1)}_{\text{row 4}}
+=(-1,-1,-3,1). \]
+<p>The sum is the second row of \(\mathbf Q_{\text{dec-self}}\), corresponding to <code>J’aime</code>.</p>
+<p>Each Query is compared with each Key. Divide the dot products by \(\sqrt{d_k}=2\):</p>
+\[ \mathbf S_{\text{dec-self}}=\frac{\mathbf Q_{\text{dec-self}}\mathbf K_{\text{dec-self}}^\top}{2}
+=\frac12\begin{pmatrix}-2&amp;1\\-2&amp;3\end{pmatrix}
+=\begin{pmatrix}-1&amp;0.5\\-1&amp;1.5\end{pmatrix}. \]
+<p>We call this scaled score matrix \(\mathbf S_{\text{dec-self}}\). <b>Rows identify query positions; columns identify key positions.</b> Both axes follow the order <code>&lt;start&gt;</code>, <code>J’aime</code>.</p>
+<p>Run 2 produces four attention scores: each of the two Queries is compared with both Keys. Figure 2 highlights the score in row 1, column 2, where the <code>&lt;start&gt;</code> Query is compared with the <code>J’aime</code> Key. The causal mask will block this connection. First, we will calculate what happens without the mask.</p>
+<figure id="fig2">
+        <div class="plate">
+          <div class="diagram-scroll" tabindex="0" role="region" aria-label="Figure 2 diagram" aria-describedby="fig2-scroll-hint"><svg viewBox="0 0 960 330" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Two Query vectors and two Key vectors produce four scaled scores. The highlighted score compares the &lt;start&gt; Query with the J’aime Key; the causal mask will block this connection."><defs><marker id="arrow-f2-gold" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="var(--h2c,#B07D1A)"></path></marker></defs><g font-family="IBM Plex Mono, monospace" fill="var(--fig-line,#16202B)"><text x="40.0" y="34.0" font-size="12.5" text-anchor="start" fill="var(--fig-line,#16202B)">TWO ROWS IN, FOUR SCORES OUT</text><text x="40.0" y="51.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">run 2: query rows and key columns both follow the target prefix</text><text x="150.0" y="96.0" font-size="12" text-anchor="start" fill="var(--accent,#7D4A72)" font-weight="bold">Q</text><text x="166.0" y="96.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">· Query rows</text><rect x="150.0" y="108.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--accent,#7D4A72)" stroke-width="1.1"></rect><text x="174.0" y="124.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">−1</text><rect x="200.0" y="108.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--accent,#7D4A72)" stroke-width="1.1"></rect><text x="224.0" y="124.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="250.0" y="108.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--accent,#7D4A72)" stroke-width="1.1"></rect><text x="274.0" y="124.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">−1</text><rect x="300.0" y="108.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--accent,#7D4A72)" stroke-width="1.1"></rect><text x="324.0" y="124.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><text x="142.0" y="124.0" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">&lt;start&gt;</text><rect x="150.0" y="134.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--accent,#7D4A72)" stroke-width="1.1"></rect><text x="174.0" y="150.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">−1</text><rect x="200.0" y="134.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--accent,#7D4A72)" stroke-width="1.1"></rect><text x="224.0" y="150.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">−1</text><rect x="250.0" y="134.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--accent,#7D4A72)" stroke-width="1.1"></rect><text x="274.0" y="150.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">−3</text><rect x="300.0" y="134.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--accent,#7D4A72)" stroke-width="1.1"></rect><text x="324.0" y="150.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><text x="142.0" y="150.0" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">J’aime</text><text x="249.0" y="178.0" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">2 × 4</text><text x="378.0" y="130.0" font-size="14" text-anchor="middle" fill="var(--fig-line,#16202B)">×</text><text x="420.0" y="68.0" font-size="12" text-anchor="start" fill="var(--h2c,#B07D1A)" font-weight="bold">Kᵀ</text><text x="444.0" y="68.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">· transposed Keys</text><rect x="420.0" y="96.0" width="54" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="447.0" y="111.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><rect x="476.0" y="96.0" width="54" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="503.0" y="111.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">−1</text><rect x="420.0" y="120.0" width="54" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="447.0" y="135.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="476.0" y="120.0" width="54" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="503.0" y="135.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="420.0" y="144.0" width="54" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="447.0" y="159.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="476.0" y="144.0" width="54" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="503.0" y="159.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">−1</text><rect x="420.0" y="168.0" width="54" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="447.0" y="183.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">−1</text><rect x="476.0" y="168.0" width="54" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="503.0" y="183.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">−1</text><text x="447.0" y="90.0" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">&lt;start&gt;</text><text x="503.0" y="90.0" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">J’aime</text><text x="475.0" y="200.0" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">4 × 2</text><text x="558.0" y="130.0" font-size="14" text-anchor="middle" fill="var(--fig-line,#16202B)">=</text><text x="640.0" y="78.0" font-size="12" text-anchor="start" fill="var(--h1c,#2E6F8E)" font-weight="bold">scores</text><text x="694.0" y="78.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">· divided by 2</text><rect x="640.0" y="108.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="664.0" y="124.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">−1</text><rect x="690.0" y="108.0" width="48" height="24" rx="2" fill="var(--h2c,#B07D1A)" fill-opacity="0.12" stroke="var(--h2c,#B07D1A)" stroke-width="1.1" stroke-dasharray="4 3"></rect><text x="714.0" y="124.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0.5</text><text x="632.0" y="124.0" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">&lt;start&gt;</text><rect x="640.0" y="134.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="664.0" y="150.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">−1</text><rect x="690.0" y="134.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="714.0" y="150.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1.5</text><text x="632.0" y="150.0" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">J’aime</text><text x="664.0" y="102.0" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">&lt;start&gt;</text><text x="714.0" y="102.0" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">J’aime</text><text x="689.0" y="178.0" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">2 × 2</text><path d="M790.0,96.0 L743.0,116.0" fill="none" stroke="var(--h2c,#B07D1A)" stroke-width="1.4" marker-end="url(#arrow-f2-gold)"></path><text x="796.0" y="88.0" font-size="11" text-anchor="start" fill="var(--h2c,#B07D1A)">the mask will block:</text><text x="796.0" y="103.0" font-size="11" text-anchor="start" fill="var(--h2c,#B07D1A)">&lt;start&gt; reading J’aime</text><rect x="40" y="232.0" width="880" height="54" rx="4" fill="var(--panel,#F2F5F8)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="54.0" y="254.0" font-size="12" text-anchor="start" fill="var(--fig-line,#16202B)">The multiplication computes all four scores, including the highlighted score of 0.5.</text><text x="54.0" y="273.0" font-size="12" text-anchor="start" fill="var(--fig-line,#16202B)">We will first use these scores without a mask, then see how masking changes the weights.</text></g></svg></div><p class="diagram-scroll-hint" id="fig2-scroll-hint">Scroll horizontally to see the full diagram. With this area focused, use the left and right arrow keys.</p>
+        </div>
+        <figcaption><b>Figure 2.</b> Two Query vectors and two Key vectors produce four scaled scores. The highlighted score compares the <code>&lt;start&gt;</code> Query with the <code>J’aime</code> Key; the causal mask will block this connection.</figcaption>
+      </figure>
+<p>Check the highlighted score directly: row 1 of \(\mathbf Q_{\text{dec-self}}\) is the <code>&lt;start&gt;</code> Query, and row 2 of \(\mathbf K_{\text{dec-self}}\) is the <code>J’aime</code> Key. Their scaled dot product gives the score in row 1, column 2:</p>
+\[ (S_{\text{dec-self}})_{1,2}
+=\frac{(-1)(-1)+(0)(0)+(-1)(-1)+(1)(-1)}{2}=0.5. \]
+<h3 id="s811"><span class="num">8.1.1</span>First, calculate without a mask</h3>
+<p>For these hand calculations, we round displayed results to two decimals and use them in the next step; within LayerNorm, we round only the output vector.</p>
+<p>Without the mask, softmax processes the entire top score row, \((-1,0.5)\):</p>
+\[ (e^{-1},e^{0.5})\approx(0.37,1.65),\qquad
+\frac{(0.37,1.65)}{2.02}\approx(0.18,0.82). \]
+<p>The <code>&lt;start&gt;</code> position would give attention weight 0.82 to <code>J’aime</code>. Compare the resulting weighted sum with run 1 in Figure 3.</p>
+<figure id="fig3">
+        <div class="plate">
+          <div class="diagram-scroll" tabindex="0" role="region" aria-label="Figure 3 diagram" aria-describedby="fig3-scroll-hint"><svg viewBox="0 0 960 470" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The weighted output for &lt;start&gt; on run 1 and on run 2 without a mask. In the unmasked calculation, the output adds 0.18 times the &lt;start&gt; Value and 0.82 times the J’aime Value."><defs><marker id="arrow-f3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="var(--fig-line,#16202B)"></path></marker></defs><g font-family="IBM Plex Mono, monospace" fill="var(--fig-line,#16202B)"><text x="40.0" y="34.0" font-size="12.5" text-anchor="start" fill="var(--fig-line,#16202B)">WHAT GOES INTO THE &lt;start&gt; ROW</text><text x="40.0" y="51.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">run 1 above; unmasked run 2 below: different attention weights</text><text x="40.0" y="92.0" font-size="12" text-anchor="start" fill="var(--h1c,#2E6F8E)">RUN 1  ·  one Value</text><rect x="150.0" y="106.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="174.0" y="122.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><rect x="200.0" y="106.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="224.0" y="122.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="250.0" y="106.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="274.0" y="122.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">−1</text><rect x="300.0" y="106.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="324.0" y="122.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><text x="142.0" y="122.0" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">&lt;start&gt;</text><text x="360.0" y="122.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">× 1.00</text><path d="M422.0,118.0 L462.0,118.0" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f3)"></path><rect x="470.0" y="106.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="494.0" y="122.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><rect x="520.0" y="106.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="544.0" y="122.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="570.0" y="106.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="594.0" y="122.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">−1</text><rect x="620.0" y="106.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="644.0" y="122.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><text x="679.0" y="122.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">self-attention output</text><text x="679.0" y="137.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">for &lt;start&gt;</text><text x="249.0" y="148.0" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">Values</text><line x1="40.0" y1="176.0" x2="920.0" y2="176.0" stroke="var(--rule,#D6DEE5)" stroke-width="1"></line><text x="40.0" y="212.0" font-size="12" text-anchor="start" fill="var(--h2c,#B07D1A)">RUN 2  ·  two Values</text><rect x="150.0" y="226.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="174.0" y="242.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><rect x="200.0" y="226.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="224.0" y="242.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="250.0" y="226.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="274.0" y="242.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">−1</text><rect x="300.0" y="226.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="324.0" y="242.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><text x="142.0" y="242.0" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">&lt;start&gt;</text><rect x="150.0" y="252.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="174.0" y="268.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><rect x="200.0" y="252.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="224.0" y="268.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="250.0" y="252.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="274.0" y="268.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="300.0" y="252.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="324.0" y="268.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">2</text><text x="142.0" y="268.0" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">J’aime</text><text x="360.0" y="242.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">× 0.18</text><text x="360.0" y="268.0" font-size="11" text-anchor="start" fill="var(--h2c,#B07D1A)">× 0.82</text><path d="M422.0,238.0 L462.0,238.0" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f3)"></path><rect x="470.0" y="226.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="494.0" y="242.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0.18</text><rect x="520.0" y="226.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="544.0" y="242.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0.00</text><rect x="570.0" y="226.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="594.0" y="242.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">−0.18</text><rect x="620.0" y="226.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="644.0" y="242.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0.18</text><rect x="470.0" y="252.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="494.0" y="268.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0.82</text><rect x="520.0" y="252.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="544.0" y="268.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0.00</text><rect x="570.0" y="252.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="594.0" y="268.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0.00</text><rect x="620.0" y="252.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="644.0" y="268.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1.64</text><text x="450" y="269" font-size="19" text-anchor="middle" fill="var(--h2c,#B07D1A)">+</text><line x1="444" y1="289" x2="672" y2="289" stroke="var(--h2c,#B07D1A)" stroke-width="1.8"/><text x="569" y="308" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">Add matching components</text><text x="450" y="340" font-size="19" text-anchor="middle" fill="var(--h2c,#B07D1A)">=</text><rect x="470.0" y="322.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="494.0" y="338.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1.00</text><rect x="520.0" y="322.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="544.0" y="338.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0.00</text><rect x="570.0" y="322.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="594.0" y="338.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">−0.18</text><rect x="620.0" y="322.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="644.0" y="338.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1.82</text><rect x="466.0" y="318.0" width="206" height="32" rx="4" fill="none" stroke="var(--h2c,#B07D1A)" stroke-width="1.3" stroke-dasharray="4 3"></rect><text x="679.0" y="338.0" font-size="11" text-anchor="start" fill="var(--h2c,#B07D1A)">Sum: self-attention output</text><text x="679.0" y="353.0" font-size="11" text-anchor="start" fill="var(--h2c,#B07D1A)">for &lt;start&gt;</text><rect x="40" y="380.0" width="880" height="54" rx="4" fill="var(--panel,#F2F5F8)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="54.0" y="402.0" font-size="12" text-anchor="start" fill="var(--fig-line,#16202B)">In block 1, the Values are projected from the input embeddings.</text><text x="54.0" y="421.0" font-size="12" text-anchor="start" fill="var(--fig-line,#16202B)">Without the mask, the later position changes the earlier position’s output.</text></g></svg></div><p class="diagram-scroll-hint" id="fig3-scroll-hint">Scroll horizontally to see the full diagram. With this area focused, use the left and right arrow keys.</p>
+        </div>
+        <figcaption><b>Figure 3.</b> The self-attention output for <code>&lt;start&gt;</code> on run 1 and on run 2 without a mask. In the unmasked calculation, the output adds 0.18 times the <code>&lt;start&gt;</code> Value and 0.82 times the <code>J’aime</code> Value.</figcaption>
+      </figure>
+\[ 0.18(1,0,-1,1)+0.82(1,0,0,2)=(1.00,0.00,-0.18,1.82). \]
+<p>Next, compare the <code>&lt;start&gt;</code> state after the first Add &amp; Norm on the two runs. Add its original input, \((1,0,0,0)\), to the self-attention output, then apply LayerNorm. As in Part 7, the result is the first row of \(\mathbf D\):</p>
+\[ (2.00,0.00,-0.18,1.82)\xrightarrow{\text{LayerNorm}}(1.09,-0.91,-1.09,0.91). \]
+<p>This differs from the run-1 state, \((1.34,-0.45,-1.34,0.45)\), even though the input at position 1 stayed the same. Information from the later position caused the change.</p>
+<h2 id="s82"><span class="num">8.2</span>Where the mask enters the calculation</h2>
+<p>Each target position represents a prefix for predicting the next token, so its state must depend only on the target prefix ending at that position.</p>
+<p>On run 1, the <code>&lt;start&gt;</code> state is computed from <code>&lt;start&gt;</code> alone. On run 2, the causal mask keeps that same information boundary: adding <code>J’aime</code> does not let the earlier <code>&lt;start&gt;</code> position use it.</p>
+<p><a href="#s842">Section 8.4.2</a> explains why earlier states therefore remain unchanged; <a href="./TTNN-Part9-Training.html#s921">Part 9, Section 9.2.1</a> explains how this same restriction is used during training.</p>
+<p>Now apply the causal mask. In this two-position example, it blocks the connection from the <code>&lt;start&gt;</code> Query to the <code>J’aime</code> Key. That pair will receive zero attention weight, while the other three pairs remain available. We make this change by modifying run 2’s scaled scores, \(\mathbf S_{\text{dec-self}}\), <b>before softmax</b>.</p>
+<p>A mask records which pairs are allowed. Figure 4 marks those pairs before we assign the mask its numerical values.</p>
+<figure id="fig4"><div class="plate"><h4>Which query–key pairs are allowed?</h4><div class="table-scroll"><table class="matrix"><thead><tr><th scope="col">Query ↓ / Key →</th><th scope="col"><code>&lt;start&gt;</code></th><th scope="col"><code>J’aime</code></th></tr></thead><tbody><tr><th scope="row"><code>&lt;start&gt;</code></th><td>Allowed</td><td class="blocked">Forbidden</td></tr><tr><th scope="row"><code>J’aime</code></th><td>Allowed</td><td>Allowed</td></tr></tbody></table></div><p class="figure-note">Dashed cells: later key positions. These pairs must receive zero attention weight.</p></div><figcaption><b>Figure 4.</b> The mask records allowed and forbidden connections. A forbidden connection does not remove either position from the input.</figcaption></figure>
+<p>Why mask before softmax? For the first row, the unmasked scores \((-1,0.5)\) produce weights of approximately \((0.18,0.82)\). Simply zeroing the forbidden weight afterward would leave only 0.18 for the allowed position:</p>
+<div class="table-scroll"><table class="numeric"><thead><tr><th scope="col">Calculation for row 1</th><th scope="col"><code>&lt;start&gt;</code> weight</th><th scope="col"><code>J’aime</code> weight</th><th scope="col">Row total</th></tr></thead><tbody><tr><th scope="row">Ordinary softmax</th><td>0.18</td><td>0.82</td><td>1.00</td></tr><tr><th scope="row">Then zero the forbidden weight</th><td>0.18</td><td>0.00</td><td>0.18</td></tr><tr><th scope="row">Mask the score before softmax</th><td>1.00</td><td>0.00</td><td>1.00</td></tr></tbody></table></div>
+<p>Zeroing the weight and then dividing by the remaining total, 0.18, would also give 1.00. Adding the mask before softmax does both steps at once. The next section shows that calculation.</p>
+<blockquote class="takeaway"><b>Key takeaway</b>Add the mask to the scaled scores, then apply softmax. Forbidden positions receive zero weight; the allowed weights in each row sum to 1.</blockquote>
+
+<h2 id="s83"><span class="num">8.3</span>Add the mask, then apply softmax</h2>
+<p>The <code>&lt;start&gt;</code> row has scores \((-1,0.5)\). We keep \(-1\) and replace the forbidden score \(0.5\) with \(-\infty\). Its exponential is then zero, so softmax gives <code>J’aime</code> zero weight.</p>
+<h3 id="s831"><span class="num">8.3.1</span>From four scores to four attention weights</h3>
+<p>We can make this change by adding \(-\infty\) at entry \((1,2)\) and adding 0 at the other three entries:</p>
+\[ \underbrace{\begin{pmatrix}-1&amp;0.5\\-1&amp;1.5\end{pmatrix}}_{\mathbf S_{\text{dec-self}}}
++\underbrace{\begin{pmatrix}0&amp;-\infty\\0&amp;0\end{pmatrix}}_{\mathbf M_{\text{causal}}}
+=\begin{pmatrix}-1&amp;-\infty\\-1&amp;1.5\end{pmatrix}. \]
+<p>Only entry \((1,2)\) changes: \(0.5+(-\infty)=-\infty\). The other three entries add 0 and keep their original scores. The matrix \(\mathbf M_{\text{causal}}\) is an <b>additive attention mask</b>: 0 preserves an allowed score; \(-\infty\) excludes a forbidden pair.</p>
+<aside class="gloss"><b>Minus infinity.</b> As \(x\) decreases without limit, \(e^x\) approaches zero. The notation \(e^{-\infty}=0\) expresses an exactly excluded position.</aside>
+<details class="supplement"><summary>Implementation note: negative mask values</summary><p>Code may use a large negative number such as \(-10^{9}\) instead of \(-\infty\). The finite value must suit the numeric type and score range; it is an approximation to excluding a position.</p></details>
+<p>Apply softmax separately to each row. In each row, the two weights correspond to <code>&lt;start&gt;</code> and <code>J’aime</code>, in that order. For <code>&lt;start&gt;</code>:</p>
+\[ (e^{-1},e^{-\infty})\approx(0.37,0),\qquad
+\frac{(0.37,0)}{0.37}=(1.00,0.00). \]
+<p>For <code>J’aime</code>, both positions are allowed:</p>
+\[ (e^{-1},e^{1.5})\approx(0.37,4.48),\qquad
+\frac{(0.37,4.48)}{4.85}\approx(0.08,0.92). \]
+<p>Collect the attention weights in \(\mathbf A_{\text{dec-self}}\). These are weights over key positions, not next-token probabilities:</p>
+\[ \mathbf A_{\text{dec-self}}\approx\begin{pmatrix}1.00&amp;0.00\\0.08&amp;0.92\end{pmatrix}. \]
+<p>Read the result row by row:</p>
+<ul>
+<li><b>The <code>&lt;start&gt;</code> row is \( (1.00,0.00) \).</b> Only the <code>&lt;start&gt;</code> Value contributes to its attention output. The zero weight excludes the <code>J’aime</code> Value.</li>
+<li><b>The <code>J’aime</code> row is \( (0.08,0.92) \).</b> Both Value vectors contribute to its attention output.</li>
+</ul>
+<p>The mask controls which Value vectors can contribute; it does not remove a token or its row.</p>
+<blockquote class="takeaway"><b>The causal rule</b>In decoder self-attention, the causal mask keeps connections to the current position and earlier positions, and blocks connections to later positions. At query position \(i\), it keeps key positions 1 through \(i\) and gives every position after \(i\) zero attention weight.</blockquote>
+<p>This rule applies separately to each query row. In run 2, <code>J’aime</code> is a later position for <code>&lt;start&gt;</code>, even though both tokens are already in the input. The causal mask keeps each state dependent only on that position and earlier positions on the target side.</p>
+<blockquote class="mistake side"><b>&#10007; Common mistake</b> It is tempting to think <em>replacing the forbidden score 0.5 with 0 would do the same job as the mask</em>, but that is wrong. Scores \((-1,0)\) give weights of approximately \((0.27,0.73)\), because \(e^0=1\), so the forbidden position would still receive most of the weight.</blockquote>
+<p>As in Part 7, \(\mathbf A\) holds the attention weights and \(\mathbf Z\) holds the attention output. For decoder self-attention:</p>
+\[ \mathbf A_{\text{dec-self}}=\operatorname{softmax}\!\left(\mathbf S_{\text{dec-self}}+\mathbf M_{\text{causal}}\right). \]
+\[ \mathbf Z_{\text{dec-self}}=\mathbf A_{\text{dec-self}}\mathbf V_{\text{dec-self}}. \tag{8-1} \]
+
+<h3 id="s832"><span class="num">8.3.2</span>Follow both rows through Add &amp; Norm</h3>
+<p>The attention weights multiply the Value vectors. First, the output for <code>&lt;start&gt;</code>:</p>
+\[ 1.00(1,0,-1,1)+0.00(1,0,0,2)=(1,0,-1,1). \]
+<p>Next, the output for <code>J’aime</code>:</p>
+\[ 0.08(1,0,-1,1)+0.92(1,0,0,2)=(1.00,0.00,-0.08,1.92). \]
+<details class="supplement"><summary>Recap: from Query–Key scores to the weighted Value sums</summary>
+<p>The full sequence of operations is:</p>
+<ol><li><b>Compare:</b> compute each Query–Key dot product.</li><li><b>Scale:</b> divide by \(\sqrt{d_k}\).</li><li><b>Mask:</b> preserve allowed scores and replace forbidden ones with \(-\infty\).</li><li><b>Normalise:</b> apply softmax across each row, over key positions.</li><li><b>Combine:</b> multiply each Value by its attention weight, then add the weighted vectors.</li></ol>
+</details>
+
+<aside class="gloss"><b>Why \(\mathbf W^O\) with one head?</b> The <a href="https://proceedings.neurips.cc/paper_files/paper/2017/file/3f5ee243547dee91fbd053c1c4a845aa-Paper.pdf#page=5">original paper, Section 3.2.2</a>, defines an attention sublayer with \(h\) heads and an output projection. Setting \(h=1\) in that formula leaves \(\mathrm{head}_1\mathbf W^O\). We keep this structure and set \(\mathbf W^O=\mathbf I_4\) for hand calculation. The basic scaled dot-product attention formula in Section 3.2.1 itself ends at \(\mathbf A\mathbf V\).</aside>
+<p>These two weighted sums form \(\mathbf Z_{\text{dec-self}}\). With \(\mathbf W^O=\mathbf I_4\), the output projection leaves \(\mathbf Z_{\text{dec-self}}\) unchanged. The residual addition adds each position’s original input to its attention output. For <code>J’aime</code>, row 2:</p>
+\[ \underbrace{(1,1,0,1)}_{\text{input}}
++\underbrace{(1,0,-0.08,1.92)}_{\text{attention output}}
+=(2,1,-0.08,2.92). \]
+<p>The residual sums for both positions are:</p>
+\[ \mathbf X_{\text{dec}}+\mathbf Z_{\text{dec-self}}
+=\begin{pmatrix}2&amp;0&amp;-1&amp;1\\2.00&amp;1.00&amp;-0.08&amp;2.92\end{pmatrix}. \]
+<p>Softmax normalised the attention weights over key positions. LayerNorm now normalises the four components within each position’s residual-sum vector.</p>
+<p>Apply LayerNorm to each row separately, using the mean and variance of that row’s four components. For the <code>J’aime</code> residual sum \((2,1,-0.08,2.92)\), the mean is 1.46 and the variance is 1.2516. With our scale of 1, offset of 0 and \(\varepsilon=10^{-5}\):</p>
+\[ \frac{(2,1,-0.08,2.92)-1.46}{\sqrt{1.2516+10^{-5}}}
+\approx(0.48,-0.41,-1.38,1.31). \]
+<p>The rows of the resulting \(\mathbf D\) remain in the order <code>&lt;start&gt;</code>, <code>J’aime</code>:</p>
+\[ \mathbf D\approx\begin{pmatrix}1.34&amp;-0.45&amp;-1.34&amp;0.45\\0.48&amp;-0.41&amp;-1.38&amp;1.31\end{pmatrix}. \]
+<p>Figure 5 compares the calculation on run 1 with the two-row calculation on run 2.</p>
+<figure id="fig5">
+        <div class="plate">
+          <div class="diagram-scroll" tabindex="0" role="region" aria-label="Figure 5 diagram" aria-describedby="fig5-scroll-hint"><svg viewBox="0 0 960 560" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The numerical path from Xdec through masked self-attention and Add &amp; Norm to D. The earlier position’s D is unchanged; the new position combines both allowed Values before LayerNorm."><defs><marker id="arrow-f5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="var(--fig-line,#16202B)"></path></marker></defs><g font-family="IBM Plex Mono, monospace" fill="var(--fig-line,#16202B)"><text x="40.0" y="34.0" font-size="12.5" text-anchor="start" fill="var(--fig-line,#16202B)">THE ROW THAT DID NOT CHANGE</text><text x="40.0" y="51.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">run 1 on the left, run 2 with the mask on the right, both read from the top down</text><text x="560.0" y="92.0" font-size="12" text-anchor="start" fill="var(--h1c,#2E6F8E)">RUN 2  ·  with the mask</text><rect x="560.0" y="112.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="584.0" y="128.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><rect x="610.0" y="112.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="634.0" y="128.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="660.0" y="112.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="684.0" y="128.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="710.0" y="112.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="734.0" y="128.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><text x="552.0" y="128.0" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">&lt;start&gt;</text><text x="768.0" y="128.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)"><tspan font-weight="bold">X<tspan baseline-shift="sub" font-size="8">dec</tspan></tspan></text><rect x="560.0" y="138.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="584.0" y="154.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><rect x="610.0" y="138.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="634.0" y="154.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><rect x="660.0" y="138.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="684.0" y="154.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="710.0" y="138.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="734.0" y="154.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><text x="552.0" y="154.0" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">J’aime</text><path d="M659.0,168.0 L659.0,194.0" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f5)"></path><text x="670.0" y="185.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">self-attention</text><rect x="560.0" y="204.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="584.0" y="220.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1.00</text><rect x="610.0" y="204.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="634.0" y="220.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0.00</text><text x="552.0" y="220.0" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">&lt;start&gt;</text><text x="768.0" y="220.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">weights</text><rect x="560.0" y="230.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="584.0" y="246.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0.08</text><rect x="610.0" y="230.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="634.0" y="246.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0.92</text><text x="552.0" y="246.0" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">J’aime</text><text x="584.0" y="262.0" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">&lt;start&gt;</text><text x="634.0" y="262.0" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">J’aime</text><path d="M659.0,276.0 L659.0,302.0" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f5)"></path><text x="670.0" y="293.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">weights × Values</text><rect x="560.0" y="312.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="584.0" y="328.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><rect x="610.0" y="312.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="634.0" y="328.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="660.0" y="312.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="684.0" y="328.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">−1</text><rect x="710.0" y="312.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="734.0" y="328.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><text x="552.0" y="328.0" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">&lt;start&gt;</text><text x="768.0" y="328.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)"><tspan font-weight="bold">Z</tspan></text><rect x="560.0" y="338.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="584.0" y="354.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1.00</text><rect x="610.0" y="338.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="634.0" y="354.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0.00</text><rect x="660.0" y="338.0" width="48" height="24" rx="2" fill="var(--h2c,#B07D1A)" fill-opacity="0.12" stroke="var(--h2c,#B07D1A)" stroke-width="1.1" stroke-dasharray="4 3"></rect><text x="684.0" y="354.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">−0.08</text><rect x="710.0" y="338.0" width="48" height="24" rx="2" fill="var(--h2c,#B07D1A)" fill-opacity="0.12" stroke="var(--h2c,#B07D1A)" stroke-width="1.1" stroke-dasharray="4 3"></rect><text x="734.0" y="354.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1.92</text><text x="552.0" y="354.0" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">J’aime</text><path d="M659.0,368.0 L659.0,394.0" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f5)"></path><text x="670.0" y="385.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">Add &amp; Norm</text><rect x="560.0" y="404.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--accent,#7D4A72)" stroke-width="1.1"></rect><text x="584.0" y="420.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1.34</text><rect x="610.0" y="404.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--accent,#7D4A72)" stroke-width="1.1"></rect><text x="634.0" y="420.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">−0.45</text><rect x="660.0" y="404.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--accent,#7D4A72)" stroke-width="1.1"></rect><text x="684.0" y="420.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">−1.34</text><rect x="710.0" y="404.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--accent,#7D4A72)" stroke-width="1.1"></rect><text x="734.0" y="420.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0.45</text><text x="552.0" y="420.0" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">&lt;start&gt;</text><text x="768.0" y="420.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)"><tspan font-weight="bold">D</tspan></text><rect x="560.0" y="430.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--accent,#7D4A72)" stroke-width="1.1"></rect><text x="584.0" y="446.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0.48</text><rect x="610.0" y="430.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--accent,#7D4A72)" stroke-width="1.1"></rect><text x="634.0" y="446.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">−0.41</text><rect x="660.0" y="430.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--accent,#7D4A72)" stroke-width="1.1"></rect><text x="684.0" y="446.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">−1.38</text><rect x="710.0" y="430.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--accent,#7D4A72)" stroke-width="1.1"></rect><text x="734.0" y="446.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1.31</text><text x="552.0" y="446.0" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">J’aime</text><text x="150.0" y="182.0" font-size="12" text-anchor="start" fill="var(--h1c,#2E6F8E)">RUN 1  ·  Part 7</text><rect x="150.0" y="202.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="174.0" y="218.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><rect x="200.0" y="202.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="224.0" y="218.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="250.0" y="202.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="274.0" y="218.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="300.0" y="202.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="324.0" y="218.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><text x="142.0" y="218.0" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">&lt;start&gt;</text><text x="358.0" y="218.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)"><tspan font-weight="bold">X<tspan baseline-shift="sub" font-size="8">dec</tspan></tspan></text><path d="M249.0,232.0 L249.0,258.0" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f5)"></path><text x="260.0" y="249.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">self-attention</text><rect x="150.0" y="268.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="174.0" y="284.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1.00</text><text x="142.0" y="284.0" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">&lt;start&gt;</text><text x="358.0" y="284.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">weights</text><text x="174.0" y="300.0" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">&lt;start&gt;</text><path d="M249.0,314.0 L249.0,340.0" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f5)"></path><text x="260.0" y="331.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">weights × Values</text><rect x="150.0" y="350.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="174.0" y="366.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><rect x="200.0" y="350.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="224.0" y="366.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="250.0" y="350.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="274.0" y="366.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">−1</text><rect x="300.0" y="350.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.1"></rect><text x="324.0" y="366.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><text x="142.0" y="366.0" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">&lt;start&gt;</text><text x="358.0" y="366.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)"><tspan font-weight="bold">Z</tspan></text><path d="M249.0,380.0 L249.0,406.0" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f5)"></path><text x="260.0" y="397.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">Add &amp; Norm</text><rect x="150.0" y="416.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--accent,#7D4A72)" stroke-width="1.1"></rect><text x="174.0" y="432.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1.34</text><rect x="200.0" y="416.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--accent,#7D4A72)" stroke-width="1.1"></rect><text x="224.0" y="432.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">−0.45</text><rect x="250.0" y="416.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--accent,#7D4A72)" stroke-width="1.1"></rect><text x="274.0" y="432.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">−1.34</text><rect x="300.0" y="416.0" width="48" height="24" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--accent,#7D4A72)" stroke-width="1.1"></rect><text x="324.0" y="432.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0.45</text><text x="142.0" y="432.0" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">&lt;start&gt;</text><text x="358.0" y="432.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)"><tspan font-weight="bold">D</tspan></text><line x1="376" y1="428" x2="498" y2="428" stroke="var(--accent,#7D4A72)" stroke-width="1.2" stroke-dasharray="4 3"></line><text x="437.0" y="420.0" font-size="11" text-anchor="middle" fill="var(--accent,#7D4A72)">identical</text><text x="770.0" y="348.0" font-size="11" text-anchor="start" fill="var(--h2c,#B07D1A)">0.08 × the</text><text x="770.0" y="363.0" font-size="11" text-anchor="start" fill="var(--h2c,#B07D1A)">&lt;start&gt; Value</text><text x="770.0" y="378.0" font-size="11" text-anchor="start" fill="var(--h2c,#B07D1A)">vector</text><rect x="40" y="490.0" width="880" height="54" rx="4" fill="var(--panel,#F2F5F8)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="54.0" y="512.0" font-size="12" text-anchor="start" fill="var(--fig-line,#16202B)">With the mask, run 2 adds a row beneath &lt;start&gt; and changes nothing about &lt;start&gt;.</text><text x="54.0" y="531.0" font-size="12" text-anchor="start" fill="var(--fig-line,#16202B)">The second <tspan font-weight="bold">D</tspan> row contains information from both allowed positions.</text></g></svg></div><p class="diagram-scroll-hint" id="fig5-scroll-hint">Scroll horizontally to see the full diagram. With this area focused, use the left and right arrow keys.</p>
+        </div>
+        <figcaption><b>Figure 5.</b> The numerical path from \(\mathbf X_{\text{dec}}\) through masked self-attention and Add &amp; Norm to \(\mathbf D\). Here, \(\mathbf Z\) is shorthand for \(\mathbf Z_{\text{dec-self}}\). The first row of \(\mathbf D\) is unchanged; the new position combines both allowed Values before LayerNorm.</figcaption>
+      </figure>
+<p>For <code>&lt;start&gt;</code>, both the input vector and the self-attention output are unchanged, so Add &amp; Norm produces the same first row of \(\mathbf D\) as in <a href="./TTNN-Part7-Cross-Attention.html#s73">Part 7’s run-1 calculation</a>.</p>
+<p>This completes the masked self-attention and its Add &amp; Norm step. The resulting \(\mathbf D\) then enters cross-attention, following the calculation introduced in <a href="./TTNN-Part7-Cross-Attention.html#s74">Part 7, Section 7.4</a>.</p>
+<blockquote class="takeaway"><b>Key takeaway</b>The mask changes the attention weights before the Value vectors are combined. Add &amp; Norm then produces \(\mathbf D\), the decoder state supplied to cross-attention.</blockquote>
+<p><b>Try it:</b> Suppose run 3 appends <code>les</code> at position 3. Its embedding \((0,0,0,1)\) gives the self-attention Key \((-1,0,0,1)\). Compare it with the <code>&lt;start&gt;</code> self-attention Query \((-1,0,-1,1)\) at position 1 and divide by 2: the scaled score at \((1,3)\) is 1. What does the causal mask add at \((1,3)\), and what attention weight does that pair receive?</p>
+
+<h2 id="s84"><span class="num">8.4</span>Extend the causal mask to any prefix length</h2>
+<p>Run 3 receives <code>&lt;start&gt; J’aime les</code>. Compared with run 2, the new <code>les</code> position adds a Query, a Key and a Value. Its Query adds a row to the score matrix, and its Key adds a column, so the score matrix and its mask grow from \(2\times2\) to \(3\times3\):</p>
+<ul><li><b>New column 3:</b> the earlier Queries must ignore <code>les</code>. Mask entries \((1,3)\) and \((2,3)\) are \(-\infty\).</li><li><b>New row 3:</b> the <code>les</code> Query may read positions 1, 2 and 3. All three mask entries in that row are 0.</li><li><b>Existing entries:</b> the top-left \(2\times2\) mask stays unchanged.</li></ul>
+<p>The same rule applies whenever the prefix grows, regardless of which tokens occupy the positions.</p>
+<p>On run 5, the prefix is <code>&lt;start&gt; J’aime les grands modèles</code>. This run selects <code>&lt;end&gt;</code>. The mask depends on the five positions, not on their embedding values.</p>
+<details class="supplement"><summary>Reference: embeddings for the five-position example</summary><p>These are supplied teaching inputs, not learned values. You do not need them to construct the mask.</p>
+<div class="table-scroll"><table class="numeric"><thead><tr><th>Position</th><th>Token</th><th>Embedding used here</th></tr></thead><tbody><tr><td>1</td><td><code>&lt;start&gt;</code></td><td>(1, 0, 0, 0)</td></tr><tr><td>2</td><td><code>J’aime</code></td><td>(1, 1, 0, 1)</td></tr><tr><td>3</td><td><code>les</code></td><td>(0, 0, 0, 1)</td></tr><tr><td>4</td><td><code>grands</code></td><td>(1, 1, 1, 0)</td></tr><tr><td>5</td><td><code>modèles</code></td><td>(1, 0, 1, 0)</td></tr></tbody></table></div>
+</details>
+<h3 id="s841"><span class="num">8.4.1</span>The triangle, run by run</h3>
+<p>Use Figure 6 to grow the prefix one position at a time. From run 2 onward, the outlined cells mark the new row and column; the previous mask remains in the top-left corner.</p>
+<figure id="fig6"><div class="plate"><div class="interactive" data-manual><h4>Grow the prefix one position at a time</h4><div class="step-controls" role="group" aria-label="Figure 6 steps"><button type="button" data-prev>Previous</button><button type="button" data-step="0">Run 1</button><button type="button" data-step="1">Run 2</button><button type="button" data-step="2">Run 3</button><button type="button" data-step="3">Run 4</button><button type="button" data-step="4">Run 5</button><button type="button" data-next>Next</button></div><section class="step-panel" data-panel data-label="Run 1"><h4>Run 1</h4><div class="table-scroll"><table class="matrix"><thead><tr><th scope="col">Query ↓ / Key →</th><th scope="col"><code>&lt;start&gt;</code></th></tr></thead><tbody><tr><th scope="row"><code>&lt;start&gt;</code></th><td>0</td></tr></tbody></table></div><p class="step-explanation">1 position; 0 forbidden pairs. The first position may read itself.</p></section><section class="step-panel" data-panel data-label="Run 2"><h4>Run 2</h4><div class="table-scroll"><table class="matrix"><thead><tr><th scope="col">Query ↓ / Key →</th><th scope="col"><code>&lt;start&gt;</code></th><th scope="col"><code>J’aime</code><small class="new-position-label">new</small></th></tr></thead><tbody><tr><th scope="row"><code>&lt;start&gt;</code></th><td>0</td><td class="blocked new-position">−∞</td></tr><tr><th scope="row"><code>J’aime</code><small class="new-position-label">new</small></th><td class="new-position">0</td><td class="new-position">0</td></tr></tbody></table></div><p class="step-explanation">2 positions; 1 forbidden pair. New column 2: earlier Queries cannot read position 2. New row 2: its Query may read positions 1 through 2.</p></section><section class="step-panel" data-panel data-label="Run 3"><h4>Run 3</h4><div class="table-scroll"><table class="matrix"><thead><tr><th scope="col">Query ↓ / Key →</th><th scope="col"><code>&lt;start&gt;</code></th><th scope="col"><code>J’aime</code></th><th scope="col"><code>les</code><small class="new-position-label">new</small></th></tr></thead><tbody><tr><th scope="row"><code>&lt;start&gt;</code></th><td>0</td><td class="blocked">−∞</td><td class="blocked new-position">−∞</td></tr><tr><th scope="row"><code>J’aime</code></th><td>0</td><td>0</td><td class="blocked new-position">−∞</td></tr><tr><th scope="row"><code>les</code><small class="new-position-label">new</small></th><td class="new-position">0</td><td class="new-position">0</td><td class="new-position">0</td></tr></tbody></table></div><p class="step-explanation">3 positions; 3 forbidden pairs. New column 3: earlier Queries cannot read position 3. New row 3: its Query may read positions 1 through 3.</p></section><section class="step-panel" data-panel data-label="Run 4"><h4>Run 4</h4><div class="table-scroll"><table class="matrix"><thead><tr><th scope="col">Query ↓ / Key →</th><th scope="col"><code>&lt;start&gt;</code></th><th scope="col"><code>J’aime</code></th><th scope="col"><code>les</code></th><th scope="col"><code>grands</code><small class="new-position-label">new</small></th></tr></thead><tbody><tr><th scope="row"><code>&lt;start&gt;</code></th><td>0</td><td class="blocked">−∞</td><td class="blocked">−∞</td><td class="blocked new-position">−∞</td></tr><tr><th scope="row"><code>J’aime</code></th><td>0</td><td>0</td><td class="blocked">−∞</td><td class="blocked new-position">−∞</td></tr><tr><th scope="row"><code>les</code></th><td>0</td><td>0</td><td>0</td><td class="blocked new-position">−∞</td></tr><tr><th scope="row"><code>grands</code><small class="new-position-label">new</small></th><td class="new-position">0</td><td class="new-position">0</td><td class="new-position">0</td><td class="new-position">0</td></tr></tbody></table></div><p class="step-explanation">4 positions; 6 forbidden pairs. New column 4: earlier Queries cannot read position 4. New row 4: its Query may read positions 1 through 4.</p></section><section class="step-panel" data-panel data-label="Run 5"><h4>Run 5</h4><div class="table-scroll"><table class="matrix"><thead><tr><th scope="col">Query ↓ / Key →</th><th scope="col"><code>&lt;start&gt;</code></th><th scope="col"><code>J’aime</code></th><th scope="col"><code>les</code></th><th scope="col"><code>grands</code></th><th scope="col"><code>modèles</code><small class="new-position-label">new</small></th></tr></thead><tbody><tr><th scope="row"><code>&lt;start&gt;</code></th><td>0</td><td class="blocked">−∞</td><td class="blocked">−∞</td><td class="blocked">−∞</td><td class="blocked new-position">−∞</td></tr><tr><th scope="row"><code>J’aime</code></th><td>0</td><td>0</td><td class="blocked">−∞</td><td class="blocked">−∞</td><td class="blocked new-position">−∞</td></tr><tr><th scope="row"><code>les</code></th><td>0</td><td>0</td><td>0</td><td class="blocked">−∞</td><td class="blocked new-position">−∞</td></tr><tr><th scope="row"><code>grands</code></th><td>0</td><td>0</td><td>0</td><td>0</td><td class="blocked new-position">−∞</td></tr><tr><th scope="row"><code>modèles</code><small class="new-position-label">new</small></th><td class="new-position">0</td><td class="new-position">0</td><td class="new-position">0</td><td class="new-position">0</td><td class="new-position">0</td></tr></tbody></table></div><p class="step-explanation">5 positions; 10 forbidden pairs. New column 5: earlier Queries cannot read position 5. New row 5: its Query may read positions 1 through 5.</p></section><p class="step-status" aria-live="polite"></p></div></div><figcaption><b>Figure 6.</b> The causal mask for prefix lengths one through five. Each new position adds a row and a column while preserving the previous mask in the top-left corner.</figcaption></figure>
+<p>In Figure 6, each new row allows the new position to read itself and all earlier positions. The entries on and below the diagonal therefore remain 0. With five positions, the mask is:</p>
+\[ \mathbf M_{\text{causal}}=\begin{pmatrix}
+0&amp;-\infty&amp;-\infty&amp;-\infty&amp;-\infty\\
+0&amp;0&amp;-\infty&amp;-\infty&amp;-\infty\\
+0&amp;0&amp;0&amp;-\infty&amp;-\infty\\
+0&amp;0&amp;0&amp;0&amp;-\infty\\
+0&amp;0&amp;0&amp;0&amp;0
+\end{pmatrix}. \]
+<p>Number rows and columns from 1. Row \(i\) identifies the query position; column \(j\) identifies the key position:</p>
+\[ (M_{\text{causal}})_{ij}=\begin{cases}0&amp;\text{if }j\leq i,\\-\infty&amp;\text{if }j&gt;i.\end{cases} \]
+<p>The diagonal is allowed because a position may read itself. Entries below the diagonal refer to earlier positions. Entries above it refer to later positions and are masked.</p>
+<details class="supplement"><summary>Optional: count the blocked connections</summary><p>For a prefix of \(m\) positions, row 1 forbids \(m-1\) later positions, row 2 forbids \(m-2\), and the last row forbids none. The total is \(0+1+\cdots+(m-1)=m(m-1)/2\). For five positions, that is 10 of 25 pairs.</p></details>
+<h3 id="s842"><span class="num">8.4.2</span>Why earlier positions keep the same states</h3>
+<p>On run 2, <code>J’aime</code> can read <code>&lt;start&gt;</code> and itself. Run 3 adds <code>les</code>, but <code>J’aime</code> still reads only those same two positions.</p>
+<p>We compare the <code>J’aime</code> position in decoder block 1 on run 2 and run 3. <b>“Unchanged” means unchanged between these two runs at the same stage.</b> Its state still changes as it passes through the steps inside a block.</p>
+<aside class="gloss"><b>What must stay fixed.</b> The claim assumes the same source sentence, the same model parameters, the same positional encodings for earlier positions, and no dropout. All four hold at inference.</aside>
+<p>Why doesn’t the extra score column change softmax? For the <code>J’aime</code> Query in block 1, the scores after masking are:</p>
+\[ \begin{aligned}
+\text{Run 2:}&amp;\quad(-1,1.5),\\
+\text{Run 3:}&amp;\quad(-1,1.5,-\infty).
+\end{aligned} \]
+<p>The new entry contributes \(e^{-\infty}=0\), so the softmax denominator remains \(e^{-1}+e^{1.5}\). The attention weights are therefore:</p>
+\[ \begin{aligned}
+\text{Run 2:}&amp;\quad(0.08,0.92),\\
+\text{Run 3:}&amp;\quad(0.08,0.92,0).
+\end{aligned} \]
+<p>These are rounded weights. The original two Values are unchanged, and the new Value has zero weight, so the self-attention output is unchanged.</p>
+<p>We now check why this equality across runs holds throughout the decoder stack. Assume that every decoder block applies the causal mask in its self-attention sublayer.</p>
+<p>Take position \(i\), which already existed before the new token was appended. Follow its dependencies through the first block in Figure 7:</p>
+<figure id="fig7">
+        <div class="plate">
+          <div class="diagram-scroll" tabindex="0" role="region" aria-label="Figure 7 diagram" aria-describedby="fig7-scroll-hint"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 500" role="img" aria-label="Read top to bottom. With causal masking in every block, compare the same stage of the same block across runs: unchanged inputs give unchanged outputs. Repeat the argument for each block."><defs><marker id="arrow-f7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="var(--h1c,#2E6F8E)" /></marker></defs><g font-family="IBM Plex Mono, monospace" fill="var(--fig-line,#16202B)"><text x="40.0" y="34.0" font-size="12.5" text-anchor="start" fill="var(--fig-line,#16202B)">WHY EARLIER POSITIONS KEEP THEIR STATES</text><text x="40.0" y="51.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">Compare the same stage across runs · read each block top to bottom</text><rect x="110.0" y="130" width="180" height="30" rx="4" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-line,#16202B)" stroke-width="1.5" /><text x="200.0" y="149.5" font-size="11.5" text-anchor="middle" fill="var(--fig-line,#16202B)">self-attention</text><text x="304.0" y="144.0" font-size="11" text-anchor="start" fill="var(--h1c,#2E6F8E)">reads only the first i rows,</text><text x="304.0" y="159.0" font-size="11" text-anchor="start" fill="var(--h1c,#2E6F8E)">the same rows on this run and the last</text><rect x="110.0" y="184" width="180" height="30" rx="4" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-line,#16202B)" stroke-width="1.5" /><text x="200.0" y="203.5" font-size="11.5" text-anchor="middle" fill="var(--fig-line,#16202B)">Add &amp; Norm</text><text x="304.0" y="198.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">one row alone</text><rect x="110.0" y="238" width="180" height="30" rx="4" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-line,#16202B)" stroke-width="1.5" /><text x="200.0" y="257.5" font-size="11.5" text-anchor="middle" fill="var(--fig-line,#16202B)">cross-attention</text><text x="304.0" y="252.0" font-size="11" text-anchor="start" fill="var(--h1c,#2E6F8E)">Query from this one row; Keys and</text><text x="304.0" y="267.0" font-size="11" text-anchor="start" fill="var(--h1c,#2E6F8E)">Values projected from fixed <tspan font-weight="bold">C</tspan></text><rect x="110.0" y="292" width="180" height="30" rx="4" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-line,#16202B)" stroke-width="1.5" /><text x="200.0" y="311.5" font-size="11.5" text-anchor="middle" fill="var(--fig-line,#16202B)">Add &amp; Norm</text><text x="304.0" y="306.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">one row alone</text><rect x="110.0" y="346" width="180" height="30" rx="4" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-line,#16202B)" stroke-width="1.5" /><text x="200.0" y="365.5" font-size="11.5" text-anchor="middle" fill="var(--fig-line,#16202B)">feed-forward</text><text x="304.0" y="360.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">one row alone</text><rect x="110.0" y="400" width="180" height="30" rx="4" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-line,#16202B)" stroke-width="1.5" /><text x="200.0" y="419.5" font-size="11.5" text-anchor="middle" fill="var(--fig-line,#16202B)">Add &amp; Norm</text><text x="304.0" y="414.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">one row alone</text><path d="M200,160 L200,184" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f7)" /><path d="M200,214 L200,238" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f7)" /><path d="M200,268 L200,292" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f7)" /><path d="M200,322 L200,346" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f7)" /><path d="M200,376 L200,400" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f7)" /><path d="M200,430 L200,454" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f7)" /><text x="200.0" y="478" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">down, into the next block</text><text x="200.0" y="94" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">same input at position i on both runs</text><rect x="690.0" y="160.0" width="150" height="26" rx="4" fill="var(--panel,#F2F5F8)" stroke="var(--h1c,#2E6F8E)" stroke-width="1.5" /><text x="765.0" y="177.5" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">block 1</text><rect x="690.0" y="193.0" width="150" height="26" rx="4" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-line,#16202B)" stroke-width="1.5" /><text x="765.0" y="210.5" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">block 2</text><rect x="690.0" y="226.0" width="150" height="26" rx="4" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-line,#16202B)" stroke-width="1.5" /><text x="765.0" y="243.5" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">block 3</text><rect x="690.0" y="259.0" width="150" height="26" rx="4" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-line,#16202B)" stroke-width="1.5" /><text x="765.0" y="276.5" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">block 4</text><rect x="690.0" y="292.0" width="150" height="26" rx="4" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-line,#16202B)" stroke-width="1.5" /><text x="765.0" y="309.5" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">block 5</text><rect x="690.0" y="325.0" width="150" height="26" rx="4" fill="var(--fig-fill,#FFFFFF)" stroke="var(--fig-line,#16202B)" stroke-width="1.5" /><text x="765.0" y="342.5" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">block 6</text><path d="M862,173 L862,338" fill="none" stroke="var(--h1c,#2E6F8E)" stroke-width="1.3" marker-end="url(#arrow-f7)" /><text x="765.0" y="375.0" font-size="11" text-anchor="middle" fill="var(--h1c,#2E6F8E)">the same argument,</text><text x="765.0" y="390.0" font-size="11" text-anchor="middle" fill="var(--h1c,#2E6F8E)">five more times</text><text x="690.0" y="140.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">worked on the left: block 1</text><path d="M200,104 L200,126" fill="none" stroke="var(--fig-line,#16202B)" stroke-width="1.4" marker-end="url(#arrow-f7)" /></g></svg></div><p class="diagram-scroll-hint" id="fig7-scroll-hint">Scroll horizontally to see the full diagram. With this area focused, use the left and right arrow keys.</p>
+        </div>
+        <figcaption><b>Figure 7.</b> Read top to bottom. With causal masking in every block, unchanged inputs at the same stage give unchanged outputs across runs. The left side follows block 1; the right side repeats the argument through blocks 2–6.</figcaption>
+      </figure>
+<ol>
+<li><b>The input at position \(i\) is unchanged.</b> Its token and position have not changed.</li>
+<li><b>Self-attention reads the same allowed inputs.</b> Position \(i\) uses its own unchanged Query and the unchanged Keys and Values at positions 1 through \(i\). The appended position contributes zero to softmax, so the existing weights and weighted output are unchanged.</li>
+<li><b>The first Add &amp; Norm produces the same row of \(\mathbf D\).</b> The residual input and self-attention output are unchanged, and LayerNorm acts on this row separately.</li>
+<li><b>Cross-attention uses the same Query and source memory.</b> Its Query is projected from this position’s unchanged row of \(\mathbf D\). Its Keys and Values are projected from the unchanged source memory \(\mathbf C\), so its output is unchanged. The following Add &amp; Norm also receives the same inputs and produces the same row.</li>
+<li><b>Feed-forward and the final Add &amp; Norm preserve equality across runs.</b> These operations act on each position separately. The same input row gives the same output row, completing the block.</li>
+</ol>
+<p>This reasoning applies to every existing position in block 1. Block 2 therefore receives unchanged inputs at all those positions, so the argument repeats. Continue through the decoder stack: at each stage, existing positions have the same states on both runs.</p>
+<p>So far, we have recomputed the full prefix on each run. Each decoder block can instead reuse the self-attention Keys and Values of earlier positions and compute the new position’s Query, Key and Value. The new position still goes through self-attention, cross-attention, Add &amp; Norm and the feed-forward steps. The stored Keys and Values are called a <b>KV cache</b>; <a href="./TTNN-Part10-Generation.html#s108">Part 10, Section 10.8</a> develops it.</p>
+<aside class="gloss"><b>Mathematical equality.</b> Different floating-point implementations can produce small numerical differences. The argument establishes that appending a token introduces no new dependency for an earlier position.</aside>
+<h3 id="s843"><span class="num">8.4.3</span>The same pattern in every head and block</h3>
+<p>The causal mask depends only on position indices and prefix length, not on token identity. For the same prefix, every head in every decoder self-attention sublayer uses the same causal pattern. Their projection matrices, scores and attention weights can still differ.</p>
+<p>Consider run 2 again, with input <code>&lt;start&gt; J’aime</code>. If block 1 has no causal mask, the <code>&lt;start&gt;</code> state can already contain information from <code>J’aime</code>. Block 2 receives that altered state. Masking block 2 cannot undo the earlier mixing, as Figure 8 shows.</p>
+<figure id="fig8"><div class="plate"><h4>Why masking only a later block is not enough</h4><div class="dependency"><div><b>1 · Block 1 has no causal mask</b><p>The <code>&lt;start&gt;</code> Query can read the <code>J’aime</code> Key and Value. Information from position 2 can enter the state at position 1.</p></div><div><b>2 · Block 2 uses a causal mask</b><p>The <code>&lt;start&gt;</code> Query reads only position 1. But that input state came from block 1 and can already contain information from <code>J’aime</code>.</p></div><div><b>3 · The earlier dependency can remain</b><p>The mask excludes later Keys in block 2. It does not remove information already mixed into the state at position 1.</p></div></div><p class="figure-note">Each block must prevent access to later positions before that information is combined into an earlier position’s state.</p></div><figcaption><b>Figure 8.</b> The <code>&lt;start&gt;</code> position is followed through an unmasked block and then a masked block. Masking the second block does not guarantee that information mixed in by the first block has been removed.</figcaption></figure>
+<p>To keep the same restriction throughout the decoder stack, apply the causal mask in every head of every decoder self-attention sublayer. Each block then receives earlier-position states that have not incorporated later target positions. This is the condition used in <a href="#s842">Section 8.4.2</a> to explain why earlier states stay unchanged as the prefix grows.</p>
+<blockquote class="takeaway"><b>Key takeaway</b>The causal restriction must be enforced in every decoder self-attention block. Masking only a later block does not prevent an earlier block from mixing information from later target positions.</blockquote>
+<p><b>Try it:</b> Write the mask for <code>&lt;start&gt; J’aime les</code>. Label both axes and check that the top-left <span class="shape">2 × 2</span> region matches Section 8.3.</p>
+
+<h2 id="s85"><span class="num">8.5</span>Exclude padding positions</h2>
+<p>We now turn to encoder self-attention to examine a different problem: processing source sentences of different lengths together.</p>
+<p>Consider two source sentences: <code>I love LLMs</code> and <code>I love</code>. The first has three tokens; the second has two. Their embedding matrices have three rows and two rows, respectively.</p>
+<h3 id="s851"><span class="num">8.5.1</span>Two sequence lengths in one batch</h3>
+<p>A <b>batch</b> is a group of examples processed together. To give both input matrices the same shape in a padded batch, append <code>&lt;pad&gt;</code> to the shorter sentence. It becomes <code>I love &lt;pad&gt;</code>, with three positions. The extra position is a <b>padding position</b>; it is not part of the sentence.</p>
+<p>Figure 9 shows the two matrices before and after padding. It supplies the embeddings, including \((0,0,0,0)\) for <code>&lt;pad&gt;</code>. This zero embedding is a choice for the demonstration.</p>
+<figure id="fig9">
+        <div class="plate">
+          <div class="diagram-scroll" tabindex="0" role="region" aria-label="Figure 9 diagram" aria-describedby="fig9-scroll-hint"><svg viewBox="0 0 960 520" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Right padding gives two different sequence lengths a common batch shape. The zero padding embedding is supplied for this example; it still needs a key-padding mask."><defs></defs><g font-family="IBM Plex Mono, monospace" fill="var(--fig-line,#16202B)"><text x="40.0" y="34.0" font-size="12.5" text-anchor="start" fill="var(--fig-line,#16202B)">TWO SEQUENCES, ONE BATCH SHAPE</text><text x="40.0" y="51.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">one embedding per token; right padding gives both examples three positions</text><text x="40.0" y="92.0" font-size="12" text-anchor="start" fill="var(--h2c,#B07D1A)">BEFORE PADDING  ·  different sequence lengths</text><text x="150.0" y="118.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">I love LLMs</text><rect x="150.0" y="126.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="170.0" y="141.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="192.0" y="126.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="212.0" y="141.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="234.0" y="126.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="254.0" y="141.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><rect x="276.0" y="126.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="296.0" y="141.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><text x="142.0" y="141.0" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">I</text><rect x="150.0" y="150.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="170.0" y="165.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="192.0" y="150.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="212.0" y="165.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><rect x="234.0" y="150.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="254.0" y="165.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="276.0" y="150.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="296.0" y="165.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><text x="142.0" y="165.0" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">love</text><rect x="150.0" y="174.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="170.0" y="189.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><rect x="192.0" y="174.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="212.0" y="189.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="234.0" y="174.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="254.0" y="189.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="276.0" y="174.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="296.0" y="189.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><text x="142.0" y="189.0" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">LLMs</text><text x="233.0" y="214.0" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">3 × 4</text><text x="500.0" y="118.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">I love</text><rect x="500.0" y="126.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="520.0" y="141.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="542.0" y="126.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="562.0" y="141.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="584.0" y="126.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="604.0" y="141.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><rect x="626.0" y="126.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="646.0" y="141.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><text x="492.0" y="141.0" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">I</text><rect x="500.0" y="150.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="520.0" y="165.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="542.0" y="150.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="562.0" y="165.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><rect x="584.0" y="150.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="604.0" y="165.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="626.0" y="150.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="646.0" y="165.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><text x="492.0" y="165.0" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">love</text><text x="583.0" y="214.0" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">2 × 4</text><rect x="496.0" y="176.0" width="174" height="30" rx="4" fill="none" stroke="var(--h2c,#B07D1A)" stroke-width="1.3" stroke-dasharray="4 3"></rect><text x="680.0" y="195.0" font-size="11" text-anchor="start" fill="var(--h2c,#B07D1A)">one row short</text><line x1="40.0" y1="240.0" x2="920.0" y2="240.0" stroke="var(--rule,#D6DEE5)" stroke-width="1"></line><text x="40.0" y="276.0" font-size="12" text-anchor="start" fill="var(--h1c,#2E6F8E)">PADDED  ·  one &lt;pad&gt; row of zeros, and the batch is 2 × 3 × 4</text><text x="150.0" y="302.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">I love LLMs</text><rect x="150.0" y="310.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="170.0" y="325.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="192.0" y="310.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="212.0" y="325.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="234.0" y="310.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="254.0" y="325.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><rect x="276.0" y="310.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="296.0" y="325.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><text x="142.0" y="325.0" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">I</text><rect x="150.0" y="334.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="170.0" y="349.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="192.0" y="334.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="212.0" y="349.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><rect x="234.0" y="334.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="254.0" y="349.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="276.0" y="334.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="296.0" y="349.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><text x="142.0" y="349.0" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">love</text><rect x="150.0" y="358.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="170.0" y="373.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><rect x="192.0" y="358.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="212.0" y="373.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="234.0" y="358.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="254.0" y="373.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="276.0" y="358.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="296.0" y="373.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><text x="142.0" y="373.0" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">LLMs</text><text x="233.0" y="398.0" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">3 × 4</text><text x="500.0" y="302.0" font-size="11" text-anchor="start" fill="var(--fig-soft,#5A6B7A)">I love &lt;pad&gt;</text><rect x="500.0" y="310.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="520.0" y="325.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="542.0" y="310.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="562.0" y="325.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="584.0" y="310.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="604.0" y="325.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><rect x="626.0" y="310.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="646.0" y="325.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><text x="492.0" y="325.0" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">I</text><rect x="500.0" y="334.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="520.0" y="349.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="542.0" y="334.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="562.0" y="349.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><rect x="584.0" y="334.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="604.0" y="349.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="626.0" y="334.0" width="40" height="22" rx="2" fill="var(--fig-fill,#FFFFFF)" stroke="var(--h2c,#B07D1A)" stroke-width="1.1"></rect><text x="646.0" y="349.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">1</text><text x="492.0" y="349.0" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">love</text><rect x="500.0" y="358.0" width="40" height="22" rx="2" fill="var(--h2c,#B07D1A)" fill-opacity="0.12" stroke="var(--h2c,#B07D1A)" stroke-width="1.1" stroke-dasharray="4 3"></rect><text x="520.0" y="373.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="542.0" y="358.0" width="40" height="22" rx="2" fill="var(--h2c,#B07D1A)" fill-opacity="0.12" stroke="var(--h2c,#B07D1A)" stroke-width="1.1" stroke-dasharray="4 3"></rect><text x="562.0" y="373.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="584.0" y="358.0" width="40" height="22" rx="2" fill="var(--h2c,#B07D1A)" fill-opacity="0.12" stroke="var(--h2c,#B07D1A)" stroke-width="1.1" stroke-dasharray="4 3"></rect><text x="604.0" y="373.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><rect x="626.0" y="358.0" width="40" height="22" rx="2" fill="var(--h2c,#B07D1A)" fill-opacity="0.12" stroke="var(--h2c,#B07D1A)" stroke-width="1.1" stroke-dasharray="4 3"></rect><text x="646.0" y="373.0" font-size="11" text-anchor="middle" fill="var(--fig-line,#16202B)">0</text><text x="492.0" y="373.0" font-size="11" text-anchor="end" fill="var(--fig-soft,#5A6B7A)">&lt;pad&gt;</text><text x="583.0" y="398.0" font-size="11" text-anchor="middle" fill="var(--fig-soft,#5A6B7A)">3 × 4</text><text x="680.0" y="365.0" font-size="11" text-anchor="start" fill="var(--h2c,#B07D1A)">padding position</text><text x="680.0" y="383.0" font-size="11" text-anchor="start" fill="var(--h2c,#B07D1A)">not a sentence token</text><rect x="40" y="430.0" width="880" height="54" rx="4" fill="var(--panel,#F2F5F8)" stroke="var(--rule,#D6DEE5)" stroke-width="1"></rect><text x="54.0" y="452.0" font-size="12" text-anchor="start" fill="var(--fig-line,#16202B)">Each example has shape 3 × 4; the batch has shape 2 × 3 × 4.</text><text x="54.0" y="471.0" font-size="12" text-anchor="start" fill="var(--fig-line,#16202B)">Attention operates within each example; the padding Key needs to be excluded.</text></g></svg></div><p class="diagram-scroll-hint" id="fig9-scroll-hint">Scroll horizontally to see the full diagram. With this area focused, use the left and right arrow keys.</p>
+        </div>
+        <figcaption><b>Figure 9.</b> Right padding gives two different sequence lengths a common batch shape. The zero padding embedding is supplied for this example; it still needs a key-padding mask.</figcaption>
+      </figure>
+<p>The batch has shape <span class="shape">2 × 3 × 4</span>: two examples, three positions per example, four components per vector. Attention still operates separately within each example. The <code>I</code> position in one sentence does not attend to positions in the other sentence.</p>
+<p>We want attention to use the sentence tokens and ignore the added <code>&lt;pad&gt;</code> position. In <code>I love &lt;pad&gt;</code>, column 3 of the score matrix represents the padding Key. A <b>key-padding mask</b> blocks that column for every Query. Encoder self-attention needs no causal restriction, so we can examine the padding mask on its own.</p>
+<h3 id="s852"><span class="num">8.5.2</span>Why even a zero padding vector needs a mask</h3>
+<p>We calculate encoder self-attention for the <b>second example: <code>I love &lt;pad&gt;</code></b>. For <code>I</code> and <code>love</code>, the Query and Key vectors are the ones calculated in <a href="./TTNN-Part1-Self-Attention.html#s12">Part 1, Section 1.2</a>; we start the calculation from these vectors:</p>
+<div class="table-scroll"><table class="numeric"><thead><tr><th scope="col">Position</th><th scope="col">Query</th><th scope="col">Key</th></tr></thead><tbody>
+<tr><th scope="row"><code>I</code></th><td>\((2,1,0,0)\)</td><td>\((2,0,1,0)\)</td></tr>
+<tr><th scope="row"><code>love</code></th><td>\((1,2,0,1)\)</td><td>\((0,2,0,1)\)</td></tr>
+<tr><th scope="row"><code>&lt;pad&gt;</code></th><td>\((0,0,0,0)\)</td><td>\((0,0,0,0)\)</td></tr>
+</tbody></table></div>
+<p>With positional encoding omitted and projection biases set to zero, the zero <code>&lt;pad&gt;</code> input gives zero Query, Key and Value vectors. Divide each Query–Key dot product by \(\sqrt{d_k}=2\). For example, row 1, column 1 compares <code>I</code> with itself:</p>
+\[ (S_{\text{enc-self}})_{1,1}
+=\frac{(2)(2)+(1)(0)+(0)(1)+(0)(0)}{2}=2. \]
+<p>Repeating this for all nine pairs gives:</p>
+\[ \mathbf S_{\text{enc-self}}=\begin{pmatrix}2&amp;1&amp;0\\1&amp;2.5&amp;0\\0&amp;0&amp;0\end{pmatrix}. \]
+<p>Both axes are <code>I</code>, <code>love</code>, <code>&lt;pad&gt;</code>. Without a mask, the <code>I</code> row gives:</p>
+\[ (e^2,e^1,e^0)\approx(7.39,2.72,1.00),\qquad
+\frac{(7.39,2.72,1.00)}{11.11}\approx(0.67,0.24,0.09). \]
+<blockquote class="think"><b>Think for a moment</b>The padding Value is zero. Can the attention output still change when the padding position receives weight 0.09?</blockquote>
+<p>Yes. The padding Value contributes a zero vector. But the padding score is 0, so \(e^0=1.00\) still contributes to the softmax denominator. The weights on the real positions become smaller. Without padding, the same <code>I</code> row gives:</p>
+\[ \frac{(7.39,2.72)}{10.11}\approx(0.73,0.27). \]
+<p>We want the real positions to behave as they would without the extra fillers. Put \(-\infty\) in the padding <em>column</em>, so every Query excludes that Key:</p>
+\[ \mathbf M_{\text{pad}}=\begin{pmatrix}0&amp;0&amp;-\infty\\0&amp;0&amp;-\infty\\0&amp;0&amp;-\infty\end{pmatrix}. \]
+<p>The zeros in the mask leave scores unchanged; they are not zero attention weights.</p>
+\[ \mathbf S_{\text{enc-self}}+\mathbf M_{\text{pad}}=
+\begin{pmatrix}2&amp;1&amp;-\infty\\1&amp;2.5&amp;-\infty\\0&amp;0&amp;-\infty\end{pmatrix},\qquad
+\mathbf A_{\text{enc-self}}\approx\begin{pmatrix}0.73&amp;0.27&amp;0.00\\0.18&amp;0.82&amp;0.00\\0.50&amp;0.50&amp;0.00\end{pmatrix}. \]
+<p>Figure 10 compares the attention weights. Follow the bold <code>I</code> row and the outlined <code>&lt;pad&gt;</code> column as you switch between the two steps.</p>
+<figure id="fig10"><div class="plate"><div class="interactive" data-manual><h4>Attention weights with and without a padding mask</h4><div class="step-controls" role="group" aria-label="Figure 10 steps"><button type="button" data-prev>Previous</button><button type="button" data-step="0">1 · No mask</button><button type="button" data-step="1">2 · Padding mask</button><button type="button" data-next>Next</button></div><section class="step-panel" data-panel data-label="1 · No mask"><h4>1 · No mask</h4><div class="table-scroll"><table class="matrix"><thead><tr><th scope="col">Query ↓ / Key →</th><th scope="col"><code>I</code></th><th scope="col"><code>love</code></th><th scope="col"><code>&lt;pad&gt;</code></th></tr></thead><tbody><tr><th scope="row"><code>I</code></th><td>0.67</td><td>0.24</td><td>0.09</td></tr><tr><th scope="row"><code>love</code></th><td>0.17</td><td>0.77</td><td>0.06</td></tr><tr><th scope="row"><code>&lt;pad&gt;</code></th><td>0.33</td><td>0.33</td><td>0.33</td></tr></tbody></table></div><p class="step-explanation">In the <code>I</code> row, <code>&lt;pad&gt;</code> receives weight 0.09, leaving weights 0.67 and 0.24 for <code>I</code> and <code>love</code>.</p></section><section class="step-panel" data-panel data-label="2 · Padding mask"><h4>2 · Padding mask</h4><div class="table-scroll"><table class="matrix"><thead><tr><th scope="col">Query ↓ / Key →</th><th scope="col"><code>I</code></th><th scope="col"><code>love</code></th><th scope="col"><code>&lt;pad&gt;</code></th></tr></thead><tbody><tr><th scope="row"><code>I</code></th><td>0.73</td><td>0.27</td><td class="blocked">0.00</td></tr><tr><th scope="row"><code>love</code></th><td>0.18</td><td>0.82</td><td class="blocked">0.00</td></tr><tr><th scope="row"><code>&lt;pad&gt;</code></th><td>0.50</td><td>0.50</td><td class="blocked">0.00</td></tr></tbody></table></div><p class="step-explanation">The <code>I</code> row becomes (0.73, 0.27, 0.00). Here 0.00 is an attention weight: the padding Value contributes nothing to the weighted sum.</p></section><p class="figure-note">Displayed weights are rounded; each unrounded row sums to 1.</p><p class="step-status" aria-live="polite"></p></div></div><figcaption><b>Figure 10.</b> Padding changes softmax even when its Value vector is zero. Excluding its Key restores the weights on the real positions.</figcaption></figure>
+<p>The weights on <code>I</code> and <code>love</code> in the first two rows now match those for the two-token sentence without padding.</p>
+<p>The <code>&lt;pad&gt;</code> column now has zero attention weight. Why does the <code>&lt;pad&gt;</code> row still contain nonzero weights?</p>
+<p>The mask blocks the padding position as a Key; it does not remove the Query at that position. The <code>&lt;pad&gt;</code> Query row is still computed and can read <code>I</code> and <code>love</code>. Its weights are \((0.50,0.50,0)\), so its attention output is:</p>
+\[ \mathbf z_{\text{pad}}=0.50\mathbf v_I+0.50\mathbf v_{\text{love}}. \]
+<p>With Part 1’s Values, \(\mathbf v_I=(1,1,0,0)\) and \(\mathbf v_{\text{love}}=(2,0,0,1)\), this gives \((1.5,0.5,0,0.5)\). The output at the padding position is not zero, even though the padding column has been masked.</p>
+<p>The padding row can therefore become nonzero, so source padding must remain masked wherever this row can be read: in every later encoder block, and in decoder cross-attention, because the source memory \(\mathbf C\) still contains the row. <a href="#s86">Section 8.6</a> lists the mask for every attention sublayer, including target padding.</p>
+<p>Here we are masking <b>source padding</b> in attention. <a href="./TTNN-Part9-Training.html#s932">Part 9, Section 9.3.2</a> discusses <b>target padding</b> and which decoder prediction positions are excluded from the training loss.</p>
+<p>In our batch, <code>I love LLMs</code> has no padding column to block, while <code>I love &lt;pad&gt;</code> needs column 3 blocked. These two examples therefore use different padding masks.</p>
+<blockquote class="takeaway"><b>Key takeaway</b>A zero Value does not prevent its score from affecting softmax. Mask padding columns before softmax; this does not automatically zero the outputs at padding Query positions.</blockquote>
+<p><b>Try it:</b> Apply softmax to <code>love</code>’s unmasked scores \((1,2.5,0)\). Compare the approximate weights \((0.17,0.77,0.06)\) with the masked weights \((0.18,0.82,0)\).</p>
+
+<h2 id="s86"><span class="num">8.6</span>Choose the mask for each attention sublayer</h2>
+<p>We have used a causal mask in decoder self-attention and a padding mask in encoder self-attention. We now bring these together and identify which restrictions each attention sublayer needs.</p>
+<p>Figure 11 answers two questions for each attention sublayer:</p>
+<ul><li>Must a Query be prevented from reading later target positions?</li><li>Which Key positions are padding?</li></ul>
+<figure id="fig11"><div class="plate"><div class="table-scroll"><table class=""><thead><tr><th scope="col">Attention sublayer</th><th scope="col">Queries projected from</th><th scope="col">Keys and Values projected from</th><th scope="col">Mask restrictions</th></tr></thead><tbody><tr><th scope="row">Encoder self-attention</th><td>Encoder block input</td><td>Same encoder block input</td><td>Source padding</td></tr><tr><th scope="row">Decoder self-attention</th><td>Decoder block input</td><td>Same decoder block input</td><td>Later target positions + target padding</td></tr><tr><th scope="row">Cross-attention</th><td>Decoder state \(\mathbf D\)</td><td>Source memory \(\mathbf C\)</td><td>Source padding</td></tr></tbody></table></div></div><figcaption><b>Figure 11.</b> Each attention sublayer excludes padding Key positions. Decoder self-attention also excludes later target positions.</figcaption></figure>
+<p>Encoder self-attention may use all non-padding source positions. The complete source sentence is available before decoding begins, so cross-attention may read all of them as well. Even target position 1 may attend to <code>I</code>, <code>love</code> and <code>LLMs</code>: these are source positions, not future target positions.</p>
+<p>In cross-attention, the Queries come from the decoder, but the Keys and Values come from the source memory \(\mathbf C\). Its padding mask therefore blocks source-padding columns. For the projections from \(\mathbf D\) and \(\mathbf C\), see <a href="./TTNN-Part7-Cross-Attention.html#s74">Part 7, Section 7.4</a>.</p>
+<p>For decoder inputs padded to the same length, the causal triangle is the same, but the padding columns can differ between examples. Each example combines that shared causal pattern with its own padding mask.</p>
+<p>To see both masks in one example, take the five-position prefix from <a href="#s84">Section 8.4</a> and append one padding position: <code>&lt;start&gt; J’aime les grands modèles &lt;pad&gt;</code>. Imagine placing this sequence in a batch whose target inputs have six positions. The first five tokens belong to the prefix; <code>&lt;pad&gt;</code> only fills the extra position. Figure 12 shows how to combine the restrictions.</p>
+<p>Consider three Query–Key pairs in this input:</p>
+<ul>
+<li><b>\((1,2)\):</b> The causal mask blocks the connection from <code>&lt;start&gt;</code> to the later token <code>J’aime</code>.</li>
+<li><b>\((1,6)\):</b> position 6 is both later than position 1 and a padding position. Both masks block this pair.</li>
+<li><b>\((6,6)\):</b> the causal mask allows a position to read itself, but the padding mask blocks the <code>&lt;pad&gt;</code> Key.</li>
+</ul>
+<p>In this right-padded example, the causal mask already blocks the padding column for the five real Query positions. The padding mask additionally blocks the padding Query from reading its own Key, at \((6,6)\). The example shows how the two restrictions combine.</p>
+<p>Follow these outlined entries through Figure 12. Their labels give the Query row and Key column.</p>
+<figure id="fig12"><div class="plate"><div class="interactive" data-manual><h4>Combine causal and padding restrictions</h4><div class="step-controls" role="group" aria-label="Figure 12 steps"><button type="button" data-prev>Previous</button><button type="button" data-step="0">1 · Causal mask</button><button type="button" data-step="1">2 · Padding mask</button><button type="button" data-step="2">3 · Combined mask</button><button type="button" data-next>Next</button></div><section class="step-panel" data-panel data-label="1 · Causal mask"><h4>1 · Causal mask</h4><div class="table-scroll"><table class="matrix"><thead><tr><th scope="col">Query ↓ / Key →</th><th scope="col"><code>&lt;start&gt;</code></th><th scope="col"><code>J’aime</code></th><th scope="col"><code>les</code></th><th scope="col"><code>grands</code></th><th scope="col"><code>modèles</code></th><th scope="col"><code>&lt;pad&gt;</code></th></tr></thead><tbody><tr><th scope="row"><code>&lt;start&gt;</code></th><td>0</td><td class="blocked mask-focus">−∞<small class="mask-coordinate">(1,2)</small></td><td class="blocked">−∞</td><td class="blocked">−∞</td><td class="blocked">−∞</td><td class="blocked mask-focus">−∞<small class="mask-coordinate">(1,6)</small></td></tr><tr><th scope="row"><code>J’aime</code></th><td>0</td><td>0</td><td class="blocked">−∞</td><td class="blocked">−∞</td><td class="blocked">−∞</td><td class="blocked">−∞</td></tr><tr><th scope="row"><code>les</code></th><td>0</td><td>0</td><td>0</td><td class="blocked">−∞</td><td class="blocked">−∞</td><td class="blocked">−∞</td></tr><tr><th scope="row"><code>grands</code></th><td>0</td><td>0</td><td>0</td><td>0</td><td class="blocked">−∞</td><td class="blocked">−∞</td></tr><tr><th scope="row"><code>modèles</code></th><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td class="blocked">−∞</td></tr><tr><th scope="row"><code>&lt;pad&gt;</code></th><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td class="mask-focus">0<small class="mask-coordinate">(6,6)</small></td></tr></tbody></table></div><p class="step-explanation">Entries (1,2) and (1,6) block later Key positions. Entry (6,6) is on the diagonal, so the causal mask allows it.</p></section><section class="step-panel" data-panel data-label="2 · Padding mask"><h4>2 · Padding mask</h4><div class="table-scroll"><table class="matrix"><thead><tr><th scope="col">Query ↓ / Key →</th><th scope="col"><code>&lt;start&gt;</code></th><th scope="col"><code>J’aime</code></th><th scope="col"><code>les</code></th><th scope="col"><code>grands</code></th><th scope="col"><code>modèles</code></th><th scope="col"><code>&lt;pad&gt;</code></th></tr></thead><tbody><tr><th scope="row"><code>&lt;start&gt;</code></th><td>0</td><td class="mask-focus">0<small class="mask-coordinate">(1,2)</small></td><td>0</td><td>0</td><td>0</td><td class="blocked mask-focus">−∞<small class="mask-coordinate">(1,6)</small></td></tr><tr><th scope="row"><code>J’aime</code></th><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td class="blocked">−∞</td></tr><tr><th scope="row"><code>les</code></th><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td class="blocked">−∞</td></tr><tr><th scope="row"><code>grands</code></th><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td class="blocked">−∞</td></tr><tr><th scope="row"><code>modèles</code></th><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td class="blocked">−∞</td></tr><tr><th scope="row"><code>&lt;pad&gt;</code></th><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td class="blocked mask-focus">−∞<small class="mask-coordinate">(6,6)</small></td></tr></tbody></table></div><p class="step-explanation">Entries (1,6) and (6,6) block the padding Key in column 6. Entry (1,2) is allowed because <code>J’aime</code> is not padding.</p></section><section class="step-panel" data-panel data-label="3 · Combined mask"><h4>3 · Combined mask</h4><div class="table-scroll"><table class="matrix"><thead><tr><th scope="col">Query ↓ / Key →</th><th scope="col"><code>&lt;start&gt;</code></th><th scope="col"><code>J’aime</code></th><th scope="col"><code>les</code></th><th scope="col"><code>grands</code></th><th scope="col"><code>modèles</code></th><th scope="col"><code>&lt;pad&gt;</code></th></tr></thead><tbody><tr><th scope="row"><code>&lt;start&gt;</code></th><td>0</td><td class="blocked mask-focus">−∞<small class="mask-coordinate">(1,2)</small></td><td class="blocked">−∞</td><td class="blocked">−∞</td><td class="blocked">−∞</td><td class="blocked mask-focus">−∞<small class="mask-coordinate">(1,6)</small></td></tr><tr><th scope="row"><code>J’aime</code></th><td>0</td><td>0</td><td class="blocked">−∞</td><td class="blocked">−∞</td><td class="blocked">−∞</td><td class="blocked">−∞</td></tr><tr><th scope="row"><code>les</code></th><td>0</td><td>0</td><td>0</td><td class="blocked">−∞</td><td class="blocked">−∞</td><td class="blocked">−∞</td></tr><tr><th scope="row"><code>grands</code></th><td>0</td><td>0</td><td>0</td><td>0</td><td class="blocked">−∞</td><td class="blocked">−∞</td></tr><tr><th scope="row"><code>modèles</code></th><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td class="blocked">−∞</td></tr><tr><th scope="row"><code>&lt;pad&gt;</code></th><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td class="blocked mask-focus mask-added">−∞<small class="mask-coordinate">(6,6)</small></td></tr></tbody></table></div><p class="step-explanation">All three outlined entries are forbidden. Only (6,6) is newly blocked compared with the causal mask: 0 + (−∞) = −∞. At (1,6), both masks forbid the pair.</p></section><p class="step-status" aria-live="polite"></p></div></div><figcaption><b>Figure 12.</b> Our five-position target prefix is right-padded to six positions. Adding the two masks excludes a pair whenever either restriction forbids it.</figcaption></figure>
+<p>Figure 12 combines the restrictions: a pair is forbidden if either mask forbids it. With 0 and \(-\infty\) as mask entries, we implement this by addition:</p>
+\[ \mathbf M=\mathbf M_{\text{causal}}+\mathbf M_{\text{pad}}. \]
+<p>An entry is 0 only when both masks allow it. If either mask contributes \(-\infty\), the combined entry is \(-\infty\).</p>
+<p>Add this combined mask to the scaled score matrix, then apply softmax separately to each row.</p>
+
+<p>The <code>&lt;pad&gt;</code> Query row remains: it can read positions 1 through 5, as in <a href="#s852">Section 8.5.2</a>.</p>
+<details class="supplement"><summary>Implementation note: mask shape and representation</summary><p>We display a mask with the same shape as the score matrix. Software may broadcast a smaller mask, reusing its entries along compatible dimensions. A causal mask can be shared across examples with the same position layout. Padding masks must still reflect the padding positions in each example. An API may also accept a boolean mask instead of additive values. Follow that API’s convention for which boolean value means “allowed.”</p></details>
+<p><b>Try it:</b> A decoder input has five real positions followed by three padding positions. In its <span class="shape">8 × 8</span> combined mask, how many Query–Key pairs are blocked?</p>
+<details class="supplement"><summary>Check your count</summary><p>The causal triangle covers \(8\times7/2=28\) entries. The padding mask adds 1 new entry in row 6, 2 in row 7 and 3 in row 8. The union therefore covers \(28+1+2+3=34\) of the 64 entries.</p></details>
+<blockquote class="takeaway"><b>Key takeaway</b>Encoder self-attention and cross-attention exclude source padding. Decoder self-attention excludes later target positions and target padding. Combine the two restrictions before softmax.</blockquote>
+
+<h2 id="s8next"><span class="num">Next</span>Use the masks during training</h2>
+<p>We have seen which connections the masks block and how that changes attention. <a href="./TTNN-Part9-Training.html">Part 9</a> starts with a known translation, pairs each decoder input position with the token it should predict, and explains why causal masking is needed for those predictions. It then shows how the predictions are evaluated and how training updates the model’s parameters.</p>
+<p><a href="./TTNN-Part10-Generation.html">Part 10</a> returns to inference, including token selection and KV caching. <a href="#s842">Section 8.4.2</a> explains why earlier Keys and Values can be reused.</p>
+<footer>The Transformer, Number by Number &nbsp;&#183;&nbsp; Part 8.<br>Continues from Part 7, Where the Encoder Stack Meets the Decoder Stack.<br>Next: Part 9, Training. Figures 1–12 use the same running example. Interactive figures advance only when you use their controls.</footer>
+
+</main>
+  </div>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"
+    integrity="sha384-XjKyOOlGwcjNTAIQHIpgOno0Hl1YQqzUOEleOLALmuqehneUG+vnGctmUb0ZY0l8"
+    crossorigin="anonymous"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+    integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05"
+    crossorigin="anonymous"></script>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      if (window.renderMathInElement) {
+        renderMathInElement(document.body, {
+          delimiters: [
+            { left: "\\[", right: "\\]", display: true },
+            { left: "$$", right: "$$", display: true },
+            { left: "\\(", right: "\\)", display: false },
+            { left: "$", right: "$", display: false }
+          ],
+          ignoredTags: ["script", "noscript", "style", "textarea", "pre", "code", "option"],
+          throwOnError: false
+        });
+      }
+
+      var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+      var targets = links
+        .map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); })
+        .filter(Boolean);
+
+      var obs = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (!e.isIntersecting) return;
+          links.forEach(function (a) {
+            a.classList.toggle("on", a.getAttribute("href") === "#" + e.target.id);
+          });
+        });
+      }, { rootMargin: "0px 0px -70% 0px", threshold: 0 });
+
+      targets.forEach(function (t) { obs.observe(t); });
+    });
+  </script>
+
+
+
+<script>
+document.querySelectorAll('[data-manual]').forEach(function (figure) {
+  var panels = Array.from(figure.querySelectorAll('[data-panel]'));
+  var steps = Array.from(figure.querySelectorAll('[data-step]'));
+  var current = 0;
+  function show(index) {
+    current = Math.max(0, Math.min(panels.length - 1, index));
+    panels.forEach(function (panel, i) { panel.hidden = i !== current; });
+    steps.forEach(function (button, i) { button.setAttribute('aria-pressed', String(i === current)); });
+    figure.querySelector('[data-prev]').disabled = current === 0;
+    figure.querySelector('[data-next]').disabled = current === panels.length - 1;
+    figure.querySelector('.step-status').textContent = 'Step ' + (current + 1) + ' of ' + panels.length + ' · ' + panels[current].dataset.label;
+  }
+  steps.forEach(function (button) { button.addEventListener('click', function () { show(Number(button.dataset.step)); }); });
+  figure.querySelector('[data-prev]').addEventListener('click', function () { show(current - 1); });
+  figure.querySelector('[data-next]').addEventListener('click', function () { show(current + 1); });
+  show(0);
+});
+</script>
+
+</body>
+
+</html>
