@@ -893,14 +893,43 @@ tbody th { font-family:inherit; font-size:inherit; font-weight:400; color:var(--
 <p>Follow only the <code>I</code> row. Padding <code>I love</code> to <code>I love &lt;pad&gt;</code> should preserve the attention output at <code>I</code>. Entries below follow the order <code>I</code>, <code>love</code>, then <code>&lt;pad&gt;</code> when present.</p>
 <aside class="gloss"><b>One row at a time.</b> The row fixes the Query at <code>I</code>; the columns identify the Keys it is compared with. The resulting weights multiply the corresponding Value vectors.</aside>
 <h4>1 · Without padding</h4>
-<p>The scaled scores in the <code>I</code> row are \((2,1)\). The full calculation is available below.</p>
+<p>The scaled scores in the <code>I</code> row are \((2,1)\).</p>
+<details class="supplement"><summary>Calculate the two scores: 2 and 1</summary>
+<p>Using the vectors from <a href="./TTNN-Part1-Self-Attention.html#s12">Part 1, Section 1.2</a>:</p>
+\[ \mathbf q_I=(2,1,0,0),\qquad
+\mathbf k_I=(2,0,1,0),\qquad
+\mathbf k_{\text{love}}=(0,2,0,1). \]
+\[ d_k=4,\qquad \sqrt{d_k}=2. \]
+\[ \begin{aligned}
+s_{I,I}&amp;=\frac{\mathbf q_I\mathbf k_I^\top}{\sqrt{d_k}}
+=\frac{2\cdot2+1\cdot0+0\cdot1+0\cdot0}{2}=2,\\
+s_{I,\text{love}}&amp;=\frac{\mathbf q_I\mathbf k_{\text{love}}^\top}{\sqrt{d_k}}
+=\frac{2\cdot0+1\cdot2+0\cdot0+0\cdot1}{2}=1.
+\end{aligned} \]
+</details>
 \[ \operatorname{softmax}(2,1)
 =\frac{(e^2,e^1)}{e^2+e^1}
 \approx(0.73,0.27). \]
 \[ \mathbf z_I^{\text{original}}
 \approx0.73\mathbf v_I+0.27\mathbf v_{\text{love}}. \]
 <h4>2 · Add a zero padding position</h4>
-<p>With our zero padding embedding, omitted positional encoding and zero projection biases, the added score is 0 and \(\mathbf v_{\text{pad}}=\mathbf 0\):</p>
+<p>With our zero padding embedding, omitted positional encoding and zero projection biases, the added score is 0 and \(\mathbf v_{\text{pad}}=\mathbf 0\).</p>
+<details class="supplement"><summary>Calculate the three scores: 2, 1 and 0</summary>
+<p>The existing Query and Keys stay unchanged. The padding position adds a zero Key:</p>
+\[ \mathbf q_I=(2,1,0,0),\qquad \sqrt{d_k}=2. \]
+\[ \mathbf k_I=(2,0,1,0),\qquad \mathbf k_{\text{love}}=(0,2,0,1). \]
+\[ \mathbf k_{\text{pad}}=\mathbf x_{\text{pad}}\mathbf W^K
+=\mathbf 0\mathbf W^K=(0,0,0,0). \]
+\[ \begin{aligned}
+s_{I,I}&amp;=\frac{\mathbf q_I\mathbf k_I^\top}{\sqrt{d_k}}
+=\frac{2\cdot2+1\cdot0+0\cdot1+0\cdot0}{2}=2,\\
+s_{I,\text{love}}&amp;=\frac{\mathbf q_I\mathbf k_{\text{love}}^\top}{\sqrt{d_k}}
+=\frac{2\cdot0+1\cdot2+0\cdot0+0\cdot1}{2}=1,\\
+s_{I,\text{pad}}&amp;=\frac{\mathbf q_I\mathbf k_{\text{pad}}^\top}{\sqrt{d_k}}
+=\frac{2\cdot0+1\cdot0+0\cdot0+0\cdot0}{2}=0.
+\end{aligned} \]
+\[ (s_{I,I},s_{I,\text{love}},s_{I,\text{pad}})=(2,1,0). \]
+</details>
 \[ \operatorname{softmax}(2,1,0)
 =\frac{(e^2,e^1,1)}{e^2+e^1+1}
 \approx(0.67,0.24,0.09). \]
@@ -924,18 +953,13 @@ tbody th { font-family:inherit; font-size:inherit; font-weight:400; color:var(--
 </tbody></table></div></div><figcaption><b>Figure 7.</b> The padding mask restores the original weights on <code>I</code> and <code>love</code>. All three rows here describe the same position, <code>I</code>, under different conditions. Displayed weights are rounded.</figcaption></figure>
 <p>Apply the same rule to every row: add \(-\infty\) in the <code>&lt;pad&gt;</code> column and 0 elsewhere.</p>
 <aside class="gloss"><b>The padding row still exists.</b> Masking the <code>&lt;pad&gt;</code> column does not remove its row. In the full matrix below, that row has weights \((0.50,0.50,0)\), so its output need not be zero.</aside>
-<details class="supplement"><summary>Optional: verify the scores and full matrices</summary>
+<details class="supplement"><summary>Optional: verify the full matrices</summary>
 <p>Use the vectors from <a href="./TTNN-Part1-Self-Attention.html#s12">Part 1, Section 1.2</a>, with zero vectors at the padding position:</p>
 <div class="table-scroll"><table class="numeric"><thead><tr><th scope="col">Position</th><th scope="col">Query</th><th scope="col">Key</th></tr></thead><tbody>
 <tr><th scope="row"><code>I</code></th><td>\((2,1,0,0)\)</td><td>\((2,0,1,0)\)</td></tr>
 <tr><th scope="row"><code>love</code></th><td>\((1,2,0,1)\)</td><td>\((0,2,0,1)\)</td></tr>
 <tr><th scope="row"><code>&lt;pad&gt;</code></th><td>\((0,0,0,0)\)</td><td>\((0,0,0,0)\)</td></tr>
 </tbody></table></div>
-\[ \begin{aligned}
- s_{I,I}&amp;=\frac{(2)(2)+(1)(0)+(0)(1)+(0)(0)}{2}=2,\\
- s_{I,\text{love}}&amp;=\frac{(2)(0)+(1)(2)+(0)(0)+(0)(1)}{2}=1,\\
- s_{I,\text{pad}}&amp;=0.
-\end{aligned} \]
 <p>Both axes follow <code>I</code>, <code>love</code>, <code>&lt;pad&gt;</code>. Each row now represents a different position.</p>
 \[ \mathbf S_{\text{enc-self}}=\frac{\mathbf Q\mathbf K^\top}{2}
 =\begin{pmatrix}2&amp;1&amp;0\\1&amp;2.5&amp;0\\0&amp;0&amp;0\end{pmatrix},\qquad
